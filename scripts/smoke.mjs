@@ -10,6 +10,7 @@
 // that commit.
 // The whole check retries until the deadline, because the Pages CDN can lag.
 import { pathToFileURL } from 'node:url';
+import { scanText } from './bundlewords.mjs';
 
 const MIN_ASSET_BYTES = 50; // an empty stage chunk (a stage slot not built yet) is about 90 bytes; a cut-off or blank file is far less
 
@@ -46,6 +47,12 @@ export function extractAssets(html, pageUrl) {
 
 export function hasAppRoot(html) {
   return /\bid\s*=\s*["']?app["']?[\s>]/i.test(html);
+}
+
+// The files that must say nothing of the series, as served: what the page, its scripts and styles,
+// and the manifest say (the family's words are sealed; scripts/bundlewords.mjs has the list).
+export function wordProblems(kind, url, text) {
+  return scanText(text).map((o) => `${kind} ${url}: says something only the family set may say (${o})`);
 }
 
 // Is a served content type believable for this kind of file?
@@ -118,7 +125,10 @@ export async function runChecks({ base, commit }, log = () => {}) {
       if (r.status !== 200) problems.push(`${kind} ${url}: HTTP ${r.status}`);
       else if (!contentTypeOk(kind, r.type)) problems.push(`${kind} ${url}: odd content type "${r.type}"`);
       else if (r.body.length < minBytes) problems.push(`${kind} ${url}: only ${r.body.length} bytes`);
-      else log(`ok  ${kind} ${url} (${r.body.length} bytes)`);
+      else {
+        log(`ok  ${kind} ${url} (${r.body.length} bytes)`);
+        if (/html|script|stylesheet|manifest|precache|modulepreload/.test(kind)) problems.push(...wordProblems(kind, url, r.body.toString('utf8')));
+      }
       return r;
     } catch (err) {
       problems.push(`${kind} ${url}: ${err.message}`);
@@ -164,6 +174,16 @@ export async function runChecks({ base, commit }, log = () => {}) {
         await check(listedKind(f), u);
       }
     }
+  }
+
+  // The family's own page left the public site (docs/family/ is private now): the old address must stay gone.
+  const old = new URL('clan-edition.html', base).href;
+  try {
+    const r = await get(old);
+    if (r.status !== 404) problems.push(`page ${old}: HTTP ${r.status}, expected 404 (the family page must not be public)`);
+    else log(`ok  ${old} is gone`);
+  } catch (err) {
+    problems.push(`page ${old}: ${err.message}`);
   }
 
   if (commit) {

@@ -137,6 +137,15 @@ export function cloudProblem(env, bundle) {
   return null;
 }
 
+/**
+ * The reason to refuse an app build, or null: `offences` is what scripts/bundlewords.mjs found in
+ * ios/web. The app must hold the everyday words only, as the website does; any offence takes the
+ * last-good path like any other failed step.
+ */
+export function wordsProblem(offences) {
+  return Array.isArray(offences) && offences.length > 0 ? 'family words in the app build' : null;
+}
+
 /** The website's deploy workflow, which runs every test before it deploys. */
 export const CI_WORKFLOW = 'deploy.yml';
 

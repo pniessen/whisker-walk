@@ -112,6 +112,11 @@ jobs:
           cache: npm
       - if: steps.stale.outputs.stale != 'true'
         run: npm ci
+      # The family's word set is sealed in src/seriesvault.js: refuse a vault no code opens or one that is
+      # older than the words it holds (needs no secret; scripts/series.mjs).
+      - if: steps.stale.outputs.stale != 'true'
+        name: Check the family word set is sealed and current
+        run: node scripts/series.mjs verify
       - if: steps.stale.outputs.stale != 'true'
         run: npm run build
         env:

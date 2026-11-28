@@ -9,6 +9,7 @@ import { execSync } from 'node:child_process';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { AREA_ENTRY_MODULES } from '../src/world/areas.js';
+import { scanDir } from './bundlewords.mjs';
 
 export function buildInfo(env = process.env, now = new Date()) {
   let commit = env.GITHUB_SHA || '';
@@ -222,6 +223,14 @@ export const WALK_GZIP_CEILING_KB = 30;
 export const TELE_ENTRY_MODULES = { tele: ['src/teleport.js'], suit: ['src/cat/suitkit.js'] };
 export const TELE_GZIP_CEILING_KB = 30;
 
+/** One line per word in the built files that only the family's set may say (scripts/bundlewords.mjs), at most `limit`. */
+export function wordProblems(dir, limit = 20) {
+  const found = scanDir(dir);
+  if (!found.length) return [];
+  const shown = found.slice(0, limit).map((f) => `  ${f}`).join('\n');
+  return [`The built files say ${found.length} thing(s) only the family's word set may say (the family's words are sealed in src/seriesvault.js, never in a public file):\n${shown}${found.length > limit ? '\n  ...' : ''}`];
+}
+
 const gzipOf = (dir, file) => gzipSync(readFileSync(join(dir, file))).length;
 
 if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
@@ -231,6 +240,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).
   console.log(`wrote ${dir}/build.json`);
   const manifest = JSON.parse(readFileSync(join(dir, '.vite', 'manifest.json'), 'utf8'));
   const problems = [...lazyProblems(manifest), ...lazyProblems(manifest, TV_ENTRY_MODULES), ...lazyProblems(manifest, CAT_ENTRY_MODULES), ...lazyProblems(manifest, FRESH_ENTRY_MODULES), ...lazyProblems(manifest, COOP_ENTRY_MODULES), ...lazyProblems(manifest, WALK_ENTRY_MODULES), ...lazyProblems(manifest, TELE_ENTRY_MODULES)];
+  problems.push(...wordProblems(dir));
   const start = startupFiles(manifest);
   const startBytes = start.reduce((n, f) => n + gzipOf(dir, f), 0);
   const startProblem = sizeProblem(startBytes);
