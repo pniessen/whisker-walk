@@ -44,7 +44,7 @@ export const WORDS = [
 ];
 
 // No O, 0, I, 1 or L, so the last four characters can be read aloud safely.
-const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+export const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
 function defaultRng() {
   return crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32;
@@ -53,7 +53,7 @@ function defaultRng() {
 export function inventCode(rng = defaultRng) {
   const pick = (list) => list[Math.floor(rng() * list.length)];
   let tail = '';
-  for (let i = 0; i < 4; i++) tail += pick(ALPHABET);
+  for (let i = 0; i < 4; i++) tail += pick(CODE_ALPHABET);
   return `${pick(WORDS)}-${pick(WORDS)}-${tail}`;
 }
 

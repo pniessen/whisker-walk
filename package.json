@@ -17,6 +17,9 @@
     "build:ios": "vite build --mode ios",
     "build:family": "vite build --mode family",
     "preview:family": "vite preview --host --outDir dist-family",
+    "series:init": "node scripts/series.mjs init",
+    "series:code": "node scripts/series.mjs code",
+    "series:seal": "node scripts/series.mjs seal",
     "ios:refresh": "node ios/refresh.mjs",
     "ios:schedule": "node ios/schedule.mjs"
   },
