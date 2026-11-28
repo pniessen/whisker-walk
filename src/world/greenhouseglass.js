@@ -249,6 +249,7 @@ export const CAT_NEAR = { value: new THREE.Vector4(0, 0, 0, 0) };
 export const RAIN_ON = { value: 0 };
 // beauty pass 4: winter frost on the pane edges and low on the glass (0 in every other season; greenhouselife.js sets it once a walk)
 export const FROST = { value: 0 };
+export const DAPPLE_FX = { sun: { value: 0 }, wet: { value: 0 } };
 export function condensation(material, quality = 'high') {
   if (quality === 'low') return material;
   const runnels = quality === 'high';
@@ -298,9 +299,9 @@ ${runnels ? `    vec2 col = vec2(floor(q.x / 0.7), 0.0);
     if (uRain > 0.01) {
       float rc = floor(q.x / 0.24);
       float rk = cH(vec2(rc, 41.0));
-      if (rk < 0.7 * uRain) {
+      if (rk < 0.92 * uRain) {
         float rx = (rc + 0.2 + 0.6 * cH(vec2(rc, 43.0))) * 0.24;
-        float rph = fract(cH(vec2(rc, 47.0)) + uCondTime * (0.03 + 0.05 * rk));
+        float rph = fract(cH(vec2(rc, 47.0)) + uCondTime * (0.03 + 0.05 * rk) * (1.0 + 0.6 * uRain));
         float rhead = 11.0 * (1.0 - rph);
         float rt = clamp((q.y - rhead) / 1.4, 0.0, 1.0);
         streak = (1.0 - smoothstep(0.02, 0.045, abs(q.x - rx))) * (1.0 - rt) * step(rhead, q.y) * step(q.y, rhead + 1.4) + (1.0 - smoothstep(0.04, 0.07, length(vec2(q.x - rx, (q.y - rhead) * 0.8))));
@@ -323,7 +324,7 @@ ${runnels ? `    vec2 col = vec2(floor(q.x / 0.7), 0.0);
   }
 }`);
   };
-  material.customProgramCacheKey = () => `greenhouse-condensation-${runnels ? 'r' : 'b'}-v4`;
+  material.customProgramCacheKey = () => `greenhouse-condensation-${runnels ? 'r' : 'b'}-v5`;
   return material;
 }
 
@@ -426,7 +427,26 @@ export function dappleQuad(h, { size = 64, name = 'glassDapple' } = {}) {
   tex.repeat.set(Math.round(w / 2), Math.round(d / 2));
   const g = new THREE.PlaneGeometry(w, d);
   g.rotateX(-Math.PI / 2);
-  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, fog: true, polygonOffset: true, polygonOffsetFactor: -1 }));
+  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, fog: true, polygonOffset: true, polygonOffsetFactor: -1 });
+  // beauty pass 6: the floor's light follows the weather. A sun burst throws crisp window-pane squares of light, rain lets it through in
+  // wobbly caustics (DAPPLE_FX, set by greenhouseweather.js; both 0 = the old lattice, untouched)
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uSun = DAPPLE_FX.sun; sh.uniforms.uWet = DAPPLE_FX.wet; sh.uniforms.uT = COND_TIME;
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vDW;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvDW = (modelMatrix * vec4(position, 1.0)).xz;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uSun;\nuniform float uWet;\nuniform float uT;\nvarying vec2 vDW;')
+      .replace('#include <map_fragment>', `#include <map_fragment>
+{
+  vec2 f = fract(mat2(0.94, -0.34, 0.34, 0.94) * vDW / 1.35 + vec2(uT * 0.003, uT * 0.002));
+  float sq = step(0.1, min(f.x, f.y)) * step(f.x, 0.9) * step(f.y, 0.9);
+  vec2 w = vDW * 1.7;
+  float cau = pow(clamp(0.5 + 0.5 * sin(w.x * 2.0 + sin(w.y * 1.7 + uT * 1.1) * 1.6 + uT * 0.9) * sin(w.y * 2.3 + sin(w.x * 1.9 - uT * 0.8) * 1.5 - uT * 0.7), 0.0, 1.0), 3.0);
+  vec3 lit = mix(vec3(1.0, 0.9, 0.45), vec3(0.86, 0.96, 1.0), uWet);
+  diffuseColor.rgb = mix(diffuseColor.rgb, mix(vec3(0.38, 0.3, 0.2), lit, max(sq, uWet)), clamp(uSun + uWet, 0.0, 1.0));
+  diffuseColor.a = mix(mix(diffuseColor.a, 0.1 + sq * 0.72, uSun), cau * 0.85, uWet);
+}`);
+  };
+  mat.customProgramCacheKey = () => 'greenhouse-dapple-v2';
+  const m = new THREE.Mesh(g, mat);
   m.position.set((h.x0 + h.x1) / 2, 0.05, (h.z0 + h.z1) / 2);
   m.name = name;
   m.userData.noCast = true;
@@ -626,7 +646,7 @@ float mN(vec2 q) { vec2 i = floor(q), f = fract(q); vec2 u = f * f * (3.0 - 2.0 
   if (vMistA.x > 1.5) {
     // a lamp's halo: a warm soft disc, a little unsteady
     float r = length(vMistUv - 0.5) * 2.0;
-    a = (pow(max(0.0, 1.0 - r), 2.4) * 0.85 + 0.5 * pow(max(0.0, 1.0 - r * 3.2), 2.0)) * (0.92 + 0.08 * sin(uTime * 2.3 + vMistA.w)) * (1.0 + 0.55 * uWarm);
+    a = (pow(max(0.0, 1.0 - r), 2.4) * 0.85 + 0.5 * pow(max(0.0, 1.0 - r * 3.2), 2.0)) * (0.92 + 0.08 * sin(uTime * 2.3 + vMistA.w)) * (1.0 + 1.0 * uWarm);
     diffuseColor.rgb = mix(vMistC, vec3(1.0, 0.6, 0.2), uWarm * 0.6);
   } else if (vMistA.x > 0.5) {
     // a drip's wet patch and two rings widening and fading
