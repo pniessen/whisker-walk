@@ -147,6 +147,7 @@ export function handleFairEvent(e, ctx) {
       else if (e.bed === 'farm') { if ((e.n ?? 0) % 2) audio.cluck?.(v * 0.5); else audio.moo?.(v * 0.45); }
       break;
     }
+    case 'golden': audio.findChime?.(); break; // standing still at a vista: a soft chime to invite a photo (the sparkles are the fair's own)
     case 'lucky': audio.findChime?.(); audio.chime?.(); break; // the lucky bulb turns gold
     case 'ride-whoosh': audio.crowdMurmur?.(e.volume * 0.7); break; // the air of a ride going by: the same soft noise swell
     case 'ride':
