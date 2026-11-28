@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Treehouse beauty picture page, pass 4</title>
+<!-- The Treehouse village, picture page for beauty pass 4 (2026-11-28): the REAL build and life. NOT in the game's page. Extra params: season=spring|summer|autumn|winter (default: the real date), surprise=lanterns|rainbow|owl|heart (forced, starting 1 s in), adv=seconds to run the life (unrendered) before the shot, dusk=1 (dusk look). Contact sheet treehouse-beauty4-pics/contact-pass4-before-after.png (4 x 5 tiles, left to right): row 1 BEFORE (main, play1-play4); row 2 AFTER on the default date; row 3 spring, summer, autumn, winter at play2; row 4 rainbow (surprise=rainbow&adv=12, play1), firefly heart (surprise=heart&adv=5, play2), paper lanterns (surprise=lanterns&adv=19, play1), message board close-up; row 5 Bookshop window, Bell Tower rope and feathers, high bridge flags and kite, hammock quilt. Extra shots: tales set bake1 books1 board1 rope1 ham1 bridge1 tele1 feather1.
+     URL params: size=WxH (default 960x540), tier=high|low|lite, old=1 (the plain rim, ferns and canopy, no round-two nature or grass: the 'before'). window.__shot(name) with scripts/record-page.mjs.
+     Shots: spawn path bakery books crown rim beams phone, and the play-camera set play1..play5 (pass 2). -->
+<style>html,body{margin:0;background:#2a1a30;overflow:hidden}canvas{position:fixed;left:0;top:0;display:block}</style>
+</head>
+<body>
+<script type="module">
+  import * as THREE from 'three';
+  import { buildEnvMap } from '/src/render/materials.js';
+  import { setTextureTier } from '/src/render/textures.js';
+  import { createSun, createFill, SUN_BIAS, assignShadowCasters } from '/src/render/rig.js';
+  import { createShadowFit } from '/src/render/shadowfit.js';
+  import { buildCat } from '/src/cat/model.js';
+  import { animateCat } from '/src/cat/animator.js';
+  import { facingYaw } from '/src/traversal.js';
+  import { applyDusk, duskEnv, tintDuskLawn } from '/src/render/dusk.js';
+  import { effectiveWear } from '/src/suithook.js';
+  import { mergeStaticProps } from '/src/render/mergeprops.js';
+  import { build } from '/src/world/treehouse.js';
+  import { ST, loadTreehouseStages } from '/src/world/treehousestages.js';
+  import * as K from '/src/world/treehouseparts.js';
+  import { drawBeauty } from '/src/world/treehousebeauty.js';
+  import { createProgression } from '/src/progression.js';
+  import { createDiscoveryLog } from '/src/discoveries.js';
+  import { createFx } from '/src/fx.js';
+
+  const params = new URLSearchParams(location.search);
+  const [W0, H0] = (params.get('size') || '960x540').split('x').map(Number);
+  const TIER = params.get('tier') || 'high';
+  const DT = 1 / 30;
+  const SEASON = params.get('season') || null; const SURPRISE = params.get('surprise') || null; const ADV = Number(params.get('adv') || 0); const DUSKY = params.get('dusk') === '1';
+  const tier = TIER === 'lite' ? { name: 'low', rung: 5, shadows: false, envIntensity: 0.3 } : TIER === 'low' ? { name: 'low', rung: 3, shadows: true, envIntensity: 0.3 } : { name: 'high', shadows: true, envIntensity: 0.3 };
+  let W = W0, H = H0;
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H); renderer.setPixelRatio(1);
+  renderer.shadowMap.enabled = tier.shadows; renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.95;
+  document.body.prepend(renderer.domElement);
+  setTextureTier(tier);
+  const scene = new THREE.Scene();
+  scene.environment = buildEnvMap(renderer);
+  scene.environmentIntensity = tier.envIntensity;
+  const sun = createSun(); scene.add(sun);
+  const fill = createFill(0x8d8c93); scene.add(fill);
+  await loadTreehouseStages();
+  if (params.get('old') === '1') ST.lift = Object.freeze({ draw: (kit, M) => { K.drawFerns(kit, M); K.drawRim(kit, M); K.drawCanopy(kit, M); drawBeauty(kit, M); } });
+  const area = build(scene);
+  const look = applyDusk({ scene, sun, fill, areaData: area });
+  tintDuskLawn({ ground: scene.children.filter((c) => c.isMesh && (c.userData.ground || c.userData.duskTint)), grass: null, look });
+  scene.environmentIntensity = duskEnv(scene.environmentIntensity, look);
+  const ground = area.ground;
+  const wear = effectiveWear({ collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null }, 'treehouse');
+  const cat = buildCat('tabby', wear); scene.add(cat);
+  const camera = new THREE.PerspectiveCamera(70, W / H, 0.1, 300);
+  const shadows = tier.shadows ? createShadowFit(sun, camera, { radius: 20, mapSize: tier.rung >= 3 ? 1024 : 2048 }) : null;
+  sun.shadow.bias = SUN_BIAS; sun.castShadow = tier.shadows;
+  assignShadowCasters(scene);
+  mergeStaticProps(scene);
+  const fx = createFx(scene, { reducedMotion: false });
+  const store = new Map();
+  const STEP = Number(params.get('step') ?? 2);
+  const progression = createProgression({ getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)), removeItem: (k) => store.delete(k) });
+  const log = createDiscoveryLog(progression); log.startWalk();
+  const player = { floatY: 0 };
+  const life = area.life({ roomSeed: 7, sendEvent: () => {}, scene, sun, fill, ground, reducedMotion: false, tier, progression, log, audio: null, doc: document, win: window, clock: () => 250, visits: 3, player, season: SEASON, surprise: SURPRISE, surpriseAt: 1, dusk: DUSKY, now: new Date(2026, 10, 28), weather: { condition: 'clear' } });
+  let t = 0;
+  const lookAt = (pos, tgt, fov = 70) => { camera.fov = fov; camera.updateProjectionMatrix(); camera.position.set(...pos); camera.lookAt(...tgt); };
+  let lock = null;
+  function frame() {
+    t += DT;
+    if (lock) lookAt(...lock);
+    life.update(DT, t, cat.position, camera, { hopLift: 0 });
+    fx.update(DT, camera);
+    animateCat(cat, 'idle', t, 0, false);
+    if (shadows) shadows.update(0, DT);
+    renderer.render(scene, camera);
+  }
+  const settle = (n) => { for (let i = 0; i < n; i++) frame(); };
+  const advance = (sec) => { for (let i = 0; i < sec * 30; i++) { t += DT; if (lock) lookAt(...lock); life.update(DT, t, cat.position, camera, { hopLift: 0 }); } };
+  let advanced = false;
+  const put = (x, z, fx_, fz_, lift = 0) => { cat.position.set(x, ground.y(x, z) + lift, z); cat.rotation.set(0, facingYaw(fx_, fz_), 0); };
+  const cam = (pos, tgt, fov = 70, size = null) => { if (size) { W = size[0]; H = size[1]; } else { W = W0; H = H0; } renderer.setSize(W, H); camera.aspect = W / H; lock = [pos, tgt, fov]; };
+  const S = {
+    spawn: [0, 25, 0, -1, 0, [3, 2.2, 30], [0, 2.2, 14], 68],
+    path: [-1, 17, 0, -1, 0, [-5, 2.0, 21], [-1, 1.5, 6], 68],
+    bakery: [-9, 15, 0, -1, 0, [-4.5, 2.0, 19.5], [-9.6, 2.6, 8], 62],
+    books: [10, 6, 0, -1, 0, [15, 2.4, 11], [10.4, 3.6, 0.4], 62],
+    crown: [0, -9, 0, -1, 0, [5, 3.0, -2], [0, 5.5, -17], 66],
+    rim: [-14, 4, 0, -1, 0, [-9, 1.8, 10], [-32, 4.5, -2], 68],
+    beams: [3, 18, 0, -1, 0, [5, 1.7, 26], [-2, 9.5, 0], 72],
+    // beauty pass 2 (2026-11-28): the PLAY camera, behind the cat at the walk's own zoom steps (1: 4.5 m back, 2.2 up; 2: 7 m back, 3.8 up), looking a little ahead
+    play1: ['p', 0, 23, 0, -1, 1], play2: ['p', -9.6, 12.8, 0, -1, 2], play3: ['p', 1.4, 7.8, 0.1, -1, 2], play4: ['p', 0, -11, 0, -1, 2], play5: ['p', -4, 18.5, -0.5, -1, 1],
+    // pass 4: the stories up close (cat, x, z, then the camera and the point it looks at)
+    bake1: [-8.4, 11.8, -0.5, -1, 0, [-13.4, 3.6, 13.2], [-10.7, 3.4, 9.1], 50],
+    books1: [8.2, 3.4, -0.5, -1, 0, [6.5, 4.2, 5.2], [9.0, 4.9, 1.6], 54],
+    board1: [7.6, 2.5, -1, 0, 0, [5.2, 4.4, 3.2], [8.6, 4.2, 0.6], 54],
+    rope1: [-1.2, -14, 0.3, -1, 0, [-1.6, 7.1, -9.8], [0.4, 7.9, -16.3], 56],
+    ham1: [7.4, -3.4, -1, 0, 0, [8.4, 5.6, -2.0], [5.5, 4.9, -5.9], 62],
+    bridge1: [5.2, -7.0, -0.5, -1, 0, [7.4, 7.4, -3.2], [3.4, 6.6, -10.8], 62],
+    tele1: [-2.2, -14.6, -1, 0, 0, [-0.8, 7.6, -10.9], [-3.6, 6.6, -16.2], 60],
+    feather1: [-1.2, -14.4, 0.3, -1, 0, [-0.5, 8.0, -9.4], [-1.7, 5.6, -15.4], 58],
+    phone: [0, 25, 0, -1, 0, [0, 2.6, 30], [0, 2.2, 14], 62, [390, 760]],
+  };
+  window.__shot = (name) => {
+    let s = S[name]; if (!s) throw new Error('no shot ' + name);
+    if (s[0] === 'p') {
+      const [, x, z, dx, dz, step] = s; const n = Math.hypot(dx, dz); const ux = dx / n; const uz = dz / n;
+      const [dist, hgt] = step === 1 ? [4.5, 2.2] : [7, 3.8];
+      const gy = ground.y(x, z);
+      s = [x, z, dx, dz, 0, [x - ux * dist, gy + hgt, z - uz * dist], [x + ux * 2, gy + 0.8, z + uz * 2], 62];
+    }
+    put(s[0], s[1], s[2], s[3], s[4]);
+    cam(s[5], s[6], s[7], s[8]);
+    if (!advanced) { advanced = true; if (ADV) advance(ADV); }
+    settle(30);
+    return name;
+  };
+  window.__stats = () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles });
+  window.__ready = true;
+</script>
+</body>
+</html>

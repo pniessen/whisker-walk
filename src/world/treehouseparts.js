@@ -75,7 +75,15 @@ export const pad = (n) => new THREE.CircleGeometry(1, n).rotateX(-Math.PI / 2);
 // A box with its centre at (x, y, z).
 export const slab = (x, y, z, w, h, d, hex, { yaw = 0, pitch = 0, jitter = 0 } = {}) => paint(placed(new THREE.BoxGeometry(w, h, d), x, y, z, { yaw, pitch }), hex, jitter);
 // A cylinder standing from y0 to y1.
-export const post = (x, z, y0, y1, r0, r1, hex, sides = 8, jitter = 0) => paint(placed(new THREE.CylinderGeometry(r1, r0, y1 - y0, sides), x, (y0 + y1) / 2, z), hex, jitter);
+// (Beauty pass 4: the underside cap is never seen, a post stands on something or hangs thin, so the index stops after the top cap: `sides` fewer triangles each.)
+export function postGeo(r0, r1, h, sides) {
+  const g = new THREE.CylinderGeometry(r1, r0, h, sides);
+  const keep = g.groups[1].start + g.groups[1].count; // the torso, then the top cap; the bottom cap is the last group
+  g.setIndex(Array.from(g.index.array).slice(0, keep));
+  g.clearGroups();
+  return g;
+}
+export const post = (x, z, y0, y1, r0, r1, hex, sides = 8, jitter = 0) => paint(placed(postGeo(r0, r1, y1 - y0, sides), x, (y0 + y1) / 2, z), hex, jitter);
 // A beam from (x0,y0,z0) to (x1,y1,z1), `t` thick.
 export function beam(x0, y0, z0, x1, y1, z1, t, hex, jitter = 0) {
   const dx = x1 - x0; const dy = y1 - y0; const dz = z1 - z0;
@@ -155,7 +163,7 @@ export function drawDecks(kit, M) {
   for (const k of P.DECKS) {
     const x0 = k.x - k.w / 2; const x1 = k.x + k.w / 2; const z0 = k.z - k.d / 2; const z1 = k.z + k.d / 2;
     kit.put('paint', M.paint, slab(k.x, k.y - P.DECK_THICK / 2, k.z, k.w, P.DECK_THICK, k.d, L.plank, { jitter: 1 }));
-    for (let i = 1; i < k.w; i++) kit.put('paint', M.paint, slab(x0 + i, k.y + 0.005, k.z, 0.03, 0.01, k.d, L.plankDark)); // plank seams
+    for (let i = 1; i < k.w; i++) kit.put('paint', M.paint, paint(placed(new THREE.PlaneGeometry(0.03, k.d).rotateX(-Math.PI / 2), x0 + i, k.y + 0.0105, k.z), L.plankDark)); // plank seams (flat strips: a box's sides and underside were never seen)
     for (const [x, z] of [[x0, z0], [x1, z0], [x0, z1], [x1, z1]]) kit.put('paint', M.paint, post(x, z, 0, k.y + P.RAIL_H, 0.22, 0.22, L.trunk, 7, 1)); // the stilts, carried up as the railing's corner posts
     // the railing; the front edge (the south side) keeps a gap of 2.4 m where the hops come in
     const o = EDGE_OPENS[k.id] ?? {};
@@ -182,7 +190,7 @@ function drawHut(kit, M, deck) {
     kit.put('glow', M.glow, slab(h.x, y + h.h * 0.62, h.z + h.r * 0.95 + 0.02, 0.7, 0.8, 0.04, L.glow), { noCast: true });
     return;
   }
-  kit.put('paint', M.paint, post(h.x, h.z, y, y + h.h, h.r, h.r, L.wall, 12, 1));
+  kit.put('paint', M.paint, paint(placed(new THREE.CylinderGeometry(h.r, h.r, h.h, 12, 1, true), h.x, y + h.h / 2, h.z), L.wall, 1)); // (its two end caps sit under the roof and on the deck: unseen)
   kit.put('paint', M.paint, paint(placed(new THREE.ConeGeometry(h.r + 0.45, 1.5, 12), h.x, y + h.h + 0.75, h.z), h.roof === 'thatch' ? L.thatch : L.shingle, 1));
   kit.put('paint', M.paint, slab(h.x + h.r * 0.2, y + 0.85, h.z + h.r - 0.02, 0.8, 1.7, 0.06, L.trunkDark)); // the door, on the deck's front side
   kit.put('glow', M.glow, slab(h.x - h.r * 0.55, y + h.h * 0.62, h.z + h.r * 0.82, 0.55, 0.55, 0.05, L.glow, { yaw: -0.5 }), { noCast: true });

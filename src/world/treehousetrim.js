@@ -157,7 +157,7 @@ export function drawTrim(kit, M) {
     [0.3, 0.42, 0.24, 0.36].forEach((len, i) => { const a = (i / 4) * TAU; lo(kit, M, paint(placed(new THREE.CylinderGeometry(0.012, 0.012, len, 4, 1, true), c.x + Math.cos(a) * 0.08, c.y - 0.45 - len / 2, c.z + Math.sin(a) * 0.08), 0xe0c070)); });
     lo(kit, M, paint(placed(new THREE.OctahedronGeometry(0.04, 0), c.x, c.y - 0.62, c.z, { sy: 1.4 }), 0xc8a050));
   }
-  for (const m of plan.moss) lo(kit, M, blob(m.x, m.y, m.z, m.s, 0x86b050, m.x * 3 + m.y, 0, 0.6));
+  for (const m of plan.moss) lo(kit, M, blob(m.x, m.y, m.z, m.s, 0x86b050, Math.abs((m.x * 3 + m.y) % 1), 0, 0.6)); // (a small jitter: the old unbounded one turned some of the moss black and some white)
   for (const t of plan.limbTufts) lo(kit, M, blob(t.x, t.y, t.z, t.s, t.hue < 0.5 ? L.leaf : L.leafLight, t.hue * 4, 0, 0.7));
 }
 

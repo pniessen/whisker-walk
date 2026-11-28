@@ -18,11 +18,11 @@ const fakeSky = () => {
 };
 
 describe('treehouse beauty pass 3', () => {
-  it('adds no mesh, caster or triangle: the whole frame is the 62,139-triangle one of pass 2', () => {
+  it('adds no mesh, caster or triangle: the whole frame is at most the 62,139-triangle one of pass 2 (pass 4 trimmed it below; treehousebeauty4.test.js pins the new number)', () => {
     const r = measureWithLife(build);
     expect(r.whole.meshes).toBe(23);
     expect(r.whole.casters).toBe(1);
-    expect(r.whole.triangles).toBe(62139);
+    expect(r.whole.triangles).toBeLessThanOrEqual(62139);
   });
 
   it('the shaders carry the flex, the shiver, the gust front, the cloud shade and the mist', () => {
