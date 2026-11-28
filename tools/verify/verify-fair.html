@@ -210,20 +210,28 @@
     'p4-flock': () => frameCat(0, 21, [0, 0]),
     'p4-lucky': () => frameCat(0.2, 28.5, [-1, 18]),
     'p4-tubs': () => frameCat(-14, 33, [-16.4, 30]),
+    // beauty pass 5: living creatures and a world that agrees with itself (pair with ?T= and ?mood=: see tools/verify/fair-beauty5.html)
+    'p5-gate': () => frameCat(0, 43.5, [0, 30]), // arrival: walked in from the lane (RUNS)
+    'p5-birds': () => frameCat(0.3, 37.2, [3.4, 41.5]),
+    'p5-stray': () => frameCat(1.6, 12.5, [6.2, 5.2]),
+    'p5-moths': () => frameCat(0.4, 36, [3.3, 34.5]),
+    'p5-bales': () => frameCat(-19.2, 36.2, [-20.4, 39.3]),
+    'p5-wheel': () => frameCat(0.5, -9, [0, -30]),
+    'p5-balloon': () => frameCat(1, 24, [0, -30]),
     'run-midway': () => frameCat(1.5, 30, [0, 20]),
     'run-plaza': () => frameCat(-9, 12, [-3, 4]),
   };
   // beauty pass 3, mid-reaction: she runs (4.2 m/s) from a to b, the clock running, the camera behind her (the game's)
-  const RUNS = { 'run-midway': [[-1.2, 37], [0.4, 20]], 'run-plaza': [[-11, 15], [-4.5, 5]] };
+  const RUNS = { 'run-midway': [[-1.2, 37], [0.4, 20]], 'run-plaza': [[-11, 15], [-4.5, 5]], 'p5-gate': [[0.2, 47.4], [0, 43.5], 3.0] };
   function runShot(name) {
-    const [a, b] = RUNS[name];
+    const [a, b, sp = 4.2] = RUNS[name];
     const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
-    const FR = Math.round((len / 4.2) * 30);
+    const FR = Math.round((len / sp) * 30);
     session.perched = null;
     for (let i = 0; i <= FR; i++) {
       const u = i / FR;
       frameCat(a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, b);
-      player.speed = 4.2;
+      player.speed = sp;
       step(1 / 30);
     }
     frameCat(b[0], b[1], [b[0] + (b[0] - a[0]), b[1] + (b[1] - a[1])]);

@@ -8,7 +8,10 @@
 // =============================================================================
 import * as THREE from 'three';
 import { seasonLook } from './world/fairkit.js';
+import { createFairPals, syncToBeat, WIND } from './fairpals.js';
 
+// the balloon's silhouette: [height, radius] of the top and each ring (a round envelope, narrowing to the neck)
+const BALLOON = Object.freeze({ rings: Object.freeze([[6.15, 0], [5.85, 0.75], [5.15, 1.2], [4.3, 1.42], [3.45, 1.22], [2.85, 0.85], [2.4, 0.5]]), pal: Object.freeze([0xe8423a, 0x3aa0e0, 0xf6c92e, 0x4cb860]) });
 export const ALIVE = Object.freeze({
   bits: 30, steam: 8, spark: 20, step: 0.55, life: 1.0, run: 3.2,
   steamLife: 5, steamHear: 30, fireEvery: 13, fireFrom: 0.8, rise: 0.8, burst: 1.9, fireR: 4.2,
@@ -16,7 +19,7 @@ export const ALIVE = Object.freeze({
   sky: Object.freeze([[-16, 17, -14], [15, 16, -20], [-6, 19, -34], [24, 17, -8], [-26, 18, -30]]),
   // beauty pass 4: rare surprises, each a pure function of the time of day (the same on every device)
   drift: 18, lanterns: 6, bulbs: Object.freeze([[-3.3, 40, 2.14], [-4.2, 34, 2.12], [-3.3, 26, 2.14], [-4.2, 15.5, 2.12], [4.2, 40, 2.12], [3.3, 34.5, 2.14], [3.3, 26.5, 2.14], [3.3, 16.5, 2.14]]), // a bulb on each stall's front
-  balloon: Object.freeze({ every: 420, len: 170, odds: 0.4, y: 15, s: 3.2 }),
+  balloon: Object.freeze({ every: 420, len: 170, odds: 0.4, y: 14, s: 2.6 }),
   cannon: Object.freeze({ every: 300, odds: 0.35, life: 4.5, n: 24 }),
   flock: Object.freeze({ every: 260, odds: 0.4, len: 60 }),
   lucky: Object.freeze({ every: 75, odds: 0.45, len: 40, near: 4.5 }),
@@ -40,8 +43,8 @@ export function fireAt(T) {
 export function balloonAt(T) {
   const B = ALIVE.balloon; const n = Math.floor(T / B.every); const local = T - n * B.every;
   if (hash(n, 21) >= B.odds || local >= B.len) return null;
-  const u = local / B.len; const d = hash(n, 22) < 0.5 ? 1 : -1;
-  return { n, x: d * (-75 + 150 * u), y: B.y + 1.2 * Math.sin(u * 7), z: -52 + hash(n, 23) * 7 };
+  const u = local / B.len; const s = -80 + 160 * u; // it drifts with the one wind (fairpals WIND), from the west
+  return { n, x: s * WIND.x, y: B.y + 1.2 * Math.sin(u * 7), z: -50 + hash(n, 23) * 6 + s * WIND.z };
 }
 // a burst of confetti cannons from the big wheel: seconds since it went off, or -1
 export function cannonAt(T) {
@@ -96,18 +99,20 @@ export function createFairAlive({ scene, reducedMotion = false, scale = 1, area 
   const nPaper = reducedMotion ? 0 : Math.round(ALIVE.cannon.n * k);
   const bits = makePoints(Math.max(1, nBits + nDrift), 0.2, false, 'fair:bits');
   const glow = makePoints(Math.max(1, nSteam + 2 + nLant), 0.6, true, 'fair:glow');
-  const sky = makePoints(reducedMotion ? 1 : 9, 8, false, 'fair:sky'); // the balloon
+  const sky = makePoints(reducedMotion ? 1 : 49, 6.2, false, 'fair:sky'); // the balloon's envelope: a top and six rings of eight gores
+  const basket = makePoints(reducedMotion ? 1 : 12, 0.9, false, 'fair:basket'); // its basket and ropes
   const paper = makePoints(Math.max(1, nPaper), 1.1, false, 'fair:paper'); // the cannons' confetti
   const ball = new THREE.Vector3(1e4, 0, 0); const hub = new THREE.Vector3(0, 8, -30);
   if (area?.rides?.crystalBall) { area.rides.crystalBall.updateWorldMatrix(true, false); area.rides.crystalBall.getWorldPosition(ball); }
   if (area?.anchors?.wheelHub) hub.set(area.anchors.wheelHub.x, area.anchors.wheelHub.y + 0.5, area.anchors.wheelHub.z);
   let popped = -1; let luckyHit = -99; let luckyN = -1; let cannonN = -1; let me = null;
   const fire = makePoints(Math.max(1, nSpark), 1.5, true, 'fair:fire'); // far off in the sky, so each spark is a big point
-  bits.pts.visible = glow.pts.visible = fire.pts.visible = sky.pts.visible = paper.pts.visible = false;
-  if (!reducedMotion) scene.add(bits.pts, glow.pts, fire.pts, sky.pts, paper.pts);
+  bits.pts.visible = glow.pts.visible = fire.pts.visible = sky.pts.visible = basket.pts.visible = paper.pts.visible = false;
+  if (!reducedMotion) scene.add(bits.pts, glow.pts, fire.pts, sky.pts, basket.pts, paper.pts);
   const kick = Array.from({ length: nBits }, () => ({ age: 99, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, r: 1, g: 1, b: 1 }));
   let slot = 0; let n = 0; let walked = 0; let last = null;
   const tint = new THREE.Color();
+  const pals = createFairPals({ scene, reducedMotion, scale: k, makePoints, hub: area?.anchors?.wheelHub ? hub : null, onEvent, puff: (x, z) => { for (let i = 0; i < 16; i++) spawn(x, z, 9, 0); }, day: Math.floor(Date.now() / 864e5) });
 
   function spawn(x, z, speed, yaw) {
     const s = kick[slot]; slot = (slot + 1) % kick.length; n++;
@@ -120,15 +125,17 @@ export function createFairAlive({ scene, reducedMotion = false, scale = 1, area 
     const out = 0.6 + speed * 0.12;
     // up and out, a little back from her heading
     s.x = x + (hash(n, 1) - 0.5) * 0.3; s.z = z + (hash(n, 2) - 0.5) * 0.3; s.y = 0.1;
-    s.vx = (hash(n, 3) - 0.5) * out * 2.2 - Math.sin(yaw) * 0.7; s.vz = (hash(n, 4) - 0.5) * out * 2.2 - Math.cos(yaw) * 0.7; // out to the sides and on ahead of her (she faces -z at yaw 0)
+    s.vx = (hash(n, 3) - 0.5) * out * 2.2 - Math.sin(yaw) * 0.7 + WIND.x * 0.5; s.vz = (hash(n, 4) - 0.5) * out * 2.2 - Math.cos(yaw) * 0.7 + WIND.z * 0.5; // out to the sides and on ahead of her (she faces -z at yaw 0)
     s.vy = 1.9 + hash(n, 6) * (paper ? 1.8 : 1.0);
   }
 
   return {
-    counts: { bits: nBits, steam: nSteam, spark: nSpark, drift: nDrift, lanterns: nLant, paper: nPaper },
+    counts: { pals: pals.counts, bits: nBits, steam: nSteam, spark: nSpark, drift: nDrift, lanterns: nLant, paper: nPaper },
     // update(dt, T, catPos {x, z}, lit 0..1 (the fair's lights), speed m/s, yaw)
     update(dt, T, catPos, lit = 0, speed = 0, yaw = 0) {
+      pals.update(dt, T, catPos, lit, speed);
       if (reducedMotion) return;
+      syncToBeat(T);
       dt = Math.max(0, Math.min(dt, 0.25)) || 0;
       bits.pts.visible = glow.pts.visible = true;
       if (catPos) {
@@ -158,8 +165,8 @@ export function createFairAlive({ scene, reducedMotion = false, scale = 1, area 
         const u = (T / ALIVE.steamLife + i / nSteam + hash(i, 3)) % 1;
         const f = Math.sin(Math.PI * u) * near * (0.55 + 0.4 * lit);
         const o = i * 3;
-        glow.pos[o] = st.x + Math.sin(T * 0.7 + i * 2.1) * 0.25 * u + u * 0.5 * (st.x < 0 ? 1 : -1);
-        glow.pos[o + 1] = 1.9 + u * 1.6; glow.pos[o + 2] = st.z + Math.cos(T * 0.5 + i) * 0.2 * u;
+        glow.pos[o] = st.x + Math.sin(T * 0.7 + i * 2.1) * 0.25 * u + u * 1.1 * WIND.x;
+        glow.pos[o + 1] = 1.9 + u * 1.6; glow.pos[o + 2] = st.z + Math.cos(T * 0.5 + i) * 0.2 * u + u * 1.1 * WIND.z;
         glow.col[o] = st.rgb[0] * f; glow.col[o + 1] = st.rgb[1] * f; glow.col[o + 2] = st.rgb[2] * f;
       }
       // a firework: only once the lights are up; a rocket, then a burst that droops and fades
@@ -187,7 +194,7 @@ export function createFairAlive({ scene, reducedMotion = false, scale = 1, area 
       for (let i = 0; i < nDrift; i++) {
         const o = (nBits + i) * 3; const c = me ?? { x: 0, z: 0 };
         const fall = 0.5 + 0.4 * hash(i, 61); const ph = (T * fall * 0.12 + hash(i, 62)) % 1;
-        const wx = hash(i, 63) * 24 + T * 0.35 * (0.6 + hash(i, 64)); const wz = hash(i, 65) * 24 + Math.sin(T * 0.4 + i) * 1.2 + T * 0.1;
+        const wx = hash(i, 63) * 24 + T * 0.45 * WIND.x * (0.6 + hash(i, 64)); const wz = hash(i, 65) * 24 + Math.sin(T * 0.4 + i) * 1.2 + T * 0.45 * WIND.z;
         bits.pos[o] = c.x + (((wx - c.x) % 24) + 36) % 24 - 12; bits.pos[o + 2] = c.z + (((wz - c.z) % 24) + 36) % 24 - 12;
         bits.pos[o + 1] = 5.5 - ph * 5.3;
         tint.setHex(dr[i % dr.length]);
@@ -210,23 +217,33 @@ export function createFairAlive({ scene, reducedMotion = false, scale = 1, area 
         const o = (nSteam + 2 + i) * 3; const t = fk - i * 4; let f = 0;
         if (fk >= 0 && lit > 0.85 && t > 0) {
           f = Math.min(1, t / 3) * Math.min(1, (ALIVE.flock.len - fk + i * 4) / 6) * (0.85 + 0.15 * Math.sin(T * 3 + i));
-          glow.pos[o] = -8 + i * 3.2 + Math.sin(t * 0.3 + i) * 1.5 + t * 0.15; glow.pos[o + 1] = 2.2 + t * 0.22; glow.pos[o + 2] = 8 + hash(i, 71) * 8 - t * 0.1;
+          glow.pos[o] = -8 + i * 3.2 + Math.sin(t * 0.3 + i) * 1.5 + t * 0.3 * WIND.x; glow.pos[o + 1] = 2.2 + t * 0.22; glow.pos[o + 2] = 8 + hash(i, 71) * 8 + t * 0.3 * WIND.z;
         } else glow.pos[o + 1] = -999;
         glow.col[o] = 1.3 * f; glow.col[o + 1] = 0.5 * f; glow.col[o + 2] = 0.12 * f;
       }
       // the hot-air balloon, and confetti cannons from the wheel
       const bl = reducedMotion ? null : balloonAt(T);
-      sky.pts.visible = !!bl;
-      if (bl) {
-        const pal = [0xe8423a, 0xfbf1dc, 0xf6c92e, 0x3aa0e0]; const S = ALIVE.balloon.s;
-        for (let i = 0; i < 9; i++) { // a top and two tiers of four gores
-          const k = (i - 1) % 4; const hi = i > 0 && i < 5; const a = (k + (hi ? 0 : 0.5)) * Math.PI / 2;
-          const r = i === 0 ? 0 : hi ? 1.0 : 0.75; const y = i === 0 ? 5.9 : hi ? 4.8 : 3.7;
-          tint.setHex(pal[i === 0 ? bl.n % 4 : (k + bl.n) % 4]); if (i > 4) tint.multiplyScalar(0.8);
-          sky.pos[i * 3] = bl.x + Math.cos(a) * r * S; sky.pos[i * 3 + 1] = bl.y + (y - 3.4) * S; sky.pos[i * 3 + 2] = bl.z + Math.sin(a) * r * S;
-          sky.col[i * 3] = tint.r * dim; sky.col[i * 3 + 1] = tint.g * dim; sky.col[i * 3 + 2] = tint.b * dim;
+      sky.pts.visible = basket.pts.visible = !!bl;
+      if (bl) { // a round, striped envelope (a top and six rings of eight gores, wider at the shoulder), a basket and its ropes; one colour for the stripes, cream between
+        const S = ALIVE.balloon.s; const A = BALLOON.pal[bl.n % 4]; const band = BALLOON.pal[(bl.n + 2) % 4]; let p = 0;
+        for (let r = 0; r < BALLOON.rings.length; r++) {
+          const [ry, rr] = BALLOON.rings[r]; const m = r === 0 ? 1 : 8;
+          for (let g = 0; g < m; g++, p++) {
+            const a = g * Math.PI / 4; tint.setHex(r === 4 ? band : g % 2 ? 0xfbf1dc : A); tint.multiplyScalar((0.62 + 0.38 * Math.min(1, ry / 5.2)) * dim * (0.9 + 0.1 * Math.cos(a)));
+            sky.pos[p * 3] = bl.x + Math.cos(a) * rr * S; sky.pos[p * 3 + 1] = bl.y + (ry - 3.4) * S; sky.pos[p * 3 + 2] = bl.z + Math.sin(a) * rr * S;
+            sky.col[p * 3] = tint.r; sky.col[p * 3 + 1] = tint.g; sky.col[p * 3 + 2] = tint.b;
+          }
+        }
+        const nk = bl.y + (2.4 - 3.4) * S; const bt = nk - 2.6 * S / 3; // the neck, and the basket's top
+        for (let q = 0; q < 12; q++) {
+          const rope = q < 6; const side = (q % 2 ? 1 : -1); const f = rope ? Math.floor(q / 2) / 2 : 0;
+          basket.pos[q * 3] = bl.x + (rope ? side * (0.5 - 0.3 * f) * S * 0.55 : ((q - 6) % 3 - 1) * 0.5 * S * 0.32);
+          basket.pos[q * 3 + 1] = rope ? nk - f * (nk - bt) : bt - 0.18 * S - (q > 8 ? 0.3 : 0) * S * 0.5; basket.pos[q * 3 + 2] = bl.z;
+          if (rope) tint.setHex(0x4a3a2a); else tint.setHex(q > 8 ? 0x8a5a2a : 0xa8743a);
+          tint.multiplyScalar(dim); basket.col[q * 3] = tint.r; basket.col[q * 3 + 1] = tint.g; basket.col[q * 3 + 2] = tint.b;
         }
         sky.geo.attributes.position.needsUpdate = sky.geo.attributes.color.needsUpdate = true;
+        basket.geo.attributes.position.needsUpdate = basket.geo.attributes.color.needsUpdate = true;
       }
       const cn = cannonAt(T); paper.pts.visible = cn >= 0;
       if (cn >= 0) {
@@ -234,7 +251,7 @@ export function createFairAlive({ scene, reducedMotion = false, scale = 1, area 
         for (let i = 0; i < nPaper; i++) {
           const a = i * 2.4 + hash(i, 81) * 6; const e = (1 - Math.exp(-1.6 * cn)) / 1.6; const o = i * 3; // two cannons, either side of the wheel's boarding, fire up and the paper drifts down
           const h = 1 + hash(i, 82) * 3.5; const y = 0.8 + (9 + hash(i, 83) * 6) * e - 0.8 * cn * cn;
-          paper.pos[o] = hub.x + (i % 2 ? 2.2 : -2.2) + Math.cos(a) * h * e; paper.pos[o + 1] = y > 0.15 ? y : -999; paper.pos[o + 2] = hub.z + 4.5 + Math.sin(a) * h * e;
+          paper.pos[o] = hub.x + (i % 2 ? 2.2 : -2.2) + Math.cos(a) * h * e + WIND.x * 0.7 * cn; paper.pos[o + 1] = y > 0.15 ? y : -999; paper.pos[o + 2] = hub.z + 4.5 + Math.sin(a) * h * e + WIND.z * 0.7 * cn;
           tint.setHex(ALIVE.paper[i % ALIVE.paper.length]); paper.col[o] = tint.r * dim; paper.col[o + 1] = tint.g * dim; paper.col[o + 2] = tint.b * dim;
         }
         paper.geo.attributes.position.needsUpdate = paper.geo.attributes.color.needsUpdate = true;
@@ -245,8 +262,9 @@ export function createFairAlive({ scene, reducedMotion = false, scale = 1, area 
       fire.pts.visible = on; fire.geo.attributes.position.needsUpdate = fire.geo.attributes.color.needsUpdate = true;
     },
     dispose() {
-      scene.remove(bits.pts, glow.pts, fire.pts, sky.pts, paper.pts);
-      for (const q of [bits, glow, fire, sky, paper]) { q.geo.dispose(); q.pts.material.dispose(); }
+      pals.dispose();
+      scene.remove(bits.pts, glow.pts, fire.pts, sky.pts, basket.pts, paper.pts);
+      for (const q of [bits, glow, fire, sky, basket, paper]) { q.geo.dispose(); q.pts.material.dispose(); }
     },
   };
 }
