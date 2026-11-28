@@ -607,7 +607,11 @@
  ".hud-toasts": [
   "position: absolute;bottom: 146px;left: 50%;transform: translateX(-50%);display: flex;flex-direction: column;align-items: center;gap: 6px",
   "@media (pointer: coarse) | bottom: calc(292px + env(safe-area-inset-bottom));width: max-content;max-width: calc(100vw - 32px)",
-  "@media (pointer: coarse) and (max-height: 500px) | bottom: calc(165px + env(safe-area-inset-bottom))"
+  "@media (pointer: coarse) and (max-height: 500px) | bottom: calc(165px + env(safe-area-inset-bottom))",
+  "@media (max-width: 599px), (pointer: coarse) and (max-height: 500px) | gap: 3px;max-height: 14vh"
+ ],
+ ".hud-toasts .toast:not(:nth-last-child(-n+2))": [
+  "@media (max-width: 599px), (pointer: coarse) and (max-height: 500px) | display: none"
  ],
  ".hud-top": [
   "position: absolute;top: max(16px, env(safe-area-inset-top));left: max(16px, env(safe-area-inset-left));right: calc(max(16px, env(safe-area-inset-right)) + var(--map-size) + 12px);display: flex;align-items: flex-start;font-size: 1.2rem;text-shadow: 0 1px 3px rgba(0,0,0,0.5)",
@@ -779,6 +783,12 @@
   "display: grid;grid-template-columns: 1fr 1fr;gap: 16px;margin-bottom: 10px",
   "@media (max-width: 480px) | grid-template-columns: 1fr;gap: 8px"
  ],
+ ".toast": [
+  "background: rgba(20,26,38,0.75);padding: 8px 18px;border-radius: 999px;transition: opacity 0.35s, transform 0.35s;font-size: 1.05rem",
+  "pointer-events: auto;cursor: pointer",
+  "@media (max-width: 599px), (pointer: coarse) and (max-height: 500px) | font-size: 0.8rem;line-height: 1.2;padding: 3px 10px;border-radius: 10px;display: -webkit-box;-webkit-box-orient: vertical;-webkit-line-clamp: 2;overflow: hidden",
+  "@media (pointer: coarse) and (max-height: 500px) | -webkit-line-clamp: 1"
+ ],
  ".visit-cel": [
   "position: fixed;inset: 0;z-index: 9;pointer-events: none;display: grid;place-items: center;padding: 16px;opacity: 1;transition: opacity 0.7s",
   "@media (prefers-reduced-motion: reduce) | transition: none",
@@ -930,7 +940,11 @@
  ],
  "body.touch-mode .hud-toasts": [
   "bottom: calc(292px + env(safe-area-inset-bottom));width: max-content;max-width: calc(100vw - 32px)",
-  "@media (max-height: 500px) | bottom: calc(165px + env(safe-area-inset-bottom))"
+  "@media (max-height: 500px) | bottom: calc(165px + env(safe-area-inset-bottom))",
+  "@media (max-height: 500px) | gap: 3px;max-height: 14vh"
+ ],
+ "body.touch-mode .hud-toasts .toast:not(:nth-last-child(-n+2))": [
+  "@media (max-height: 500px) | display: none"
  ],
  "body.touch-mode .hud-viewfinder .vf-hint-desktop": [
   "display: none"
@@ -940,6 +954,9 @@
  ],
  "body.touch-mode .hud-viewfinder span": [
   "@media (max-width: 600px) and (min-height: 501px) | position: fixed;bottom: calc(292px + env(safe-area-inset-bottom));max-width: calc(100vw - 32px);white-space: nowrap"
+ ],
+ "body.touch-mode .toast": [
+  "@media (max-height: 500px) | font-size: 0.8rem;line-height: 1.2;padding: 3px 10px;border-radius: 10px;display: -webkit-box;-webkit-box-orient: vertical;-webkit-line-clamp: 1;overflow: hidden"
  ],
  "body.touch-mode.left-handed .hud-hint.chip": [
   "@media (max-width: 900px) | left: auto;right: max(16px, env(safe-area-inset-right))"

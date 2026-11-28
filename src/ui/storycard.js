@@ -137,6 +137,8 @@ export function wantsAuto({ place, state, visits, lesson = null }) {
 }
 
 const PAD_CLOSE = [0, 1, 2]; // A, B, X (standard layout); a press closes the card
+export const PHONE_W = 600; // narrower than this (or, on touch, shorter than PHONE_H) is a phone
+export const PHONE_H = 500;
 const PAD_TOGGLE = 8; // Select / Back
 
 // The card on a walk. `session` gives the lesson and the pause card's presence; nothing here is sent anywhere.
@@ -166,7 +168,9 @@ export function createStoryCard({ doc = globalThis.document, win = globalThis.wi
 
   const size = () => {
     const el = doc.documentElement;
-    let f = win?.innerWidth <= 520 ? 12 : 16; // a phone's card is smaller: messages must not take a quarter of the screen
+    const phone = win?.innerWidth < PHONE_W || (touch && win?.innerHeight < PHONE_H); // upright or on its side: messages must not take a quarter of the screen
+    let f = phone ? 10 : 16;
+    Object.assign(card.style, phone ? { top: win.innerHeight < PHONE_H ? '10%' : '14%', maxHeight: '60vh', overflowY: 'auto', padding: '0.4em 0.7em', lineHeight: '1.2', borderRadius: '0.8em' } : { top: '22%', maxHeight: '', overflowY: '', padding: '0.6em 0.9em', lineHeight: '1.3', borderRadius: '1em' });
     if (el?.classList?.contains?.('tv')) { let px = NaN; try { px = parseFloat(win?.getComputedStyle?.(el)?.fontSize); } catch { /* none */ } f = 28 * (Number.isFinite(px) && px > 0 ? Math.min(3, Math.max(1, px / 24)) : 1); }
     card.style.fontSize = `${f + 2}px`;
   };
