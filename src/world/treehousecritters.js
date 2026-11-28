@@ -18,10 +18,13 @@ import { seasonWeights } from './treehouseseason.js';
 import * as SU from './treehousesurprise.js';
 import { createLiving } from './treehouseliving.js';
 import { createVista } from './treehousevista.js';
+import { createReact, chirp, RX as RX_SLOTS } from './treehousereact.js';
+import { bus } from '../events.js';
 
 export const TAU = Math.PI * 2;
 export const hash01 = (n, s) => { let h = (Math.imul(n | 0, 0x9e3779b1) ^ Math.imul((s | 0) + 0x7f4a7c15, 0x85ebca6b)) | 0; h ^= h >>> 15; h = Math.imul(h, 0x2c1b3c6d); h ^= h >>> 12; return (h >>> 0) / 4294967296; };
 const fr = (v) => v - Math.floor(v);
+const _fwd = new THREE.Vector3(); let _dt = 0.033;
 const smooth = (u) => (u <= 0 ? 0 : u >= 1 ? 1 : u * u * (3 - 2 * u));
 
 export const lifeRung = (tier) => (tier && tier.shadows === false ? 'lite' : isLowTier(tier) ? 'low' : 'high');
@@ -251,9 +254,10 @@ export function createTreehouseCritters(ctx) {
   const season = seasonWeights(ctx); // [spring, summer, autumn, winter]
   const nFairy = FAIRY[rung]; const nSur = SURPRISE_SLOTS[rung]; const nLant = LANTERN_SLOTS[rung];
   const fairyOff = N.flies + N.motes; const surOff = fairyOff + nFairy;
-  const F = points(surOff + nSur, 'treehouse:fireflies', new THREE.PointsMaterial({ map: dotTexture(), alphaTest: 0.02, size: 0.34, sizeAttenuation: true, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: true }));
+  const rxN = reducedMotion ? [0, 0] : [RX_SLOTS.glow[rung], RX_SLOTS.leaf[rung]]; const rxF = surOff + nSur; // beauty pass 8: slots at the end of the fireflies and of the leaves for her voice and moves (treehousereact.js)
+  const F = points(rxF + rxN[0], 'treehouse:fireflies', new THREE.PointsMaterial({ map: dotTexture(), alphaTest: 0.02, size: 0.34, sizeAttenuation: true, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: true }));
   const burst = reducedMotion ? 0 : BURST[rung];
-  const L = points(N.leaves + burst, 'treehouse:fallingleaves', new THREE.PointsMaterial({ map: dotTexture(), alphaTest: 0.02, size: 0.46, sizeAttenuation: true, vertexColors: true, transparent: true, opacity: 0.95, depthWrite: false, fog: true }));
+  const L = points(N.leaves + burst + rxN[1], 'treehouse:fallingleaves', new THREE.PointsMaterial({ map: dotTexture(), alphaTest: 0.02, size: 0.46, sizeAttenuation: true, vertexColors: true, transparent: true, opacity: 0.95, depthWrite: false, fog: true }));
 
   // the paper lanterns of the rare dusk surprise: one Points of big soft discs, hidden until then (not a mesh: it adds no triangle, and no draw outside the surprise)
   const LP = points(nLant, 'treehouse:lanterns', new THREE.PointsMaterial({ map: dotTexture(), alphaTest: 0.3, size: 1.5, sizeAttenuation: true, vertexColors: true, transparent: true, opacity: 0.95, depthWrite: false, fog: true }));
@@ -287,6 +291,22 @@ export function createTreehouseCritters(ctx) {
   const living = createLiving(ctx, { dotTexture, hash01, season, reducedMotion, rung }); // beauty pass 5: creatures, the day's rhythm and the sound beds (treehouseliving.js)
   const vista = createVista(ctx, { rung, reducedMotion, hash01, dotTexture, chime: (i) => chimeNote(audio, 40 + i, living.pitch) }); // beauty pass 7: photogenic vistas and the golden moment (treehousevista.js)
 
+  const hear = { owl: { hear: -1 } };
+  const react = createReact({ rung, motion: !reducedMotion, sky: scene.getObjectByName('treehouse:leaves')?.material?.userData?.sky ?? null, owl: hear.owl, squirrels: living.ears, nearBridge,
+    voice: { chime: (k, p) => chimeNote(audio, k, living.pitch * p), bird: (k) => chirp(audio, 1900 + 140 * (k % 4), 3, 160, 0.08, 0.008), squirrel: (k) => chirp(audio, 1300 - 60 * (k % 3), 4, -40, 0.045, 0.006) } });
+  const offRx = [bus.on('tip:did', (e) => { if (e && e.id === 'call') react.meow(); }), bus.on('pounce:land', () => react.land())];
+  for (let k = 0; k < rxN[0]; k++) F.pos[(rxF + k) * 3 + 1] = -200;
+  for (let k = 0; k < rxN[1]; k++) L.pos[(N.leaves + burst + k) * 3 + 1] = -200;
+  const rxOut = { x: 0, y: 0, z: 0, g: 0, rgb: null }; let rxShown = false; let rxK = 0; let owlTurn = 0;
+  function drawReact(t, catPos, session, camera) { // her voice and moves, answered; the owl turns to her
+    if (catPos) { _fwd.set(0, 0, 0); if (camera?.getWorldDirection) camera.getWorldDirection(_fwd); react.step(_dt, t, catPos, session, _fwd); }
+    if (!rxN[0] && !rxN[1]) return;
+    const lv = react.live(t); const on = lv > 0; rxK += ((on ? 1 : 0) - rxK) * Math.min(1, 6 * _dt); if (!on && !rxShown && rxK < 0.01) return; rxShown = on;
+    for (let k = 0; k < rxN[0]; k++) { react.at(0, k, t, rxOut); const i = rxF + k; F.pos[i * 3] = rxOut.x; F.pos[i * 3 + 1] = rxOut.y; F.pos[i * 3 + 2] = rxOut.z; const g = rxOut.g; F.col[i * 3] = (rxOut.rgb?.[0] ?? 0) * g; F.col[i * 3 + 1] = (rxOut.rgb?.[1] ?? 0) * g; F.col[i * 3 + 2] = (rxOut.rgb?.[2] ?? 0) * g; }
+    for (let k = 0; k < rxN[1]; k++) { react.at(1, k, t, rxOut); const i = N.leaves + burst + k; L.pos[i * 3] = rxOut.x; L.pos[i * 3 + 1] = rxOut.y; L.pos[i * 3 + 2] = rxOut.z; const g = rxOut.g; L.col[i * 3] = (rxOut.rgb?.[0] ?? 0) * g; L.col[i * 3 + 1] = (rxOut.rgb?.[1] ?? 0) * g; L.col[i * 3 + 2] = (rxOut.rgb?.[2] ?? 0) * g; }
+    F.g.attributes.position.needsUpdate = true; F.g.attributes.color.needsUpdate = true; L.g.attributes.position.needsUpdate = true; L.g.attributes.color.needsUpdate = true;
+  }
+
   function draw(t) {
     for (let i = 0; i < birds.length; i++) {
       birdPose(i, t, pose, reducedMotion);
@@ -294,7 +314,7 @@ export function createTreehouseCritters(ctx) {
     }
     spottable[0].pos.set(birds[0].position.x, birds[0].position.y, birds[0].position.z);
     owl.scale.y = OWL_SCALE * (1 + (reducedMotion ? 0 : 0.035 * Math.sin(t * 1.1))); // she breathes
-    owl.rotation.y = OWL.yaw + (reducedMotion ? 0 : 0.18 * Math.sin(t * 0.13));
+    owl.rotation.y = OWL.yaw + (reducedMotion ? 0 : 0.18 * Math.sin(t * 0.13)) + owlTurn;
     for (let i = 0; i < N.flies; i++) {
       fireflyAt(i, t, fly);
       F.pos[i * 3] = fly.x; F.pos[i * 3 + 1] = fly.y; F.pos[i * 3 + 2] = fly.z;
@@ -404,9 +424,14 @@ export function createTreehouseCritters(ctx) {
     rung,
     spottable,
     counts: { rung, ...N, meshes: birds.length + 2 },
-    update(dt, t, catPos, camera) {
-      const d = dt > 0 ? Math.min(dt, 1) : 0;
+    update(dt, t, catPos, camera, session = null) {
+      const d = dt > 0 ? Math.min(dt, 1) : 0; _dt = d;
+      if (!reducedMotion && catPos) { // the owl turns her head to her after a meow, and eases back
+        const want = t < hear.owl.hear ? Math.max(-1, Math.min(1, ((Math.atan2(catPos.x - OWL.x, catPos.z - OWL.z) - OWL.yaw + Math.PI * 3) % TAU) - Math.PI)) : 0;
+        owlTurn += (want - owlTurn) * Math.min(1, 3 * d);
+      }
       if (!reducedMotion) draw(t);
+      drawReact(t, catPos, session, camera);
       if (sky && catPos && sky.reaction.landedAt !== seenLand) { // she has just landed: a shower of leaves from the boughs over her and a soft thump (the leaves only when motion is allowed)
         seenLand = sky.reaction.landedAt;
         if (burst) { showerAt = t; sx = catPos.x; sy = catPos.y; sz = catPos.z; }
@@ -416,7 +441,7 @@ export function createTreehouseCritters(ctx) {
       runSurprise(t, catPos, camera);
       living.update(dt, t, catPos);
       vista.update(t, catPos, camera);
-      if (t - arriveAt < 2.7) L.o.material.size = 0.46 + (reducedMotion ? 0 : 0.6 * Math.max(0, 1 - (t - arriveAt) / 2.6)); // the leaves swell for a breath
+      L.o.material.size = 0.46 * (1 + 0.5 * rxK) + (t - arriveAt < 2.7 ? 0.6 * (reducedMotion ? 0 : Math.max(0, 1 - (t - arriveAt) / 2.6)) : 0); F.o.material.size = 0.34 * (1 + 0.55 * rxK + 0.6 * react.fx.flare); // the leaves swell for a breath; the glints and leaves swell while she is being answered
       if (!arrived && catPos && catPos.y > WOOD_Y) { arrived = true; if (burst) { showerAt = t; sx = catPos.x; sy = catPos.y; sz = catPos.z; } chimeNote(audio, 3, living.pitch); arriveAt = t; } // her first step onto a platform: leaves swirl and a chime
       if (living.stormK > 0.3 && t >= stormChime) { stormChime = t + 1.7 + 1.2 * hash01(chimes, 33); chimeNote(audio, chimes + 3, living.pitch); chimeNote(audio, chimes + 5, living.pitch * 1.0595); chimes++; } // the storm sets the chimes clashing (a note and its neighbour a semitone up)
       if (t >= nextChime) { chimeNote(audio, chimes, living.pitch); chimes++; nextChime = t + CHIME_GAP.min + CHIME_GAP.span * hash01(chimes, 32); } // (the schedule runs on while muted: no catching up)
@@ -438,7 +463,7 @@ export function createTreehouseCritters(ctx) {
       }
     },
     dispose() {
-      vista.dispose(); living.dispose(); sky?.setRain(0);
+      offRx.forEach((f) => f()); vista.dispose(); living.dispose(); sky?.setRain(0);
       scene.remove(...birds, owl, ledge, F.o, L.o, LP.o);
       for (const g of Object.values(geos)) g.dispose();
       ledge.geometry.dispose(); lit.dispose(); F.g.dispose(); F.o.material.dispose(); L.g.dispose(); L.o.material.dispose(); LP.g.dispose(); LP.o.material.dispose();
