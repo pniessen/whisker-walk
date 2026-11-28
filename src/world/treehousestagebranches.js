@@ -9,6 +9,8 @@ import { wingColliders, wingPerches, wingStory } from './treehousewingplan.js';
 import { drawWing } from './treehousewingparts.js';
 import { createWing } from './treehousewinglive.js';
 import { createTreeErrandLive } from './treehousejoblive.js';
+import { drawCatPlaces } from './treehousecatparts.js';
+import { createTreehouseCats } from './treehousecats.js';
 
 Object.assign(ST, {
   branches: Object.freeze({
@@ -17,7 +19,8 @@ Object.assign(ST, {
     colliders: wingColliders,
     perches: wingPerches,
     story: wingStory(),
-    draw: drawWing,
+    draw: (kit, M) => { drawWing(kit, M); drawCatPlaces(kit, M); }, // the wing, then the tree cats' cushion, limb and hollow (same merged buckets)
+    cats: createTreehouseCats, // four low-poly cats of the tree, one mesh each (treehousecats.js), made with the life
     wing: createWing,
     errand: createTreeErrandLive, // Nutmeg's post round of the day and its stamp album (milestone T7)
   }),
