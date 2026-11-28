@@ -13,6 +13,7 @@ import * as P from './jungleplan.js';
 import { COL, paint, pad, dotTexture } from './jungleparts.js';
 import { isLowTier } from './junglelight.js';
 import { dayAt } from './junglereact.js';
+import { topHalf } from './junglebeauty4.js';
 
 export const SPARKLE = Object.freeze({
   anchors: 7, perAnchor: 3, dapples: 14, flags: 20,
@@ -73,7 +74,7 @@ export function sparkleParts() {
   anchors.forEach((an) => an.blooms.forEach((f, i) => { // a short stem (open cone, three sides) and a bloom: an eight-sided diamond
     const x = an.x + f.dx; const z = an.z + f.dz; const y = gy(x, z);
     out.push([new THREE.ConeGeometry(0.02, 0.4, 3, 1, true).translate(x, y + 0.2, z), COL.leafDeep, i]);
-    out.push([new THREE.OctahedronGeometry(0.13, 0).scale(1, 0.7, 1).translate(x, y + 0.44, z), f.hex, 0]);
+    out.push([topHalf(new THREE.OctahedronGeometry(0.13, 0).scale(1, 0.7, 1)).translate(x, y + 0.44, z), f.hex, 0]);
   }));
   dapples.forEach((d, i) => out.push([pad(6).scale(d.r, 1, d.r * 0.7).rotateY(d.yaw).translate(d.x, gy(d.x, d.z) + 0.05, d.z), i % 2 ? 0xe0dc84 : 0xd0d878, 0]));
   // the veranda: bunting from post to post just in front of the hanging pots, a woven rug on the deck and a round doormat at the foot of the ramp

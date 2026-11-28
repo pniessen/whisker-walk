@@ -49,7 +49,11 @@ export function propParts(p) {
     case 'rack': { // an A-frame with two cross-poles, and cloth and leaves hung to dry
       for (const sx of [-1, 1]) for (const sz of [-1, 1]) out.push([limb(sx * 1.1, 0, sz * 0.4, sx * 1.0, 1.7, 0, 0.05, 0.04, 5), COL.woodDark, 0]);
       for (const y of [1.0, 1.7]) out.push([cyl(0.035, 0.035, 2.2, 5).rotateZ(Math.PI / 2).translate(0, y, 0), COL.wood, 0]);
-      for (let i = 0; i < 5; i++) out.push([box(0.3, 0.55 - (i % 2) * 0.12, 0.03).translate(-0.8 + i * 0.4, 1.38, 0.02), [0xe8d8b0, 0x9ac040, 0xd8a050, 0xe8d8b0, 0x6ab04a][i], i]);
+      for (let i = 0; i < 5; i++) { // pass 4: painted gourds on strings, each a bulb and a neck (the same twelve triangles the cloth strip had)
+        const gx = -0.8 + i * 0.4; const gy = 1.12 - (i % 2) * 0.1;
+        out.push([new THREE.OctahedronGeometry(0.2, 0).scale(0.9, 1.1, 0.9).translate(gx, gy, 0.02), [0xe8402c, 0x2fb8a8, 0xffc22a, 0xb04aff, 0xff7ad0][i], i]);
+        out.push([new THREE.ConeGeometry(0.06, 0.2, 4, 1, true).translate(gx, gy + 0.3, 0.02), [0xffd21a, 0xfaf4e0, 0xe8402c, 0xffd21a, 0x2fb8a8][i], 0]);
+      }
       break;
     }
     case 'pots': {
@@ -73,7 +77,8 @@ export function propParts(p) {
         const len = Math.hypot(x1 - x0, y1 - y0);
         out.push([box(len + 0.02, 0.05, 0.62).rotateZ(Math.atan2(y1 - y0, x1 - x0)).translate((x0 + x1) / 2, (y0 + y1) / 2, 0), i % 2 ? 0xd88a4a : 0xe8c880, i]);
       }
-      out.push([box(0.4, 0.12, 0.45).translate(-half * 0.55, 1.06, 0), 0xf0e8d0, 0]); // a pillow
+      out.push([box(0.5, 0.1, 0.64).translate(-half * 0.55, 1.06, 0), 0xc8302c, 0]); // pass 4: a book left face-down on the cloth (red cover) with a pale page edge
+      out.push([new THREE.PlaneGeometry(0.44, 0.58).rotateX(-Math.PI / 2).translate(-half * 0.55, 1.112, 0), 0xf6ecd0, 0]);
       break;
     }
     default:
