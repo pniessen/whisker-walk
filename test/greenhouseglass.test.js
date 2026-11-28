@@ -205,7 +205,7 @@ describe('the record and the scaffold', () => {
     expect(area.waterFx).toHaveLength(1);
   });
   it('two builds are identical', () => {
-    const LIFE = /^(ghPacket|ghSprouts|ghCan|ghCloud|ghSpray|ghGoalRing|greenhouse:findcues|greenhouse:moments)/; // (made by a life, not by the build)
+    const LIFE = /^(ghPacket|ghSprouts|ghCan|ghCloud|ghSpray|ghGoalRing|greenhouse:findcues|greenhouse:moments|greenhouse:creatures)/; // (made by a life, not by the build)
     const sig = (sc) => sc.children.filter((c) => !LIFE.test(c.name)).map((c) => { let n = 0; c.traverse((o) => { if (o.isMesh) n += o.geometry.attributes.position.count; }); return `${c.name}:${n}:${c.position.toArray().join(',')}`; }).join('|');
     const s2 = new THREE.Scene();
     build(s2);
