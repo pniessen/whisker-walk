@@ -296,6 +296,7 @@ export function createHomeBase({ players = null, progression, album, onStartWalk
   // forget that "Swap!" was clicked once and is waiting for its second click.
   let tradeBusy = false;
   let tradeError = null;
+  let perfLogText = null;        // the Performance log summary, or the CSV when the clipboard is not available
   let crashReportText = null;    // the Copy report text, shown in a box when the clipboard is not available
   let tradeGive = null;          // the selected items, remembered across renders
   let tradeWant = null;
@@ -675,6 +676,11 @@ export function createHomeBase({ players = null, progression, album, onStartWalk
           ${settingsSwitchHtml('set-crash-upload', s.crashUpload === true, tutorialLine('settings.crash-upload'))}
           <p class="settings-note" id="set-crash-note">${escapeHtml(tutorialLine('settings.crash-upload-note'))}</p>
           <button type="button" id="set-crash-copy" class="hb-row"><span class="hb-row-name">${escapeHtml(tutorialLine('settings.crash-copy'))}</span></button>
+          <p class="settings-note" id="set-perf-note">${escapeHtml(tutorialLine('settings.perf-note'))}</p>
+          <button type="button" id="set-perf-show" class="hb-row"><span class="hb-row-name">${escapeHtml(tutorialLine('settings.perf-show'))}</span></button>
+          <button type="button" id="set-perf-copy" class="hb-row"><span class="hb-row-name">${escapeHtml(tutorialLine('settings.perf-copy'))}</span></button>
+          <button type="button" id="set-perf-clear" class="hb-row"><span class="hb-row-name">${escapeHtml(tutorialLine('settings.perf-clear'))}</span></button>
+          ${perfLogText === null ? '' : `<textarea id="set-perf-text" class="settings-crash-text" readonly rows="8">${escapeHtml(perfLogText)}</textarea>`}
           ${crashReportText === null ? '' : `<p class="settings-note">${escapeHtml(tutorialLine('settings.crash-copy-hint'))}</p><textarea id="set-crash-text" class="settings-crash-text" readonly rows="8">${escapeHtml(crashReportText)}</textarea>`}
         </div>
       </section>`;
@@ -2497,6 +2503,28 @@ export function createHomeBase({ players = null, progression, album, onStartWalk
         let copied = false;
         try { await globalThis.navigator?.clipboard?.writeText(text); copied = true; } catch { copied = false; }
         if (copied) { crashReportText = null; toast?.(tutorialLine('settings.crash-copied')); } else crashReportText = text; // no clipboard (an iPad page): show it for a long-press copy
+      } catch (err) {
+        note('error', err);
+      }
+      render();
+      return;
+    }
+    if (e.target.closest?.('#set-perf-show, #set-perf-copy, #set-perf-clear')) {
+      // The performance log is read from this device's own storage, in its own small chunk.
+      const id = e.target.closest('#set-perf-show, #set-perf-copy, #set-perf-clear').id;
+      try {
+        const m = await import('../perflog.js');
+        const store = globalThis.localStorage;
+        if (id === 'set-perf-clear') { m.clearRows(store); perfLogText = null; toast?.(tutorialLine('settings.perf-cleared')); }
+        else {
+          const rows = m.loadRows(store);
+          if (id === 'set-perf-show') perfLogText = rows.length ? m.summaryLines(rows).join('\n') : tutorialLine('settings.perf-empty');
+          else {
+            let copied = false;
+            try { await globalThis.navigator?.clipboard?.writeText(m.toCsv(rows)); copied = true; } catch { copied = false; }
+            if (copied) { perfLogText = null; toast?.(tutorialLine('settings.perf-copied')); } else perfLogText = m.toCsv(rows); // no clipboard: show it for a long-press copy
+          }
+        }
       } catch (err) {
         note('error', err);
       }

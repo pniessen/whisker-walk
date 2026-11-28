@@ -31,6 +31,7 @@ export const KEPT_KEYS = Object.freeze([
   'whisker-walk-nearby-opted', // this device's choice about looking for rooms on the local network
   'whisker-walk-redeem-rest', // the guessing rest of the code box: a fresh cat must not skip it
   'whisker-walk-crash-log', // the device's sanitised crash log (src/crashlog.js): about the device, not the cat
+  'whisker-walk-perf-log', // the device's performance log (src/perflog.js): numbers about the device, not the cat
   'whisker-walk-coop', // couch co-op settings (follow, pads) are per device, like the TV mode
   'whisker-walk-den-tab', 'whisker-walk-builder-pose', // how this screen was last left (a tab, a pose)
   PLAYERS_KEY, // the list of players on this device and which one is playing (src/players.js)
