@@ -339,3 +339,44 @@ html.tv .dr-change { font-size: var(--tv-body) !important; padding: calc(8px * v
 /* One focus ring for every control, the Change place map's: a thick white ring with a dark halo, scaled with the screen. */
 html.tv .pad-focus :focus:not([tabindex="-1"]), html.tv .pad-focus :focus-visible:not([tabindex="-1"]) { outline: calc(5px * var(--tv-s, 1)) solid #fff !important; outline-offset: calc(4px * var(--tv-s, 1)) !important; box-shadow: 0 0 0 calc(10px * var(--tv-s, 1)) rgba(20, 16, 30, 0.7); }
 html.tv .pad-focus .world-map .tm-region:focus, html.tv .pad-focus .world-map .tm-region:focus-visible { outline: none !important; box-shadow: none; }
+
+/* ---- Dress up on a TV (owner photos, 2026-11-27) --------------------------------
+   The picker is four columns, not six: a 24 px word fits its cell, a long one wraps
+   (hyphenated, or broken as a last resort) instead of running into the next cell.
+   With a slot open the slot chips shrink to one tight row of names, so the grid keeps
+   the room; a fade and arrow show when more rows are below (src/tv/scrollcue.js). */
+html.tv .dr-picker { grid-template-columns: repeat(auto-fill, minmax(calc(150px * var(--tv-s, 1)), 1fr)); gap: calc(6px * var(--tv-s, 1)); padding: calc(8px * var(--tv-s, 1)); }
+html.tv .dr-view-wardrobe { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); }
+html.tv .dr .dr-pick { padding: calc(6px * var(--tv-s, 1)); min-width: 0; justify-content: flex-start; line-height: 1.15; overflow-wrap: anywhere; hyphens: auto; -webkit-hyphens: auto; }
+html.tv .dr .dr-pick > *, html.tv .dr .dr-pick-try { min-width: 0; max-width: 100%; overflow-wrap: anywhere; hyphens: auto; }
+html.tv .dr .dr-pick.locked { gap: calc(8px * var(--tv-s, 1)); }
+html.tv .dr .dr-pick.prize-surprise, html.tv .dr .dr-pick.found-silhouette { justify-content: center; gap: calc(6px * var(--tv-s, 1)); }
+html.tv .dr .dr-pick .act { margin-top: auto; padding-top: calc(4px * var(--tv-s, 1)); }
+html.tv .dr .dr-pick-buy { white-space: normal; min-height: calc(64px * var(--tv-s, 1)); line-height: 1.15; padding: calc(6px * var(--tv-s, 1)); }
+html.tv .dr .dr-pick-try { min-height: calc(64px * var(--tv-s, 1)); }
+html.tv .dr-pick img { width: calc(64px * var(--tv-s, 1)); height: calc(64px * var(--tv-s, 1)); }
+
+/* A slot is open: the chips become one tight row (just the slot names), the grid follows. */
+html.tv .dr .dr-slots:has(.dr-slot.open) { display: flex; flex-wrap: wrap; gap: calc(6px * var(--tv-s, 1)); }
+html.tv .dr .dr-slots:has(.dr-slot.open) .dr-slot { flex: 1 1 auto; min-height: calc(56px * var(--tv-s, 1)); padding: 0 calc(8px * var(--tv-s, 1)); justify-content: center; }
+html.tv .dr .dr-slots:has(.dr-slot.open) .dr-slot img { display: none; }
+html.tv .dr .dr-slots:has(.dr-slot.open) .dr-slot span { font-size: 0 !important; }
+html.tv .dr .dr-slots:has(.dr-slot.open) .dr-slot small { display: inline; font-size: calc(24px * var(--tv-s, 1)) !important; opacity: .9; letter-spacing: 0; }
+html.tv .dr .dr-slots:has(.dr-slot.open) .dr-slot.open small { opacity: 1; font-weight: 700; }
+html.tv .dr .dr-slots:has(.dr-slot.open) .dr-picker { order: 10; flex: 1 0 100%; }
+html.tv .dr-view-wardrobe .dr-wardrobe-head { margin-bottom: calc(4px * var(--tv-s, 1)); }
+html.tv .dr .dr-done { min-height: calc(64px * var(--tv-s, 1)); padding: 0 calc(28px * var(--tv-s, 1)); font-size: var(--tv-body) !important; }
+
+/* Buttons a thumb on a remote can find: 64 px at 1080p, the small cross too. */
+html.tv .dr .dr-remove-all, html.tv .dr .dr-remove-cats, html.tv .dr .dr-outfit-save { min-height: calc(64px * var(--tv-s, 1)); padding: 0 calc(28px * var(--tv-s, 1)); font-size: var(--tv-body) !important; }
+html.tv .dr .dr-outfit-del { width: calc(64px * var(--tv-s, 1)); min-height: calc(64px * var(--tv-s, 1)); font-size: var(--tv-body) !important; }
+html.tv .dr .dr-outfit .dr-outfit-yes, html.tv .dr .dr-outfit .dr-outfit-keep { min-height: calc(64px * var(--tv-s, 1)); }
+html.tv .dr-view-wardrobe .dr-dock .where { font-size: var(--tv-body) !important; gap: calc(12px * var(--tv-s, 1)); }
+html.tv .dr-view-wardrobe .dr-dock .where img { width: calc(56px * var(--tv-s, 1)); height: calc(40px * var(--tv-s, 1)); object-fit: cover; border-radius: calc(8px * var(--tv-s, 1)); }
+
+/* More rows below: a fade and an arrow at the foot of the scrolling panel. */
+html.tv .dr-wearing.tv-more::after { content: "▼"; display: flex; align-items: flex-end; justify-content: center; position: sticky; bottom: 0; height: calc(56px * var(--tv-s, 1)); margin-top: calc(-56px * var(--tv-s, 1));
+  pointer-events: none; color: var(--cream); font-size: var(--tv-body); padding-bottom: calc(4px * var(--tv-s, 1)); background: linear-gradient(to bottom, transparent, var(--frame) 85%); }
+
+/* Long words in the other big menus wrap instead of running out of their box. */
+html.tv :is(.pause-card, .settings-row, .settings-note, .wm-card, .hb-row) { overflow-wrap: break-word; hyphens: auto; min-width: 0; }

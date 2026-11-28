@@ -13,6 +13,7 @@ import { openLetterPicker } from './letterpickerview.js';
 import { padLine, keysToPad } from './padwords.js';
 import { tvToastTiming } from './toasttime.js';
 import { watchStrip } from './stripfade.js';
+import { watchScrollCue } from './scrollcue.js';
 export { offer } from './offer.js';
 
 let lite = null;
@@ -38,6 +39,7 @@ export async function start(ctx) {
   lite?.stop();
   const scale = applyScale(doc, win);
   const strip = watchStrip(doc, win);
+  const cue = watchScrollCue(doc, win);
   forceTv(true, doc);
   // Button pictures follow the pad in use; the last input decides when they show.
   const kind = () => padKind(ctx.padInfo?.());
@@ -53,6 +55,7 @@ export async function start(ctx) {
       input.destroy();
       scale.destroy();
       strip.stop();
+      cue.stop();
       setTv({ input: 'keys', text: null, html: null, padLine: null, fix: null, toastTiming: null });
     },
   };
