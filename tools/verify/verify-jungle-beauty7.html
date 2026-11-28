@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jungle Lodge beauty pass 7 picture page (play camera: the five photogenic vistas)</title>
+<!-- Jungle Lodge beauty pass 7 picture page: the REAL build and life at the walk's own camera. Shots: arrival, veranda, bank, tree, totems, and each with -g (after a 4 s still stand: the golden moment). URL: size=WxH, tier=high|low|lite, hr=day phase (0.3 noon-ish, 0.66 golden hour). Before pictures = the same page on pass 6's code. NOT in the game's page. -->
+<style>html,body{margin:0;background:#1c3a24;overflow:hidden}canvas{position:fixed;left:0;top:0;display:block}</style>
+</head>
+<body>
+<script type="module">
+  import * as THREE from 'three';
+  import { buildEnvMap } from '/src/render/materials.js';
+  import { setTextureTier } from '/src/render/textures.js';
+  import { createSun, createFill, SUN_BIAS, assignShadowCasters } from '/src/render/rig.js';
+  import { createShadowFit } from '/src/render/shadowfit.js';
+  import { buildCat } from '/src/cat/model.js';
+  import { animateCat } from '/src/cat/animator.js';
+  import { facingYaw } from '/src/traversal.js';
+  import { applyDusk, duskEnv, tintDuskLawn } from '/src/render/dusk.js';
+  import { effectiveWear } from '/src/suithook.js';
+  import { mergeStaticProps } from '/src/render/mergeprops.js';
+  import { build } from '/src/world/jungle.js';
+  import { ST, loadJungleStages } from '/src/world/junglestages.js';
+  import { drawWing } from '/src/world/junglewingparts.js';
+  import { drawPolish } from '/src/world/junglepolish.js';
+  import { drawHouse } from '/src/world/junglehouse.js';
+  import { drawFoliage } from '/src/world/junglefoliage.js';
+  import { drawProps } from '/src/world/jungleprops.js';
+  import { drawCarpet } from '/src/world/junglecarpet.js';
+  import { sparklePlan } from '/src/world/junglesparkle.js';
+  import { VISTAS } from '/src/world/junglebeauty7.js';
+  import * as P from '/src/world/jungleplan.js';
+  import { createProgression } from '/src/progression.js';
+  import { createDiscoveryLog } from '/src/discoveries.js';
+  import { createFx } from '/src/fx.js';
+
+  const params = new URLSearchParams(location.search);
+  const [W0, H0] = (params.get('size') || '960x540').split('x').map(Number);
+  const TIER = params.get('tier') || 'high';
+  const DT = 1 / 30;
+  const tier = TIER === 'lite' ? { name: 'low', rung: 5, shadows: false, envIntensity: 0.3 } : TIER === 'low' ? { name: 'low', rung: 3, shadows: true, envIntensity: 0.3 } : { name: 'high', shadows: true, envIntensity: 0.3 };
+  let W = W0, H = H0;
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H); renderer.setPixelRatio(1);
+  renderer.shadowMap.enabled = tier.shadows; renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.95;
+  document.body.prepend(renderer.domElement);
+  setTextureTier(tier);
+  const scene = new THREE.Scene();
+  scene.environment = buildEnvMap(renderer);
+  scene.environmentIntensity = tier.envIntensity;
+  const sun = createSun(); scene.add(sun);
+  const fill = createFill(0x8d8c93); scene.add(fill);
+  await loadJungleStages();
+  const area = build(scene);
+  const look = applyDusk({ scene, sun, fill, areaData: area });
+  tintDuskLawn({ ground: scene.children.filter((c) => c.isMesh && (c.userData.ground || c.userData.duskTint)), grass: null, look });
+  scene.environmentIntensity = duskEnv(scene.environmentIntensity, look);
+  const ground = area.ground;
+  const wear = effectiveWear({ collar: null, head: null, face: null, neck: null, body: null, back: null, feet: null }, 'jungle');
+  const cat = buildCat('tabby', wear); scene.add(cat);
+  const camera = new THREE.PerspectiveCamera(70, W / H, 0.1, 300);
+  const shadows = tier.shadows ? createShadowFit(sun, camera, { radius: 20, mapSize: tier.rung >= 3 ? 1024 : 2048 }) : null;
+  sun.shadow.bias = SUN_BIAS; sun.castShadow = tier.shadows;
+  assignShadowCasters(scene);
+  mergeStaticProps(scene);
+  const fx = createFx(scene, { reducedMotion: false });
+  const store = new Map();
+  const STEP = Number(params.get('step') ?? 2);
+  const progression = createProgression({ getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)), removeItem: (k) => store.delete(k) });
+  const log = createDiscoveryLog(progression); log.startWalk();
+    const player = { floatY: 0 };
+  const life = area.life({ roomSeed: 7, sendEvent: () => {}, scene, sun, fill, ground, reducedMotion: false, tier, progression, log, audio: null, doc: document, win: window, clock: () => 250, visits: 3, player, season: params.get('season') || null });
+  let t = 0;
+  const CY = { v: 0 }; let walk = null; // walk: { x0, z0, dx, dz, speed, n, i }
+  const follow = () => {
+    const cy = CY.v; const p = 0.18; const back = 4.5 * Math.cos(p); const cp = cat.position;
+    camera.position.set(cp.x + Math.sin(cy) * back, cp.y + 2.2 + 4.5 * Math.sin(p) * 0.9, cp.z + Math.cos(cy) * back); camera.lookAt(cp.x, cp.y + 0.7, cp.z);
+  };
+  function frame() {
+    t += DT;
+    if (walk && walk.i < walk.n) { walk.i++; const x = walk.x0 + walk.dx * walk.speed * DT * walk.i; const z = walk.z0 + walk.dz * walk.speed * DT * walk.i; cat.position.set(x, ground.y(x, z), z); }
+    follow();
+    life.update(DT, t, cat.position, camera, { hopLift: 0 });
+    fx.update(DT, camera);
+    const moving = walk && walk.i < walk.n;
+    animateCat(cat, moving ? 'walk' : 'idle', t, moving ? walk.speed : 0, false);
+    if (shadows) shadows.update(0, DT);
+    renderer.render(scene, camera);
+  }
+  const settle = (n) => { for (let i = 0; i < n; i++) frame(); };
+  // one shot per vista (name = its id), and `<id>-g` = the same after she has stood still 4 s (the golden moment). She stands on the spot, facing the focal point; the camera is the walk's own.
+  const hr = params.get('hr') || '0.3';
+  window.__shot = (name) => {
+    const gold = name.endsWith('-g'); const id = gold ? name.slice(0, -2) : name;
+    const V0 = VISTAS.find((q) => q.id === id); if (!V0) throw new Error('no shot ' + name); const po = params.get('pos'); const V = po ? { ...V0, x: Number(po.split(',')[0]), z: Number(po.split(',')[1]) } : V0; // pos=x,z tries another spot
+    const dx = V.fx - V.x, dz = V.fz - V.z, L = Math.hypot(dx, dz), ux = dx / L, uz = dz / L;
+    const ox = V.x - ux * 6, oz = V.z - uz * 6; // start 6 m back, walk in, so the camera and the cat settle as in play
+    CY.v = Math.atan2(-ux, -uz); cat.position.set(ox, ground.y(ox, oz), oz); cat.rotation.set(0, facingYaw(ux, uz), 0);
+    t = 420 * Number(hr); W = W0; H = H0; renderer.setSize(W, H); camera.aspect = W / H; camera.updateProjectionMatrix();
+    walk = null; settle(20);
+    walk = { x0: ox, z0: oz, dx: ux, dz: uz, speed: 3.4, n: Math.round(6 / (3.4 * DT)), i: 0 }; settle(walk.n);
+    walk = null; settle(gold ? 150 : 60);
+    return name;
+  };
+  window.__stats = () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles });
+  window.__ready = true;
+</script>
+</body>
+</html>
