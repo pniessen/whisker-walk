@@ -45,7 +45,8 @@ export const SAND_DUSK_TINT = Object.freeze({ desat: 0.12, dark: 0.88, cool: Obj
 export function build(scene, { water = {}, wind, season, hour } = {}) {
   const SEASON = setSeason(season); // (the calendar's, from the date; only the picture page names one)
   const SD0 = seasonData(SEASON);
-  const LOOK = hourLook(hour != null && hour !== '' && Number.isFinite(Number(hour)) ? Number(hour) : hourNow(), SD0); // (the real clock's: dawn, noon, golden hour, night)
+  const HOUR = hour != null && hour !== '' && Number.isFinite(Number(hour)) ? Number(hour) : hourNow();
+  const LOOK = hourLook(HOUR, SD0); // (the real clock's: dawn, noon, golden hour, night)
   const SD = { ...SD0, sky: LOOK.sky, light: LOOK.light };
   const plan = P.lighthouseArea();
   return withLocalUuids('lighthouse-build', () => {
@@ -145,7 +146,7 @@ export function build(scene, { water = {}, wind, season, hour } = {}) {
       ground: plan.ground,
       traversal: plan.traversal,
       // the lamp: lit by the lever, a beam that turns, the ship's horn (world/lighthouselife.js)
-      life: (ctx) => createLighthouseLife({ ...ctx, colliders: plan.colliders, waters: plan.waters, tone: LOOK.tone, night: LOOK.night }),
+      life: (ctx) => createLighthouseLife({ ...ctx, colliders: plan.colliders, waters: plan.waters, tone: LOOK.tone, night: LOOK.night, hour: HOUR, waterFx: [seaEast, seaWest] }),
     };
   });
 }

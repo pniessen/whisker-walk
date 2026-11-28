@@ -33,7 +33,7 @@ function rig({ restore = null, audio = null, roomSeed } = {}) {
   const log = createDiscoveryLog(progression);
   log.startWalk();
   if (restore) log.restore(restore);
-  const life = placed.life({ scene, ground: placed.ground, audio, log, progression, reducedMotion: false, tier: { name: 'high' }, roomSeed });
+  const life = placed.life({ scene, ground: placed.ground, audio, log, progression, reducedMotion: false, tier: { name: 'high' }, roomSeed, wx: 'off' });
   const session = { tippables };
   const camera = new THREE.PerspectiveCamera();
   const events = [];
