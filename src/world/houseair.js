@@ -9,7 +9,7 @@
 import * as THREE from 'three';
 import { hash01 } from './builder.js';
 
-export const SUNBEAM = Object.freeze({ length: 3.2, drop: 1.6, width: 0.9, opacity: 0.12, motes: 14 });
+export const SUNBEAM = Object.freeze({ length: 3.2, drop: 1.6, width: 1.2, opacity: 0.3, motes: 22 });
 const IN = 0.1; // the beam starts this far inside the wall
 const AMP = 0.12; // a mote's drift, m
 const SIDE = { n: [0, 1], s: [0, -1], w: [1, 0], e: [-1, 0] }; // inward (x, z)
@@ -65,7 +65,7 @@ export function createHouseAir(scene, { windows, rooms, levels, dusk = false, re
     blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false,
   });
   const moteMat = new THREE.PointsMaterial({
-    color: 0xfff0c8, size: 0.05, sizeAttenuation: true, transparent: true, opacity: 0.7,
+    color: 0xfff0c8, size: 0.075, sizeAttenuation: true, transparent: true, opacity: 0.95,
     blending: THREE.AdditiveBlending, depthWrite: false, fog: false,
   });
 
@@ -138,6 +138,8 @@ export function createHouseAir(scene, { windows, rooms, levels, dusk = false, re
     update(dt, t0, full) {
       if (calm && !reducedMotion) lost += dt * 0.5;
       const t = t0 - lost;
+      // beauty pass 2: the shafts breathe a little, as a high cloud passes (still under reduced motion)
+      beamMat.opacity = SUNBEAM.opacity * (reducedMotion ? 1 : 1 + 0.18 * Math.sin(t * 0.45) * Math.sin(t * 0.17 + 1));
       for (let i = 0; i < layers.length; i++) {
         const L = layers[i];
         const show = full.has(L.level);

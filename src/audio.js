@@ -360,11 +360,11 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
 
   // Occasional distant birdsong. Seaside doesn't use this (gulls instead);
   // callers also skip it during rain/dusk (birds go quiet).
-  function birdsongLayer() {
+  function birdsongLayer(k = 1) {
     const id = setInterval(() => {
       if (!muted && Math.random() < 0.45) {
-        tone(1500 + Math.random() * 700, 0.1, { gain: 0.025, slideTo: 1900 });
-        tone(1700 + Math.random() * 500, 0.08, { gain: 0.02, delay: 0.14 });
+        tone(1500 + Math.random() * 700, 0.1, { gain: 0.025 * k, slideTo: 1900 });
+        tone(1700 + Math.random() * 500, 0.08, { gain: 0.02 * k, delay: 0.14 });
       }
     }, 2600);
     return { stop: () => clearInterval(id) };
@@ -487,7 +487,7 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
   // Fireplace crackle — the den's only ambience (Task 7.2): looped noise
   // narrowed to a warm low-mid band, with a slow randomized LFO on the gain
   // so it swells and settles like an actual fire instead of a flat hiss.
-  function crackleLayer() {
+  function crackleLayer(base = 0.03) {
     const ac = ensure();
     const src = loopedNoiseSource(2);
     const bp = ac.createBiquadFilter();
@@ -495,13 +495,13 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
     bp.frequency.value = 500;
     bp.Q.value = 0.7;
     const g = ac.createGain();
-    g.gain.value = 0.03;
+    g.gain.value = base;
     const lfo = ac.createOscillator();
     const lfoGain = ac.createGain();
     // "slow random-ish": a low, non-round frequency so the swell doesn't
     // read as a metronomic pulse the way a clean 0.1Hz LFO would.
     lfo.frequency.value = 0.37;
-    lfoGain.gain.value = 0.012;
+    lfoGain.gain.value = base * 0.4;
     lfo.connect(lfoGain).connect(g.gain);
     src.connect(bp).connect(g).connect(master);
     src.start();
@@ -938,7 +938,13 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
         // dusk toggle), and a house dusk walk lights its lamps but stays
         // indoors, so this stays explicit rather than relying on the caller
         // never passing dusk: true.
-        layers.push(crackleLayer());
+        if (areaKey === 'house') {
+          // The Old House's quiet bed (beauty pass 2, 2026-11-28): the hearth's crackle turned down (housesound.js adds the pops near the fire), a low draught
+          // in the chimney, and distant garden birds through the glass by day (none at dusk).
+          layers.push(crackleLayer(0.016));
+          layers.push(windLayer({ gain: 0.012, cutoff: 150 }));
+          if (!dusk) layers.push(birdsongLayer(0.4));
+        } else layers.push(crackleLayer());
       } else if (areaKey === 'seaside' || areaKey === 'lighthouse') {
         // Lighthouse Point has the Seaside's surf and gulls (its own bell, horn and echo are the place's, lighthousesound.js).
         layers.push(wavesLayer());

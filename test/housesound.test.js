@@ -3,7 +3,7 @@ import { createAudio } from '../src/audio.js';
 
 vi.stubGlobal('document', { createElement: () => ({ getContext: () => null }) });
 
-const { createHouseSound, TICK_R, CREAK_EVERY_M, ATTIC_CREAK_S } = await import('../src/world/housesound.js');
+const { createHouseSound, TICK_R, CREAK_EVERY_M, ATTIC_CREAK_S, POP_R, SETTLE_S } = await import('../src/world/housesound.js');
 const { HOUSE_STAIRS, HOUSE_ROOMS } = await import('../src/world/houseplan.js');
 const { HOUSE_FINDS } = await import('../src/world/housethings.js');
 
@@ -116,5 +116,30 @@ describe('the house sound', () => {
     audio.creak(0);
     audio.tick(-1);
     expect(made.n).toBe(n);
+  });
+});
+
+// beauty pass 2 (2026-11-28): the hearth's pops and the boards settling
+describe('the house bed', () => {
+  const FIRE = { x: 13.72, z: 7 };
+  const mk = () => {
+    const log = [];
+    const audio = { tick: (v) => log.push(['tick', v]), creak: (v) => log.push(['creak', v]) };
+    return { log, sound: createHouseSound(audio, { clock: CLOCK, stairs: [], attic: null, fire: FIRE }) };
+  };
+  it('pops now and then near the fire, louder close, and not at all from afar', () => {
+    const near = mk();
+    for (let i = 0; i < 60 * 12; i++) near.sound.update(DT, i * DT, { x: 12.5, z: 7 });
+    const pops = near.log.filter((e) => e[0] === 'tick');
+    expect(pops.length).toBeGreaterThan(3);
+    expect(pops.length).toBeLessThan(14);
+    const far = mk();
+    for (let i = 0; i < 60 * 12; i++) far.sound.update(DT, i * DT, { x: 12.5 - POP_R - 2, z: 7 });
+    expect(far.log.filter((e) => e[0] === 'tick')).toHaveLength(0);
+  });
+  it('settles with one quiet creak every SETTLE_S, on a fixed schedule', () => {
+    const { log, sound } = mk();
+    for (let i = 0; i < Math.round((SETTLE_S * 2.2) / DT); i++) sound.update(DT, i * DT, { x: -40, z: -40 });
+    expect(log.filter((e) => e[0] === 'creak')).toHaveLength(2);
   });
 });

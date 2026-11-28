@@ -64,6 +64,7 @@ import { toyStop, HOUSE_FINDS } from './housethings.js';
 import { OLD_HOUSE_PLAN, SECRET_WARDROBE } from './houseplan.js';
 import { createHouseSound } from './housesound.js';
 import { createHouseAir } from './houseair.js';
+import { FIRE } from './houseglow.js';
 import { createLedgeGuards, catScale } from './houseguards.js';
 
 const NO_PANES = Object.freeze([]);
@@ -129,7 +130,7 @@ const TELEPORT = 25; // m/s: no ball rolls this fast
 const DOORS = [false, true].map((a) => [false, true].map((b) => Object.freeze({ secretOpen: a, wardrobeOpen: b })));
 
 export function createHouseLife(scene, house, {
-  reducedMotion = false, log = null, audio = null, toy = null, colliders = [], now, dusk = false,
+  reducedMotion = false, log = null, audio = null, toy = null, colliders = [], now, dusk = false, tier = null,
 } = {}) {
   const { sections, sectionMeshes, panes } = house;
   const P = house.plan ?? OLD_HOUSE_PLAN; // the plan this house was built from (house.js)
@@ -169,8 +170,13 @@ export function createHouseLife(scene, house, {
     clock: (P === OLD_HOUSE_PLAN ? HOUSE_FINDS : house.finds ?? []).find((f) => f.id === 'clock') ?? null,
     stairs: P.stairs,
     attic: P.rooms.find((r) => r.id === 'attic') ?? null,
+    fire: P === OLD_HOUSE_PLAN ? { x: FIRE.x, z: FIRE.z } : null,
   });
   const air = createHouseAir(scene, { windows: P.windows, rooms: P.rooms, levels: house.levels, dusk: !!dusk, reducedMotion });
+  // beauty pass 2 (houseglow.js): the light, firelight, curtains and garden sway are one shader patch on the house's material; LOW and LITE hold the flicker and sway still
+  const glow = house.glow ?? null;
+  const low = !!tier && (tier.name === 'low' || tier.name === 'lite' || tier.shadows === false || (tier.rung ?? 0) >= 3);
+  const glowOpts = { still: reducedMotion, dusk: !!dusk, low };
   const guards = createLedgeGuards(colliders, floor);
   const frontDoor = createFrontDoor(house.parts?.frontDoor ?? null, reducedMotion, P.frontDoor);
   let sized = false;
@@ -257,6 +263,7 @@ export function createHouseLife(scene, house, {
     drawing.settle(floorY(catPos), catPos.x, catPos.z, camera.position.x, camera.position.z, two && at2(two));
     write();
     air.update(0, 0, drawing.full);
+    glow?.update(0, catPos, glowOpts);
     holdFades(catPos, camera.position);
     guard(catPos);
     frontDoor.settle(catPos);
@@ -285,6 +292,7 @@ export function createHouseLife(scene, house, {
       drawing.update(floorY(catPos), catPos.x, catPos.z, camera.position.x, camera.position.z, two && at2(two));
       write();
       air.update(dt, t, drawing.full);
+      glow?.update(t, catPos, glowOpts);
       finds.update(dt, t, catPos, camera.position, partners); // after the camera's move: the bookcase's fade hold
       wingFinds.update(dt, t, catPos, partners, camera.position);
       if (lightUnder) lightUnder.visible = dusk && !wingFinds.open && drawing.full.has('kids') && Math.hypot(catPos.x - SECRET_WARDROBE.x, catPos.z - SECRET_WARDROBE.z) < 12; // the faint light under the shut wardrobe's doors
