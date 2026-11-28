@@ -27,6 +27,8 @@ export const CSS = `
 .sp-hud.sp1{right:var(--tv-safe-x,5vw);text-align:right}
 .sp-head{display:flex;gap:calc(14px * var(--sp-s));align-items:flex-start}
 .sp-hud.sp1 .sp-head{flex-direction:row-reverse}
+.sp-hud.sp0 .sp-head{padding-right:calc(100px * var(--sp-s))} /* the centre is the rank pill's: the goal pills stop short of it */
+.sp-hud.sp1 .sp-head{padding-left:calc(100px * var(--sp-s))}
 .sp-map{position:relative;flex:none;width:var(--map-size);display:flex;flex-direction:column;align-items:center;gap:5px}
 .sp-map .hud-area{font-size:calc(20px * var(--sp-s));padding:calc(3px * var(--sp-s)) calc(12px * var(--sp-s))}
 .sp-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:calc(8px * var(--sp-s))}
@@ -45,6 +47,10 @@ export const CSS = `
 .sp-hud.sp1 .sp-low{align-items:flex-end}
 .sp-toasts{display:flex;flex-direction:column;gap:calc(6px * var(--sp-s));align-items:inherit;max-width:100%}
 .sp-toasts .toast{font-size:calc(26px * var(--sp-s)) !important;max-width:100%;border-radius:calc(22px * var(--sp-s))}
+:root.coop-split .coop-hints{gap:calc(32px * var(--sp-s))}
+:root.coop-split .coop-hints span{box-sizing:border-box;max-width:calc(50% - 16px * var(--sp-s));border-radius:calc(20px * var(--sp-s))}
+:root.coop-split .coop-hints span+span{text-align:right}
+:root.coop-split .hud-hint{top:calc(130px * var(--sp-s)) !important;bottom:auto !important;max-width:30vw !important}
 .sp-hud .coop-slot,.sp-hud .coop-chip{position:static;transform:none;max-width:100%;font-size:calc(24px * var(--sp-s))}
 `;
 
