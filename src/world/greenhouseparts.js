@@ -12,9 +12,9 @@ import {
 } from './parkfountain.js';
 import * as P from './greenhouseplan.js';
 import { hash01 } from './warehouselook.js';
-import { frondGeometry, tint, shade, collector, finishMesh, memo, flowerGeometry } from './greenhouseplants.js';
+import { frondGeometry, tint, shade, collector, finishMesh, memo, flowerGeometry, noBottom } from './greenhouseplants.js';
 import { pavedGeometry } from './greenhouseglass.js';
-import { groundDetail } from './greenhousedetail.js';
+import { groundDetail, potDetail, benchDetail, basketDetail, shedDetail } from './greenhousedetail.js';
 
 export const GH_TREE_SALT = 0x61a77;
 
@@ -85,6 +85,7 @@ export function pottingBench() {
   col.add(potG, B.x - 0.9, 0.58, B.z + 0.02, { scale: 0.92 });
   col.add(tint(new THREE.BoxGeometry(0.05, 0.02, 0.2), 0x9aa0a6), B.tray.x + 0.15, B.h + 0.12, B.tray.z - 0.1, { tilt: 0.3 });
   col.add(tint(new THREE.BoxGeometry(0.03, 0.03, 0.14), 0x6a4a30), B.tray.x + 0.15, B.h + 0.2, B.tray.z + 0.02, {});
+  benchDetail(col);
   return finishMesh('ghBench', col.merged());
 }
 
@@ -95,6 +96,12 @@ export function kitchenBed() {
   col.add(tint(new THREE.BoxGeometry(K.w - 0.2, 0.18, K.d - 0.2), 0x3e2c1d), K.x, 0.09, K.z, {});
   for (const [w, d, x, z] of [[K.w, 0.1, 0, -K.d / 2], [K.w, 0.1, 0, K.d / 2], [0.1, K.d, -K.w / 2, 0], [0.1, K.d, K.w / 2, 0]]) {
     col.add(tint(new THREE.BoxGeometry(w, 0.28, d), 0x9a7650), K.x + x, 0.14, K.z + z, {});
+  }
+  // row labels: a seed packet on a stick at each end of the three rows (beauty pass)
+  for (let i = 0; i < 4; i++) {
+    const x = K.x - K.w / 2 + 0.5 + i * ((K.w - 1) / 3);
+    col.add(tint(new THREE.PlaneGeometry(0.012, 0.22), 0x8a6642), x, 0.3, K.z + K.d / 2 - 0.28, {});
+    col.add(tint(new THREE.PlaneGeometry(0.1, 0.13), [0xf6e7b4, 0xf4c4c4, 0xbfe0f0, 0xf6d86a][i]), x, 0.4, K.z + K.d / 2 - 0.28, { yaw: 0.2 * (i - 1.5) });
   }
   return finishMesh('ghKitchenBed', col.merged());
 }
@@ -108,14 +115,16 @@ const POT_FLOWER = (hex) => {
 };
 export function gardenPots() {
   const col = collector();
-  const pot = shade(tint(new THREE.CylinderGeometry(0.28, 0.2, 0.36, 8), 0xb8613c), { foot: 0.72, crown: 1.12 });
-  const rim = shade(tint(new THREE.CylinderGeometry(0.31, 0.29, 0.07, 8), 0xa4532f), { foot: 0.9, crown: 1.15 });
-  const soil = tint(new THREE.CylinderGeometry(0.27, 0.27, 0.02, 8), 0x33241a);
+  // (beauty pass: no caps nobody sees, the pot open at both ends under its rim and soil, the rim and soil without an underside)
+  const pot = shade(tint(new THREE.CylinderGeometry(0.28, 0.2, 0.36, 8, 1, true), 0xb8613c), { foot: 0.72, crown: 1.12 });
+  const rim = noBottom(shade(tint(new THREE.CylinderGeometry(0.31, 0.29, 0.07, 8), 0xa4532f), { foot: 0.9, crown: 1.15 }));
+  const soil = noBottom(tint(new THREE.CylinderGeometry(0.27, 0.27, 0.02, 8), 0x33241a));
   const leaves = [];
   P.ALL_POT_SPOTS.forEach(({ x, z }, i) => {
     col.add(pot, x, 0.18, z, { k: 0.9 + 0.2 * hash01(i, 4, 0x6c5), warm: (hash01(i, 6, 0x6c5) - 0.5) * 0.25 });
     col.add(rim, x, 0.38, z, {});
     col.add(soil, x, 0.4, z, {});
+    potDetail(col, x, z, i);
     const lc = collector();
     for (let k = 0; k < 7; k++) lc.add(POT_LEAF(), 0, 0.4, 0, { yaw: -((k / 7) * TAU + i), scale: 0.9 + 0.2 * ((k * 7 + i) % 3) / 2 });
     const blooms = [0xf27ab8, 0xf5d042, 0xffffff, 0xe84a7a][i % 4];
@@ -264,6 +273,8 @@ export function streetKit() {
   col.add(tint(new THREE.CylinderGeometry(L.r * 0.9, L.r, L.length, 10).rotateX(Math.PI / 2), 0x6a4a2e), L.x, L.r, L.z, {});
   col.add(tint(new THREE.CircleGeometry(L.r * 0.9, 10), 0xc9a878), L.x, L.r, L.z + L.length / 2 + 0.01, {});
   for (const k of [-1, 0, 1]) col.add(tint(new THREE.IcosahedronGeometry(0.14, 0), 0x5d8a3e), L.x + 0.1, L.r * 2 - 0.03, L.z + k * 0.9, { sy: 0.5 });
+  for (const l of P.COURT_LAMPS) basketDetail(col, l);
+  shedDetail(col);
   return finishMesh('ghStreet', col.merged());
 }
 
@@ -336,7 +347,7 @@ export function shedKit() {
   for (const st of P.POT_STACKS) {
     const ph = st.h / 3;
     for (let i = 0; i < 3; i++) {
-      col.add(tint(new THREE.CylinderGeometry(0.34 - i * 0.03, 0.24 - i * 0.03, ph + 0.02, 9), i % 2 ? 0xb8613c : 0xc46f46), st.x + 0.02 * i, ph * i + ph / 2, st.z - 0.02 * i, {});
+      col.add(tint(new THREE.CylinderGeometry(0.34 - i * 0.03, 0.24 - i * 0.03, ph + 0.02, 9, 1, true), i % 2 ? 0xb8613c : 0xc46f46), st.x + 0.02 * i, ph * i + ph / 2, st.z - 0.02 * i, {});
       col.add(tint(new THREE.CylinderGeometry(0.37 - i * 0.03, 0.34 - i * 0.03, 0.06, 9), 0xa4532f), st.x + 0.02 * i, ph * (i + 1) - 0.02, st.z - 0.02 * i, {});
     }
   }
