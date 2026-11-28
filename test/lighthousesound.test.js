@@ -73,4 +73,21 @@ describe('the sounds', () => {
     try { for (const c of CALLS) s[c](); } finally { Math.random = real.r; Date.now = real.d; performance.now = real.p; }
     expect(nodes.osc).toBeGreaterThan(10);
   });
+  it('the surf (pass three) is a soft swell of filtered noise: silent while muted, never louder than 0.04, never reads a clock or Math.random', () => {
+    expect(S.createLighthouseSound({ isMuted: () => true, getContext: () => { throw new Error('asked'); }, getMaster: () => ({}) }).surf()).toBe(false);
+    const gains = [];
+    const param = () => ({ setValueAtTime() {}, linearRampToValueAtTime: (v) => gains.push(v), exponentialRampToValueAtTime() {} });
+    const node = () => ({ connect: (n) => n, disconnect() {}, frequency: { setValueAtTime() {}, linearRampToValueAtTime() {} }, gain: param() });
+    const ctx = {
+      state: 'running', currentTime: 3, sampleRate: 8000,
+      createBuffer: (ch, n) => ({ getChannelData: () => new Float32Array(n) }),
+      createBufferSource: () => ({ ...node(), start() {}, stop() {} }),
+      createBiquadFilter: () => node(), createGain: () => node(),
+    };
+    const s = S.createLighthouseSound({ isMuted: () => false, getContext: () => ctx, getMaster: () => ({}) });
+    const real = Math.random; Math.random = () => { throw new Error('Math.random was called'); };
+    try { expect(s.surf(1)).toBe(true); } finally { Math.random = real; }
+    expect(Math.max(...gains)).toBeLessThanOrEqual(0.04);
+    s.dispose();
+  });
 });

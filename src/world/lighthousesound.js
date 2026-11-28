@@ -36,6 +36,7 @@ export const HORN = Object.freeze({
 export const BELL = Object.freeze({ gain: 0.06, f: 392, dur: 2.6, partials: Object.freeze([[1, 1], [2.76, 0.45], [5.4, 0.2]]), attack: 0.01 });
 export const ECHO = Object.freeze({ delays: Object.freeze([0.5, 1.0, 1.5]), gains: Object.freeze([0.04, 0.025, 0.014]), f: 520, to: 760, dur: 0.3 });
 export const GULL = Object.freeze({ gain: 0.035, parts: Object.freeze([Object.freeze({ at: 0, dur: 0.22, f: 1500, to: 1000 }), Object.freeze({ at: 0.24, dur: 0.22, f: 1000, to: 1400 })]) });
+export const SURF = Object.freeze({ gain: 0.03, rise: 2.1, dur: 5.2, from: 240, to: 520 });
 export const MEW = Object.freeze({ gain: 0.05, f: 700, to: 1050, dur: 0.3 });
 export const PURR = Object.freeze({ gain: 0.035, f: 48, dur: 1.6, tremolo: 22 });
 
@@ -106,8 +107,33 @@ export function createLighthouseSound(audio) {
   const bell = () => play((c, master, now) => { for (const [mul, k] of BELL.partials) voice(c, master, { f: BELL.f * mul, dur: BELL.dur / (1 + (mul - 1) * 0.25), gain: BELL.gain * k, attack: BELL.attack, now }); });
   const echo = () => play((c, master, now) => { ECHO.delays.forEach((d, i) => voice(c, master, { type: 'triangle', f: ECHO.f, to: ECHO.to, at: d, dur: ECHO.dur, gain: ECHO.gains[i], now })); });
   const gull = () => play((c, master, now) => { for (const p of GULL.parts) voice(c, master, { type: 'sawtooth', ...p, gain: GULL.gain, attack: 0.02, now }); });
+  // a swell of surf as a foam row lands (lighthousealive.js times it): deterministic noise (a small LCG, never Math.random) through a
+  // low-pass that opens as the wave comes in and closes as it drains; k (0..1) is how near she is to the water
+  const surf = (k = 1) => play((c, master, now) => {
+    if (typeof c.createBuffer !== 'function' || typeof c.createBufferSource !== 'function' || typeof c.createBiquadFilter !== 'function') return; // (a context without noise nodes: this swell is skipped, the walk's other sounds are not silenced)
+    const n = Math.floor(c.sampleRate * 1.5);
+    const buf = c.createBuffer(1, n, c.sampleRate);
+    const d = buf.getChannelData(0);
+    let seed = 20261128;
+    for (let i = 0; i < n; i++) { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; d[i] = seed / 2147483648 - 1; }
+    const src = c.createBufferSource();
+    src.buffer = buf; src.loop = true;
+    const lp = c.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(SURF.from, now);
+    lp.frequency.linearRampToValueAtTime(SURF.to, now + SURF.rise);
+    lp.frequency.linearRampToValueAtTime(SURF.from, now + SURF.dur);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(SURF.gain * k, now + SURF.rise);
+    g.gain.exponentialRampToValueAtTime(0.001, now + SURF.dur);
+    src.connect(lp).connect(g).connect(master);
+    src.start(now); src.stop(now + SURF.dur + 0.05);
+    live.add(src);
+    src.onended = () => { live.delete(src); try { src.disconnect(); lp.disconnect(); g.disconnect(); } catch { /* gone */ } };
+  });
   const mew = () => play((c, master, now) => voice(c, master, { type: 'triangle', ...MEW, now }));
   const purr = () => play((c, master, now) => voice(c, master, { type: 'sawtooth', f: PURR.f, dur: PURR.dur, gain: PURR.gain, attack: 0.2, tremolo: PURR.tremolo, now }));
 
-  return { horn, bell, echo, gull, mew, purr, dispose() { dead = true; hush(); } };
+  return { horn, bell, echo, gull, surf, mew, purr, dispose() { dead = true; hush(); } };
 }

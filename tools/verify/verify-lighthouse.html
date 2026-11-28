@@ -348,6 +348,12 @@
     pl_e1: { at: [-8, 4], face: [1, -0.2], secs: 0, lit: true, warm: 19.7 },
     pl_e2: { at: [-8, 4], face: [1, -0.2], secs: 0, lit: true, warm: 21 },
     pl_cove: { at: [31, 22], face: [1, -0.3], secs: 0, lit: true, warm: 6 },
+    // beauty pass 3 (2026-11-28): the lighthouse reacts to the cat and lives (PLAY camera; lb3_pool is mid-reaction)
+    lb3_calm: { at: [16, 28], face: [0, -1], secs: 0, lit: true, warm: 6 },
+    lb3_pool: { at: [16, 28], face: [0, -1], stick: [0, -1], secs: 1.7, lit: true, warm: 0.2 },
+    lb3_prints: { at: [16, 28], face: [0, -1], stick: [0, -1], secs: 3.3, lit: true, warm: 0.2 },
+    lb3_run: { at: [22, 38], face: [0, -1], stick: [0, -1], secs: 2.4, lit: true, warm: 0.3 },
+    lb3_coast: { at: [30, 24], face: [1, -0.3], secs: 0, lit: true, warm: 40, keepCat: true, cam: { pos: [30, 3.2, 26], look: [46, 1.0, 6], fov: 75 } },
     card1: { at: [-6, 14], face: [-1, 0], secs: 0, keepCat: true, cam: { pos: [6, 7, 20], look: [-22, 10, -14], fov: 55 } },
     card2: { at: [-14, 9], face: [-1, -0.3], secs: 0, keepCat: true, cam: { pos: [-2, 9, 14], look: [-24, 11, -20], fov: 50 } },
     card3: { at: [-12, -4], face: [-1, -0.4], secs: 0, keepCat: true, cam: { pos: [-1, 4.8, 3], look: [-23, 12, -20], fov: 56 } },
@@ -435,6 +441,10 @@
   };
   window.__snap = (q = 0.85) => { render(); return renderer.domElement.toDataURL('image/jpeg', q); };
   window.__info = () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries });
+  // whole-frame figures for the beauty passes: what the renderer drew, and the scene's visible meshes and shadow casters
+  window.__scan = () => { let meshes = 0; let casters = 0; let all = 0; scene.traverse((o) => { if (o.isMesh && o.visible && o.geometry) { meshes++; if (o.castShadow) casters++; const g = o.geometry; const n = g.index ? g.index.count / 3 : g.attributes.position.count / 3; all += Math.round(g.drawRange.count === Infinity ? n : Math.min(n, g.drawRange.count / 3)); } }); render(); return { ...window.__info(), meshes, casters, allTris: all, cat: [cat.position.x, cat.position.z].map((v) => +v.toFixed(2)) }; };
+  window.__tris = () => { const rows = []; scene.traverse((o) => { if (o.isMesh && o.visible && o.geometry) { const g = o.geometry; const n = g.index ? g.index.count / 3 : g.attributes.position.count / 3; const dr = g.drawRange.count === Infinity ? n : g.drawRange.count / 3; rows.push([o.name || o.parent?.name || '-', Math.round(Math.min(n, dr)), o.castShadow ? 'cast' : '-']); } }); rows.sort((a, b) => b[1] - a[1]); return rows.slice(0, 40); };
+  window.__scene = scene;
   window.__live = () => live;
   window.__events = events;
 

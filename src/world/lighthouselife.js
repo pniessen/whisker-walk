@@ -165,7 +165,7 @@ export function createLighthouseLife(ctx = {}) {
   });
   for (const m of parts.all) scene?.add(m);
   const sound = createLighthouseSound(audio);
-  const alive = withLocalUuids('lighthouse-alive', () => createLighthouseAlive({ scene, reducedMotion: !!ctx.reducedMotion, tier }));
+  const alive = withLocalUuids('lighthouse-alive', () => createLighthouseAlive({ scene, reducedMotion: !!ctx.reducedMotion, tier, sound }));
   const looks = createFindLooks({ scene, ground, reducedMotion: !!ctx.reducedMotion });
   const cats = createKeeperCats({ scene, ground, colliders: ctx.colliders, waters: ctx.waters, sound, log, progression, roomSeed: seed, visits: ctx.visits, reducedMotion: !!ctx.reducedMotion });
   // her own meow button (game/interactions.js doMeow tells the bus): the cave's echo answers it
@@ -316,7 +316,7 @@ export function createLighthouseLife(ctx = {}) {
       if (arm) arm.rotation.z = -ARM_SWING * smooth(lit ? (t - litAt) / ARM_TIME : 0);
       const glowK = lit ? smooth((t - litAt) / LIGHT_UP) : 0;
       placeBeam(glowK, catPos, camera);
-      alive.update(dt, t, camera, beamAngle(t, seed), glowK);
+      alive.update(dt, t, camera, beamAngle(t, seed), glowK, catPos);
 
       if (shipDue !== null && !shipDone && t >= shipDue) {
         shipDone = true;
