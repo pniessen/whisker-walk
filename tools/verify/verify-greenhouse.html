@@ -81,6 +81,7 @@
   const fade = createTreeFade(findFadeOccluders(scene), { reducedMotion: rm });
   const life = area.life({ reducedMotion: rm, dusk: DUSK, weather: RAIN ? { isRaining: () => true, setSheltered() {} } : null, ground: { y: () => 0 }, visits: Number(params.get('visits') || 0), season: params.get('season') || undefined });
 
+  if (params.get('nocreat') === '1') life.creatures.points.visible = false; // the 'before' pictures of pass 5
   const player = createPlayer(camera, renderer.domElement);
   player.setReducedMotion(rm);
   let t = 0;
@@ -184,6 +185,14 @@
     p4_rainbow2: { at: [0, -9], face: [0, 1], moment: 'rainbow', secs: 10, cam: { pos: [-8, 2.2, 9], look: [0, 6, -30], fov: 62 }, hold: true },
     p4_sprinkler: { at: [0, 29], face: [0, -1], moment: 'sprinkler', secs: 14 },
     p4_moon: { at: [10.4, 16], face: [0.2, -1], moment: 'moonbloom', secs: 16, momentAt: { x: 12, z: 11.5 } },
+    // beauty pass 5: living creatures (play camera). moving: shot taken mid-walk
+    p5_bench: { at: [20.6, 15.9], face: [0, -1] },
+    p5_arrive: { at: [0, 4.2], face: [0, -1], stick: [0, -1], secs: 1.5, moving: true },
+    p5_hum: { at: [-1.7, -1.0], face: [-1, -0.25], secs: 6 },
+    p5_humclose: { at: [0.5, -3.0], face: [-1, 0], secs: 6, cam: { pos: [-2.3, 1.7, 0.3], look: [-4.75, 1.4, -1.35], fov: 40 }, hold: true },
+    p5_hall: { at: [0, -3], face: [0, -1] },
+    p5_court: { at: [0, 31], face: [0, -1] },
+    p5_lamp: { at: [-2.4, 30], face: [-1, -0.9] },
     palms: { at: [-6, -9], face: [-1, 0], cam: { pos: [12, 2.4, -2.2], look: [-6, 4, -12], fov: 60 }, hold: true },
   };
   window.__shot = (name) => {
@@ -208,6 +217,7 @@
     }
     if (s.cam) { renderer.render(scene, camera); } else render();
     if (params.get('dbg') === '1' && s.moment) { const m = life.moments; throw new Error('DBG ' + JSON.stringify({ kind: m?.kind, vis: m?.points.visible, op: m?.points.material.opacity, dr: m?.points.geometry.drawRange, errs: window.__errs, p0: Array.from(m.points.geometry.attributes.position.array.slice(0, 6)), c0: Array.from(m.points.geometry.attributes.color.array.slice(0, 6)), s0: Array.from(m.points.geometry.attributes.aSize.array.slice(0, 3)), proj: (() => { const v = new THREE.Vector3(...m.points.geometry.attributes.position.array.slice(150, 153)).project(camera); return [v.x, v.y, v.z]; })(), cam: camera.position.toArray(), ren: renderer.info.render.points })); }
+    if (params.get('dbg') === '2') { const c = life.creatures.points; throw new Error('DBG2 ' + JSON.stringify({ vis: c.visible, inScene: !!c.parent, op: c.material.opacity, sz: Array.from(c.geometry.attributes.aSize.array.slice(0, 4)), pts: renderer.info.render.points, errs: window.__errs })); }
     return name;
   };
   window.__snap = (q = 0.85) => { renderer.render(scene, camera); return renderer.domElement.toDataURL('image/jpeg', q); };
