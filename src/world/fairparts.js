@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {
   hash01, box, cyl, ball, sheet, stripes, stripedSlab, bunting, bulb, bulbString, meshOf, canvasOf, glowMesh, recentre,
-  BULB_COLORS, BUNTING_COLORS, lampLit, lampMaterial, LAMP_LOOK,
+  BULB_COLORS, BUNTING_COLORS, seasonLook, lampLit, lampMaterial, LAMP_LOOK,
 } from './fairkit.js';
 
 // =============================================================================
@@ -88,7 +88,6 @@ export function into(K, x, z, yaw, fn) {
 }
 
 // ---- balloons ---------------------------------------------------------------------------
-const BALLOON_COLORS = Object.freeze([0xe8423a, 0xf6c92e, 0x3aa0e0, 0x4cba62, 0xf58a2e, 0xb061d6, 0xf59ac0]);
 // A bunch of `n` balloons tied at (x, y, z).
 export function balloonBunch(K, x, y, z, n = 5, salt = 0) {
   for (let i = 0; i < n; i++) {
@@ -97,7 +96,7 @@ export function balloonBunch(K, x, y, z, n = 5, salt = 0) {
     const up = 1.0 + 0.5 * hash01(salt, i, 7) + (i === 0 ? 0.35 : 0);
     const bx = x + Math.cos(a) * lean;
     const bz = z + Math.sin(a) * lean;
-    blob(K.balloons, 0.22, bx, y + up, bz, BALLOON_COLORS[(i + salt) % BALLOON_COLORS.length], { detail: 1, sy: 1.25 });
+    blob(K.balloons, 0.22, bx, y + up, bz, (seasonLook().bunting)[(i + salt) % 6], { detail: 1, sy: 1.25 });
     sheet(K.flags, [[x - 0.008, y, z], [x + 0.008, y, z], [bx + 0.008, y + up - 0.26, bz], [bx - 0.008, y + up - 0.26, bz]], 0xe8e2d6);
   }
 }
@@ -203,7 +202,7 @@ export function fence(K, runs) {
       const pz = z1 + ((z2 - z1) * i) / n;
       box(K.fence, 0.12, 1.0, 0.12, px, 0, pz, FENCE_PAINT, { yaw });
       // a painted top: one flat square (the fence is drawn on both faces)
-      const cap = BUNTING_COLORS[i % BUNTING_COLORS.length];
+      const cap = seasonLook().bunting[i % 6];
       sheet(K.fence, [[px - 0.09, 1.001, pz - 0.09], [px + 0.09, 1.001, pz - 0.09], [px + 0.09, 1.001, pz + 0.09], [px - 0.09, 1.001, pz + 0.09]], cap);
       sheet(K.fence, [[px - 0.07, 0.9, pz + 0.062], [px + 0.07, 0.9, pz + 0.062], [px + 0.07, 1.0, pz + 0.062], [px - 0.07, 1.0, pz + 0.062]], cap);
       sheet(K.fence, [[px - 0.07, 0.9, pz - 0.062], [px + 0.07, 0.9, pz - 0.062], [px + 0.07, 1.0, pz - 0.062], [px - 0.07, 1.0, pz - 0.062]], cap);
@@ -286,7 +285,7 @@ export function stall(K, { top = 'flat', colors = [C.red, C.cream], goods = 'pla
   rectZ(P, -0.95, 0.95, 0.62, 1.62, bz, -1, b);
   rectZ(P, -0.88, 0.88, 0.69, 1.55, bz - 0.007, -1, a, 1.04);
   plate(P, [[0, 0.88, bz - 0.014], [0.34, 1.12, bz - 0.014], [0, 1.36, bz - 0.014], [-0.34, 1.12, bz - 0.014]], C.gold, [0, 0, -1]);
-  for (const s of [-1, 1]) plate(P, [[s * 0.62, 1.0, bz - 0.014], [s * 0.72, 1.12, bz - 0.014], [s * 0.62, 1.24, bz - 0.014], [s * 0.52, 1.12, bz - 0.014]], b, [0, 0, -1]);
+  for (const s of [-1, 1]) plate(P, [[s * 0.62, 1.0, bz - 0.014], [s * 0.72, 1.12, bz - 0.014], [s * 0.62, 1.24, bz - 0.014], [s * 0.52, 1.12, bz - 0.014]], s < 0 ? C.blue : C.red, [0, 0, -1]); // winners' ribbons: blue and red
   box(P, w + 0.06, 0.12, 0.15, 0, 2.02, -hd + 0.03, b);
   for (const s of [-1, 1]) {
     const sx = s * (hw + 0.012);
@@ -333,7 +332,7 @@ export function stall(K, { top = 'flat', colors = [C.red, C.cream], goods = 'pla
     }
     box(K.bulbs, 1.9, 0.5, 0.08, 0, roofY, hd + 0.2, C.gold, { shade: 0.74 }); // on the glow list: it lights at dusk
     box(P, 1.6, 0.3, 0.1, 0, roofY + 0.1, hd + 0.2, a);
-    for (let i = 0; i < 8; i++) bulb(K.bulbs, -hw + 0.1 + i * ((w - 0.2) / 7), roofY - 0.2, fz + 0.075, BULB_COLORS[(i + salt) % BULB_COLORS.length]);
+    for (let i = 0; i < 8; i++) bulb(K.bulbs, -hw + 0.1 + i * ((w - 0.2) / 7), roofY - 0.2, fz + 0.075, seasonLook().bulb[(i + salt) % 6]);
   } else {
     stripes(K.canvas, 2.35, 2.2, 0, STALL.tentY, [a, b], 0, 0, 0, { sides: 12 });
     stripes(K.canvas, 2.36, 2.2, 2.36, 2.2, [b, a], 0, 0, 0, { sides: 12, scallop: 0.3 });
@@ -343,7 +342,7 @@ export function stall(K, { top = 'flat', colors = [C.red, C.cream], goods = 'pla
     for (const s of [-1, 1]) box(P, 0.03, 2.3 - STALL_SIGN.tent.y - STALL_SIGN.tent.h / 2, 0.03, s * 0.7, STALL_SIGN.tent.y + STALL_SIGN.tent.h / 2, STALL_SIGN.tent.z - 0.036, C.dark);
     for (let i = 0; i < 7; i++) {
       const t = Math.PI / 2 - 0.9 + (i / 6) * 1.8;
-      bulb(K.bulbs, Math.cos(t) * 2.4, 2.14, Math.sin(t) * 2.4, BULB_COLORS[(i + salt) % BULB_COLORS.length]);
+      bulb(K.bulbs, Math.cos(t) * 2.4, 2.14, Math.sin(t) * 2.4, seasonLook().bulb[(i + salt) % 6]);
     }
   }
 
@@ -393,12 +392,12 @@ export function stall(K, { top = 'flat', colors = [C.red, C.cream], goods = 'pla
   } else if (goods === 'prizes') {
     const fur = [0xc98a4c, 0xf3d9b0, 0xf59ac0, 0x9ad0f0, 0xb98ad8];
     for (let i = 0; i < 4; i++) teddy(P, -1.05 + i * 0.7, sy, sz, fur[(i + salt) % 5]);
-    for (let i = 0; i < 2; i++) teddy(P, -0.6 + i * 1.2, cy, counterZ - 0.05, fur[(i + salt + 2) % 5]);
+    for (let i = 0; i < 2; i++) teddy(P, -0.6 + i * 1.2, cy, counterZ - 0.05, i ? C.cream : C.gold); // the grand prizes: gold and white
   } else if (goods === 'hoops') {
     // pegs to throw rings over
     for (let i = 0; i < 5; i++) {
       const px = -1.1 + i * 0.55;
-      cyl(P, 0.03, 0.03, 0.3, px, cy, counterZ, C.wood, { sides: 6 });
+      cyl(P, 0.03, 0.03, 0.3, px, cy, counterZ, i % 2 ? C.red : C.white, { sides: 6 });
       cyl(P, 0.14, 0.14, 0.03, px, cy + (i % 2 ? 0.02 : 0.14), counterZ, BUNTING_COLORS[i], { sides: 10 });
     }
     // toys on the back shelf, to win: a drum, a block with a stripe, a striped ball, a rocket

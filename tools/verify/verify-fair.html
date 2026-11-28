@@ -42,7 +42,8 @@
   import * as fair from '/src/world/fair.js';
   import { createFairLive } from '/src/fairlive.js';
   import { createFairShow } from '/src/fairshow.js';
-  import { FAIR_CLOCK } from '/src/world/fairkit.js';
+  import * as kit from '/src/world/fairkit.js';
+  const { FAIR_CLOCK } = kit;
   import { buildCat, CAT_LOOK_Y } from '/src/cat/model.js';
   import { animateCat } from '/src/cat/animator.js';
 
@@ -67,6 +68,8 @@
   scene.environmentIntensity = tier.envIntensity;
   const sun = createSun();
   scene.add(sun);
+  // beauty pass 4: ?season=spring|summer|autumn|winter paints the fair for that season (none: the date's own); older builds have no seasons
+  if (params.has('season')) kit.setFairSeason?.(params.get('season'));
   const wind = createWind({ reducedMotion: true });
   const area = fair.build(scene, { water: { quality: tier, reducedMotion: true }, wind });
   const fill = createFill(area.groundBounce);
@@ -198,6 +201,15 @@
     'g-wheel': () => frameCat(6, -22, [10, -26]),
     'g-east': () => frameCat(14, 26, [18, 20]),
     'ride-horse': () => { /* set up in __shot below */ },
+    // beauty pass 4: stories in the details, seasons, surprises (pair each with ?T= and ?mood=: see tools/verify/fair-beauty4.html)
+    'p4-booths': () => frameCat(-0.8, 31, [-5.7, 26]),
+    'p4-hoopla': () => frameCat(1.4, 30.5, [5.7, 34.5]),
+    'p4-midway': () => frameCat(0, 36, [0, 20]),
+    'p4-balloon': () => frameCat(1, 24, [0, -30]),
+    'p4-cannon': () => frameCat(1, -11, [0, -30]),
+    'p4-flock': () => frameCat(0, 21, [0, 0]),
+    'p4-lucky': () => frameCat(0.2, 28.5, [-1, 18]),
+    'p4-tubs': () => frameCat(-14, 33, [-16.4, 30]),
     'run-midway': () => frameCat(1.5, 30, [0, 20]),
     'run-plaza': () => frameCat(-9, 12, [-3, 4]),
   };
@@ -324,7 +336,8 @@
     scene.traverse((o) => { if (o.isMesh) { meshes++; if (o.castShadow) casters++; } else if (o.isPoints) points++; });
     const bits = scene.getObjectByName('fair:bits');
     const live = bits ? Array.from(bits.geometry.attributes.position.array).filter((v, i) => i % 3 === 1 && v > -900).length : 0;
-    return { ...window.__info(), meshes, casters, points, bitsLive: live };
+    const lv = (n) => { const o = scene.getObjectByName(n); return o ? Array.from(o.geometry.attributes.position.array).filter((v, i) => i % 3 === 1 && v > -900).length : 0; };
+    return { ...window.__info(), meshes, casters, points, bitsLive: live, glowLive: lv('fair:glow'), skyLive: lv('fair:sky'), paperLive: lv('fair:paper'), fireLive: lv('fair:fire') };
   };
   window.__scene = scene;
   window.__area = area;

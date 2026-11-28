@@ -292,12 +292,12 @@ describe('the fair reacts to her (beauty pass 3)', () => {
     expect([FAIR_CLOCK.catOn.value, FAIR_CLOCK.beat.value, FAIR_CLOCK.breath.value]).toEqual([0, 0, 0]);
     expect(CAT_LOOK.flutter).toBeGreaterThan(0);
   });
-  it('kicked bits, steam and a dusk firework are three Points and no mesh; reduced motion draws none; a lite pool is smaller', async () => {
+  it('kicked bits, steam and a dusk firework are five Points and no mesh; reduced motion draws none; a lite pool is smaller', async () => {
     const { createFairAlive, fireAt, ALIVE } = await import('../src/fairalive.js');
     const sc = new THREE.Scene();
     const a = createFairAlive({ scene: sc });
     const pts = []; sc.traverse((o) => { if (o.isPoints) pts.push(o); });
-    expect(pts.length).toBe(3);
+    expect(pts.length).toBe(5);
     expect(sc.children.some((c) => c.isMesh)).toBe(false);
     let moved = 0;
     for (let i = 0; i < 90; i++) { a.update(1 / 30, 5000 + i / 30, { x: i * 0.06, z: 20 }, 1, 2); }
@@ -329,5 +329,30 @@ describe('the fair reacts to her (beauty pass 3)', () => {
     for (let i = 0; i < 120; i++) { T += 1 / 30; live.update(1 / 30, i / 30, { cat, player, session: { perched: { id: 'seat' } } }); }
     expect(events.some((e) => e.type === 'ride-whoosh')).toBe(false);
     live.dispose();
+  });
+
+  it('beauty pass 4: the rare moments are pure functions of the time of day, rare, and the season recolours the paint', async () => {
+    const { balloonAt, cannonAt, flockAt, luckyAt, createFairAlive } = await import('../src/fairalive.js');
+    const { SEASONS, seasonOf, setFairSeason, fairSeason } = kit;
+    let b = 0; let c = 0; let f = 0; let l = 0; const N = 20000;
+    for (let T = 0; T < 86400; T += 4.3) { if (balloonAt(T)) b++; if (cannonAt(T) >= 0) c++; if (flockAt(T) >= 0) f++; if (luckyAt(T)) l++; }
+    for (const n of [b, c, f, l]) { expect(n).toBeGreaterThan(0); expect(n / (86400 / 4.3)).toBeLessThan(0.45); }
+    expect(balloonAt(12345.6)).toEqual(balloonAt(12345.6));
+    expect(seasonOf(new Date(2026, 3, 1))).toBe('spring');
+    expect(seasonOf(new Date(2026, 6, 1))).toBe('summer');
+    expect(seasonOf(new Date(2026, 9, 31))).toBe('autumn');
+    expect(seasonOf(new Date(2026, 0, 5))).toBe('winter');
+    expect(SEASONS.autumn.bunting).not.toEqual(SEASONS.summer.bunting);
+    setFairSeason('nonsense'); expect(Object.keys(SEASONS)).toContain(fairSeason());
+    // a lucky bulb turns gold once when she passes it, and a firework's burst pops once, never muted by a wrong volume
+    let Tl = 0; for (; Tl < 86400 && !luckyAt(Tl); Tl += 1);
+    const lk = luckyAt(Tl);
+    const sc = new THREE.Scene(); const ev = [];
+    const a = createFairAlive({ scene: sc, onEvent: (e) => ev.push(e) });
+    for (let i = 0; i < 40; i++) a.update(1 / 30, Tl + i / 30, { x: lk.x, z: lk.z + 1 }, 1, 0);
+    expect(ev.filter((e) => e.type === 'lucky').length).toBe(1);
+    const rm = []; const r = createFairAlive({ scene: new THREE.Scene(), reducedMotion: true, onEvent: (e) => rm.push(e) });
+    r.update(1 / 30, Tl, { x: lk.x, z: lk.z }, 1, 0);
+    expect(rm.length).toBe(0);
   });
 });

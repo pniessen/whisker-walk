@@ -912,11 +912,13 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
     // Her birthday fireworks (world/birthdaygathering.js): a soft, far-off
     // boom and a little crackle. Through the master, so the sound switch
     // and the volume hold it like every other sound.
-    firework() {
-      tone(70, 0.45, { type: 'sine', gain: 0.07, slideTo: 38 });
-      tone(1800, 0.05, { gain: 0.012, delay: 0.12 });
-      tone(2300, 0.04, { gain: 0.01, delay: 0.2 });
-      tone(1500, 0.05, { gain: 0.01, delay: 0.29 });
+    firework(volume = 1) {
+      const v = Math.max(0, Math.min(1, Number.isFinite(volume) ? volume : 1));
+      if (v <= 0) return;
+      tone(70, 0.45, { type: 'sine', gain: 0.07 * v, slideTo: 38 });
+      tone(1800, 0.05, { gain: 0.012 * v, delay: 0.12 });
+      tone(2300, 0.04, { gain: 0.01 * v, delay: 0.2 });
+      tone(1500, 0.05, { gain: 0.01 * v, delay: 0.29 });
     },
     // Low thud on landing after a pounce.
     landThump() {
