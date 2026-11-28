@@ -4,7 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Old House beauty round</title>
-<!-- Beauty pass 3 (2026-11-28): the house reacts to the cat and lives. New params: rain=1 (a rainy day: streaks on the panes, patter; rain=0 dry; default dry here), now=H sets the day-part
+<!-- Beauty pass 4 (2026-11-28): stories, seasons and rare surprises. New params: surprise=box|cuckoo|ghost (that rare moment, 3 s in, so a shot catches it); now=2026-04-10T15:00 (a local date and hour) sets the season
+     (Dec-Feb winter, Mar-May spring, Jun-Aug summer, Sep-Nov autumn). Shots used: hall, library, parlour, kitchen, attic (plus the nearer p4-* shots).
+     Beauty pass 3 (2026-11-28): the house reacts to the cat and lives. New params: rain=1 (a rainy day: streaks on the panes, patter; rain=0 dry; default dry here), now=H sets the day-part
      (morning 7, noon 12, evening 18, night 22); the page hands the house a silent audio stub so the fire's crackle bursts run; shot p3-rug holds a thumb down (her mid-walk reaction).
      Beauty pass 2 (2026-11-28): the play-camera shots for the light, colour and sway pass are the page's existing ones: cushion (fire), hall, g-beds, g-gate (left: main, right: pass 2; contact-pass2-before-after.png). -->
 <!-- The Old House's picture page (Old House step 1): the house
@@ -167,6 +169,7 @@
   const SEED = params.has('seed') ? Number(params.get('seed')) >>> 0 : 20261121;
   const YARN = params.get('yarn') === '1' ? 1 : 0;
   const LABEL = params.get('label') !== '0';
+  const SURPRISE = params.get('surprise'); // pass 4: box | cuckoo | ghost starts that rare moment 3 s in, so a shot catches it
   const RAIN = params.get('rain') === '1'; // pass 3: a rainy day indoors (the page decides: dry unless asked)
   const SILENT = new Proxy({}, { get: (_, k) => (k === 'isMuted' ? () => true : () => {}) }); // pass 3: the house's sounds run (their pops brighten the fire), nothing is heard
   // Step 4: a partner on a co-walk, sitting at x, z (null: none)
@@ -269,6 +272,23 @@
     'bookcase-shut': f({ at: f([-6.0, 3.3]), face: f([0, -1]), zoom: 1, caption: 'A bookcase in the wall' }),
     'p3-rug': f({ at: f([-12.5, 7.2]), face: f([1, 0]), zoom: 1, push: f([1, 0]), pushS: 1.3, hold: true, settle: 0, caption: 'Across the library rug' }),
     'p3-rug-still': f({ at: f([-9.9, 7.2]), face: f([1, 0]), zoom: 1, caption: 'The same spot, standing' }),
+    // beauty pass 4 (2026-11-28): her nearer, as a walk passes the family's little stories
+    'p4-door': f({ at: f([0.3, 9.3]), face: f([0, 1]), zoom: 1, caption: 'Boots by the door' }),
+    'p4-kitchen': f({ at: f([9.9, -1.2]), face: f([-0.3, -1]), zoom: 1, caption: 'The kitchen table' }),
+    'p4-marks': f({ at: f([10.4, 0.5]), face: f([0, 1]), zoom: 1, caption: 'Height marks' }),
+    'p4-pantry': f({ at: f([12.1, -1.6]), face: f([1, 0]), zoom: 1, caption: 'Drawings on the pantry' }),
+    'p4-library': f({ at: f([-10.0, 4.7]), face: f([-1, 0]), zoom: 1, caption: 'By the armchair' }),
+    'p4-desk': f({ at: f([-9.5, 10.0]), face: f([0, 1]), zoom: 1, caption: 'The library desk' }),
+    'p4-parlour': f({ at: f([11.4, 6.0]), face: f([1, 0.2]), zoom: 1, caption: 'The parlour' }),
+    'p4-clock': f({ at: f([9.0, -5.6]), face: f([0, -1]), zoom: 1, caption: 'The kitchen clock' }),
+    'p4-attic': f({ at: f([-16.6, -12.5]), face: f([0, -1]), zoom: 1, caption: 'A poster in the attic' }),
+    'p4-stair': f({ at: f([-1.6, 4.4]), face: f([0.25, -1]), zoom: 1, caption: 'The big stair' }),
+    'p4-bench': f({ at: f([2.2, 8.2]), face: f([1, 0.3]), zoom: 0, caption: 'The hall bench' }),
+    'p4-console': f({ at: f([-2.4, 5.4]), face: f([-1, -0.2]), zoom: 0, caption: 'The hall console' }),
+    'p4-chair': f({ at: f([-10.4, 6.3]), face: f([-0.5, -1]), zoom: 0, caption: 'The library chair and basket' }),
+    'p4-mantel': f({ at: f([12.0, 6.2]), face: f([1, 0.4]), zoom: 0, caption: 'The parlour mantel' }),
+    'p4-window': f({ at: f([0.0, 9.6]), face: f([0, 1]), zoom: 0, caption: 'The hall windows' }),
+    'p4-hall': f({ at: f([-2.2, 6.2]), face: f([-0.2, 1]), zoom: 1, caption: 'The hall console and bench' }),
     'bookcase-far': f({ at: f([-6.6, 7.0]), face: f([0.1, -1]), zoom: 1, caption: 'The library\'s north wall' }),
   });
   const SHOTS = { ...HOUSE_SHOTS, ...PAGE_SHOTS };
@@ -455,6 +475,7 @@
     life?.dispose();
     freshThings();
     life = area.life({ scene, sun, fill, ground, reducedMotion: rm, log, hud: hudStub, audio: SILENT, toy, dusk: DUSK, now, rain: RAIN });
+    if (SURPRISE) life.surprise?.(SURPRISE, 3);
     if (open) openBookcase();
     if (wardrobe) openWardrobe();
     cat.position.set(x, ground.y(x, z) + (perch ? perch.y : 0), z);
@@ -666,6 +687,7 @@
     life?.dispose();
     freshThings();
     life = area.life({ scene, sun, fill, ground, reducedMotion: rm, log, hud: hudStub, audio: SILENT, toy, dusk: DUSK, now, rain: RAIN });
+    if (SURPRISE) life.surprise?.(SURPRISE, 3);
     cat.position.set(x, ground.y(x, z), z);
     cat.rotation.set(0, yaw, 0); // she faces the way the note looked (walk.js, owner's fix C)
     player.setAvatar(cat, PACE);
