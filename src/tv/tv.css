@@ -35,7 +35,7 @@ html.tv .hud-goals {
   top: calc(var(--tv-s, 1) * 76px); gap: calc(5px * var(--tv-s, 1));
 }
 /* The skill badges: round pictures (no words), 48 px at 1080p, level under the goals pill (the script moves them down with it). */
-html.tv .hud-badges { top: calc(var(--tv-s, 1) * 150px); gap: calc(8px * var(--tv-s, 1)); max-width: calc(100vw - 2 * var(--tv-safe-x, 5vw)); }
+html.tv .hud-badges { top: calc(var(--tv-s, 1) * 150px); gap: calc(8px * var(--tv-s, 1)); max-width: calc(100vw - 2 * var(--tv-safe-x, 5vw) - var(--map-size) - calc(12px * var(--tv-s, 1))); }
 html.tv .hud-badge { width: calc(48px * var(--tv-s, 1)); height: calc(48px * var(--tv-s, 1)); font-size: calc(28px * var(--tv-s, 1)) !important; }
 html.tv .hud-roster { top: calc(var(--map-size) + var(--tv-s, 1) * 62px); }
 html.tv .hud-map:not(:has(.hud-map-disc)) ~ .hud-roster { top: calc(var(--tv-s, 1) * 76px); }

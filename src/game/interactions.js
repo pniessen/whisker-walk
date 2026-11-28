@@ -14,9 +14,10 @@
 // doMeow's reply timeout still re-reads getSession() so an ended walk stays
 // silent exactly as before.
 
+import { callVoice, isChicken } from '../catvoice.js';
 import { PERSONALITIES } from '../cat/brain.js';
 import { bestPerch, canReach, fenceRunning } from '../climbing.js';
-import { placeArc, placeBudget } from '../placephysics.js';
+import { placeArc, placeBudget, gentleHop } from '../placephysics.js';
 import { climbArc } from '../climbarc.js';
 import { FLAT_GROUND } from '../ground.js';
 import { hasSkill } from '../skills.js';
@@ -213,7 +214,7 @@ export function createInteractions({
     session.farm?.reactToMeow(session.cat.position); // a cow moos back
     session.fair?.meow?.(session.cat.position); // a visitor at the fair says hello
     if (session.strayCats.reactToMeow(session.cat.position, { far: farCall }) > 0) {
-      setTimeout(() => { if (getSession()) audio.meow(); }, 350); // a reply from a friend
+      setTimeout(() => { const now = getSession(); if (now) callVoice(audio, isChicken(now.cat?.userData?.breed) ? 'hagrid' : 'tabby'); }, 350); // a reply from a friend
     }
     if (session.net) {
       session.net.sendEvent({
@@ -238,8 +239,10 @@ export function createInteractions({
   // None in reduced motion. avatar.js plays the pounce pose and the one landing thump off session.climbT.
   function startClimbJump(session, from, to) {
     if (session.reducedMotion) return;
-    const base = placeArc(pounceArc(progression.state, { reducedMotion: false }), session.areaId);
-    const arc = climbArc(from, to, base);
+    const breed = session.cat?.userData?.breed;
+    const base = placeArc(pounceArc(progression.state, { reducedMotion: false }), session.areaId, breed);
+    const g = gentleHop(session.areaId, breed); // Hagrid on the Moon: a gentler drawn hop (placephysics.js)
+    const arc = climbArc(from, to, g ? { ...base, apexMul: g.height, durMul: g.hang } : base);
     player.startClimb?.(arc);
     session.climbT = arc.dur;
   }
@@ -389,7 +392,7 @@ export function createInteractions({
       // `settings` into this module) keeps the setting read off the 60Hz
       // path and out of this factory's dependency list, and a stand-in
       // session without the field simply reads as "motion allowed".
-      const arc = placeArc(pounceArc(progression.state, { reducedMotion: session.reducedMotion }), session.areaId);
+      const arc = placeArc(pounceArc(progression.state, { reducedMotion: session.reducedMotion }), session.areaId, session.cat?.userData?.breed);
       player.pounce(arc);
       audio.pounceWhoosh();
       // 0.3s is also the hop's duration (POUNCE_HOP_TIME) — the arc is tied

@@ -2864,7 +2864,7 @@ html.phone #hud:not(.lesson-on) .hud-goals:not(:focus) .goal.next::after { conte
    the goals pill (the script sets `top` from the pills' height). Phone badges are 24 px and the row folds past 8
    into a "+n"; tablet and laptop get 28 px. The newest wears a gold ring; a skill earned mid-walk pops in. --- */
 .hud-badges {
-  position: absolute; z-index: 2; display: flex; gap: 3px; width: fit-content;
+  position: absolute; z-index: 2; display: flex; flex-wrap: wrap; gap: 3px; width: fit-content;
   top: calc(max(16px, env(safe-area-inset-top)) + 84px); left: max(16px, env(safe-area-inset-left));
   max-width: calc(100vw - 32px - var(--map-size) - 12px);
 }

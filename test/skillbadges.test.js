@@ -150,4 +150,12 @@ describe('the wiring', () => {
     expect(tv).toMatch(/html\.tv \.hud-badge \{ width: calc\(48px/);
     expect(tv).toContain('.hud-area, .hud-badges) { visibility: hidden; }');
   });
+  it('the row wraps and stops before the minimap, on TV too, keeping the gold ring and the pop', () => {
+    const css = read('../src/style.css'); const tv = read('../src/tv/tv.css');
+    expect(css).toMatch(/\.hud-badges \{[^}]*flex-wrap: wrap/);
+    expect(css).toMatch(/\.hud-badges \{[^}]*max-width: calc\(100vw - 32px - var\(--map-size\)/);
+    expect(tv).toMatch(/html\.tv \.hud-badges \{[^}]*max-width: calc\([^;]*var\(--map-size\)/);
+    expect(css).toMatch(/\.hud-badge\.new \{ border-color: #f2c14e/);
+    expect(css).toMatch(/\.hud-badge\.pop \{ animation: badge-pop/);
+  });
 });

@@ -2,15 +2,15 @@
 // behind its logical spot to draw it. Pure numbers: no THREE, no clock, no random.
 // climbArc(from, to, { height, time, reducedMotion }) -> arc; climbArcOffset(arc, elapsed) -> { x, y, z } to ADD to the
 // logical position. `height`/`time` are the place's pounce arc (placeArc), so Spring Paws and the Moon lift and slow it.
-export function climbArc(from, to, { height = 0.35, time = 0.3, reducedMotion = false } = {}) {
+export function climbArc(from, to, { height = 0.35, time = 0.3, reducedMotion = false, apexMul = 1, durMul = 1 } = {}) {
   const dx = from.x - to.x, dy = from.y - to.y, dz = from.z - to.z;
   const d = Math.hypot(dx, dz);
   const rise = -dy;
   // Earth: 0.28 s + 0.07 s per metre, capped at 0.6 s; the place's own hop time is the floor (the Moon hangs ~1.1 s).
-  const dur = reducedMotion || !(d >= 0) || !(time >= 0) ? 0 : Math.max(Math.min(0.6, 0.28 + 0.07 * d), time);
+  const dur = reducedMotion || !(d >= 0) || !(time >= 0) ? 0 : Math.max(Math.min(0.6, 0.28 + 0.07 * d), time) * durMul;
   // A climb rises at least the hop's height (longer hang time, as on the Moon, lifts it more); a drop only arcs for the ground it crosses.
   const apex = rise >= 0 ? Math.max(height, Math.sqrt(Math.max(1, time / 0.3)) * (0.25 * d + 0.5 * rise)) : 0.25 * d;
-  return { dx, dy, dz, dur, apex };
+  return { dx, dy, dz, dur, apex: apex * apexMul };
 }
 
 const ZERO = Object.freeze({ x: 0, y: 0, z: 0 });

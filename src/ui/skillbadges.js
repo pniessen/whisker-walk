@@ -19,6 +19,7 @@ addPhrases(LINES);
 export const POP_MS = 1400;
 export const NEW_MS = 7000;
 export const PHONE_MAX = 8;
+export const PHONE_LINES = 2; // a phone's row may wrap to this many lines before it folds into +n
 export const POP_WAIT_MS = 6000; // a pop never waits longer than this for the toast ahead of it
 const RETRY_MS = 400;
 const NAME = new Map(SKILLS.map((s) => [s.id, s.name]));
@@ -78,7 +79,8 @@ export function createBadgeStrip({ root, hud, setTimer = setTimeout, clearTimer 
     if (!w || !w.innerWidth) return PHONE_MAX;
     const map = root.querySelector('#hud-map');
     const avail = w.innerHeight <= 500 ? 220 : w.innerWidth - 32 - ((map && map.offsetWidth) || 88) - 12;
-    return Math.max(3, Math.min(PHONE_MAX, Math.floor((avail + 3) / 27)));
+    // up to two lines of badges before the fold (the row wraps; style.css), still never more than PHONE_MAX
+    return Math.max(3, Math.min(PHONE_MAX, PHONE_LINES * Math.floor((avail + 3) / 27)));
   }
 
   // Under the goals pill when it shows, and clear of the objective and hint cards wherever they sit.

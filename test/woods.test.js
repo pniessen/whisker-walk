@@ -244,10 +244,10 @@ describe('the Woods: trees', () => {
     }
   });
 
-  it('plants each tree with a collider and a Sure Claws fork', () => {
+  it('plants each tree with a collider and no hidden tree-top perch', () => {
     for (const t of woodsTreeSpots()) {
       expect(area.colliders.some((c) => c.x === t.x && c.z === t.z), `collider (${t.x}, ${t.z})`).toBe(true);
-      expect(area.perches.some((p) => p.x === t.x && p.z === t.z && p.requires), `fork (${t.x}, ${t.z})`).toBe(true);
+      expect(area.perches.some((p) => p.x === t.x && p.z === t.z && p.requires), `no fork (${t.x}, ${t.z})`).toBe(false);
     }
   });
 });
