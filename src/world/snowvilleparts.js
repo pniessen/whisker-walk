@@ -294,16 +294,16 @@ export function drawCottages(kit, M) {
 // ---- the square -----------------------------------------------------------------------------------------------------------------------
 const BAUBLES = Object.freeze([0xe0524a, 0xf2c14e, 0x6aa8e8, 0xf4ecd8, 0xe0524a, 0xf2c14e]);
 // A fir by tiers: stacked open cones painted green at the foot to snow at the point, on a trunk. `s` scales it (1 = 4.5 m).
-export function firParts(s, tiers) {
+export function firParts(s, tiers, seg = 7) {
   const parts = [];
   const H = 4.5 * s;
-  parts.push([cyl(0.12 * s, 0.18 * s, H * 0.3, 5).translate(0, H * 0.15, 0), COL.woodDark]);
+  parts.push([new THREE.CylinderGeometry(0.12 * s, 0.18 * s, H * 0.3, 5, 1, true).translate(0, H * 0.15, 0), COL.woodDark]); // open ended: the top is inside the first tier and the foot is under the snow (pass 4: five unseen triangles a fir)
   for (let t = 0; t < tiers; t++) {
     const f = t / tiers;
     const r = (1.55 - 1.1 * f) * s;
     const h = H * (0.42 - 0.06 * f);
     const y = H * (0.18 + 0.68 * f);
-    const cone = new THREE.ConeGeometry(r, h, 7, 1, true).translate(0, y + h / 2, 0);
+    const cone = new THREE.ConeGeometry(r, h, seg, 1, true).translate(0, y + h / 2, 0);
     const g = cone.toNonIndexed();
     cone.dispose();
     g.computeVertexNormals();
@@ -324,7 +324,7 @@ export function firParts(s, tiers) {
 const jig = (i, n) => { const v = Math.sin(i * 12.9898 + n * 78.233) * 43758.5453; return v - Math.floor(v); };
 function putFir(kit, M, k, noCast, i) {
   const wf = 0.78 + 0.5 * jig(i, 1); const hf = 0.88 + 0.3 * jig(i, 2);
-  for (const [geo, hex] of firParts(k.s, k.tiers)) {
+  for (const [geo, hex] of firParts(k.s, k.tiers, k.rim ? 6 : 7)) { // (the treeline out in the haze takes six sides: pass 4's pay)
     const g = hex === null ? geo : paint(geo, hex);
     kit.put(noCast ? 'treeBack' : 'tree', M.paint, stand(g.scale(wf, hf, wf), k.x, k.z, -0.1, k.x * 7), { noCast });
   }

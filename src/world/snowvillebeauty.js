@@ -102,7 +102,7 @@ function bunting(kit, M, la, lb, hues, n = 9) {
 // ---- the far ridge: one non-casting merged bucket --------------------------------------------------------------------------------------------
 function peakGeometry(k) {
   const H = k.h + 2;
-  const g = new THREE.ConeGeometry(k.r, H, k.seg, 3, true).toNonIndexed();
+  const g = new THREE.ConeGeometry(k.r, H, k.seg, 2, true).toNonIndexed();
   g.computeVertexNormals();
   g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
   const pos = g.attributes.position;
@@ -289,4 +289,14 @@ export function drawBeauty(kit, M, { low = false } = {}) {
   for (const sp of strungSpots()) kit.put('glow', M.glow, hot(paint(new THREE.TetrahedronGeometry(sp.r, 0).translate(sp.x, sp.y, sp.z), sp.hex), 1.9), { noCast: true });
   if (!low) for (const g of presents()) kit.put('paint', M.paint, stand(paint(box(g.s, g.s * 0.8, g.s).rotateY(g.a), g.hex), g.x, g.z, g.s * 0.4 - 0.05), { noCast: true });
   for (const k of BP.ridgePeaks()) kit.put('ridge', M.paint, peakGeometry(k), { noCast: true });
+}
+
+// Beauty pass 4: the two strings of pennants' bulbs in order, west to east (eight a string): the chorus of bells flashes along them note for note. Pure.
+export function bellStrings() {
+  const L = P.LAMPS;
+  return [[L[0], L[1]], [L[2], L[3]]].map(([la, lb]) => {
+    const at = buntingAt(la, lb); const out = [];
+    for (let i = 1; i < 9; i++) { const p = at(i / 9); out.push({ x: p.x, y: p.y - 0.04, z: p.z }); }
+    return out;
+  });
 }

@@ -81,12 +81,14 @@ export function snowWhump(audio, k = 0) {
 }
 
 // A distant carol-like chime phrase: bell-like notes (a sine and a soft partial) a third of a second apart, very quiet.
+// The phrase carolChime(audio, k) plays (beauty pass 4: the chorus of bells flashes along the lights note for note).
+export const carolPhrase = (k = 0) => CAROL_PHRASES[Math.floor(hash01(k, 64) * CAROL_PHRASES.length)];
 export function carolChime(audio, k = 0) {
   const ac = soundCtx(audio);
   if (!ac) return false;
   const now = ac.currentTime;
   const out = audio.getMaster?.() ?? ac.destination;
-  const phrase = CAROL_PHRASES[Math.floor(hash01(k, 64) * CAROL_PHRASES.length)];
+  const phrase = carolPhrase(k);
   phrase.forEach((n, i) => {
     const at = now + i * 0.46 + (i === phrase.length - 1 ? 0.2 : 0);
     const g = ac.createGain();
