@@ -248,8 +248,8 @@ function ripple(r) {
 function animate(mat, uT, U, key = 'cat') {
   mat.customProgramCacheKey = () => 'crystalMove6';
   mat.onBeforeCompile = (sh) => {
-    sh.uniforms.uT = uT; sh.uniforms.uCat = U[key]; sh.uniforms.uRip = U.rip; sh.uniforms.uBloom = U.bloom; sh.uniforms.uMood = U.mood; sh.uniforms.uLing = U.ling;
-    sh.vertexShader = `attribute vec4 aMove;\nattribute vec3 aCen;\nuniform float uT;\nuniform vec4 uCat;\nuniform vec4 uRip[3];\nuniform vec4 uBloom;\nuniform vec4 uMood;\nuniform vec4 uLing;\nvarying float vKk;\nvarying vec3 vTint;\nvarying float vBand;\nvarying vec3 vPrism;\n${sh.vertexShader}`
+    sh.uniforms.uT = uT; sh.uniforms.uCat = U[key]; sh.uniforms.uRip = U.rip; sh.uniforms.uBloom = U.bloom; sh.uniforms.uMood = U.mood; sh.uniforms.uLing = U.ling; sh.uniforms.uCal = U.cal;
+    sh.vertexShader = `attribute vec4 aMove;\nattribute vec3 aCen;\nuniform float uT;\nuniform vec4 uCat;\nuniform vec4 uRip[3];\nuniform vec4 uBloom;\nuniform vec4 uMood;\nuniform vec4 uLing;\nuniform vec3 uCal;\nvarying float vKk;\nvarying vec3 vTint;\nvarying float vBand;\nvarying vec3 vPrism;\n${sh.vertexShader}`
       .replace('#include <begin_vertex>', `#include <begin_vertex>
         float kk = 1.0; float kd = aMove.x;
         if (kd > 0.5 && kd < 1.5) { float f = fract(uT * aMove.z + aMove.y); transformed.y += f * aMove.w; transformed.x += sin(uT * 0.5 + aMove.y * 40.0) * 0.35 * f; transformed.z += cos(uT * 0.45 + aMove.y * 31.0) * 0.35 * f; kk = sin(f * 3.14159); transformed.xz += vec2(cos(uLing.w), sin(uLing.w)) * uMood.w * f * 2.2; }
@@ -276,6 +276,7 @@ function animate(mat, uT, U, key = 'cat') {
         vTint += uMood.y * 0.38 * (cos(6.2832 * (db * 0.03 - uT * 0.05 + vec3(0.0, 0.33, 0.67))));
         if (kd > 3.5 && kd < 4.5 && aMove.y > 0.5) kk = min(kk, 1.3);
         if (kd < 0.5 || (kd > 3.5 && kd < 4.5)) kk *= (1.0 - 0.8 * smoothstep(8.0, 1.5, distance(position.xz, vec2(22.0, -22.0))) * (1.0 - 0.5 * uMood.z)) * (1.0 - 0.6 * smoothstep(7.0, 1.5, distance(position.xz, vec2(-12.5, -19.5)))); // pass 7: the Heart's and the Gold great's floors stack pool, pockets, washes and the cat's glow: ease them near the great crystal so the floor keeps its colour
+        kk = kk > uCal.x ? uCal.x + (uCal.y - uCal.x) * (1.0 - exp(-(kk - uCal.x) * 1.2)) : kk; if (kd < 0.5 || (kd > 3.5 && kd < 4.5)) kk = max(kk, uCal.z); // pass 10: the ONE brightness cap for every stacked glow (soft knee up to uCal.y, a floor so nothing crushes to black)
         vKk = kk;`)
     ;
     sh.fragmentShader = `varying float vKk;\nvarying vec3 vTint;\nvarying float vBand;\nvarying vec3 vPrism;\n${sh.fragmentShader}`.replace('#include <color_fragment>', '#include <color_fragment>\n        float lum = dot(diffuseColor.rgb, vec3(0.333)); diffuseColor.rgb = mix(diffuseColor.rgb * vKk * vTint, vPrism * lum * 2.0 * vKk, vBand * 0.8);');
@@ -318,7 +319,7 @@ export function createCrystalDecor({ scene, tier = null, reducedMotion = false }
     new THREE.MeshBasicMaterial({ vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, side: THREE.DoubleSide })]; // (double-sided: the standing paint and the rainbow are seen from both ways)
   mats[0].emissive?.setHex(0x3a2c44); // lifts the dark foot of the floor stalagmites (and every stone piece a little)
   const uT = { value: 0 };
-  const U = { cat: { value: new THREE.Vector4(1e5, 0, 1e5, 0) }, catL: { value: new THREE.Vector4(1e5, 0, 1e5, 0) }, rip: { value: [new THREE.Vector4(0, 0, 9, 0), new THREE.Vector4(0, 0, 9, 0), new THREE.Vector4(0, 0, 9, 0)] }, bloom: { value: new THREE.Vector4(-99, 0, 0, 0) }, mood: { value: new THREE.Vector4(0, 0, 0, 0) }, ling: { value: new THREE.Vector4(0, 0, 0, 0) } };
+  const U = { cat: { value: new THREE.Vector4(1e5, 0, 1e5, 0) }, catL: { value: new THREE.Vector4(1e5, 0, 1e5, 0) }, rip: { value: [new THREE.Vector4(0, 0, 9, 0), new THREE.Vector4(0, 0, 9, 0), new THREE.Vector4(0, 0, 9, 0)] }, bloom: { value: new THREE.Vector4(-99, 0, 0, 0) }, mood: { value: new THREE.Vector4(0, 0, 0, 0) }, ling: { value: new THREE.Vector4(0, 0, 0, 0) }, cal: { value: new THREE.Vector3(1.25, 1.75, 0.28) } };
   animate(mats[1], uT, U, 'cat'); animate(mats[2], uT, U, 'catL');
   const meshes = [[stone, 'decorStone', true], [glow, 'decorGlow', false], [light, 'decorLight', false]].map(([geos, name, lit], i) => {
     const m = new THREE.Mesh(mergeGeometries(geos), mats[i]);

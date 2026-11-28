@@ -16,6 +16,7 @@ import { planBeauty2, ZONE_RGB } from './crystaldecor.js';
 import { crystalY } from './crystalplan.js';
 import { STATUE } from './crystaltalesplan.js';
 import { humNote } from './crystallife.js';
+import { calm } from './crystalcalm.js'; // pass 10
 import { bus } from '../events.js';
 
 const hash = (n) => { let h = (n * 374761393 + 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
@@ -149,6 +150,7 @@ export function createCrystalVoice({ scene, decor = null, audio = null, tier = n
       for (let i = 0; i < N; i++) {
         at(i, t, _o); pos[i * 3] = _o.x; pos[i * 3 + 1] = _o.y; pos[i * 3 + 2] = _o.z; const g = _o.g; col[i * 3] = _o.rgb[0] * g; col[i * 3 + 1] = _o.rgb[1] * g; col[i * 3 + 2] = _o.rgb[2] * g; if (g > 0.001) any = true;
       }
+      calm.report('voice', Math.max(meowEnv(t - st.meowedAt), any ? 0.5 : 0));
       points.visible = any; geo.attributes.position.needsUpdate = true; geo.attributes.color.needsUpdate = true;
     },
     dispose() { for (const o of off) { try { o?.(); } catch { /* gone */ } } scene?.remove(points); geo.dispose(); points.material.dispose(); },

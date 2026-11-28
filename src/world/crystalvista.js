@@ -136,7 +136,7 @@ export function createVista(ctx) {
       if (!still && catPos && v && target > 0.55) {
         if (!have || Math.hypot(catPos.x - ax, catPos.z - az) > GOLDEN.move) { ax = catPos.x; az = catPos.z; still0 = t; }
         have = true;
-        if (t - still0 >= GOLDEN.still && !done.has(v.id) && t - burstAt > GOLDEN.life) { done.add(v.id); burstAt = t; bx = catPos.x; by = catPos.y ?? 0; bz = catPos.z; ctx.chime?.(v, done.size); }
+        if (t - still0 >= GOLDEN.still && !done.has(v.id) && t - burstAt > GOLDEN.life && (ctx.allow?.() ?? true)) { done.add(v.id); burstAt = t; bx = catPos.x; by = catPos.y ?? 0; bz = catPos.z; ctx.chime?.(v, done.size); }
       } else { have = false; still0 = -1; }
       const age = t - burstAt; gold = age >= 0 && age <= GOLDEN.life ? sm(age / 0.5) * (1 - sm((age - 1.2) / 2.4)) : 0;
       kk = cur ? k : 0; setLook(cur, kk, w, camera);
