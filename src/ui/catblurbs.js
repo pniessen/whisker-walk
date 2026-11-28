@@ -22,4 +22,5 @@ export const ACC_BLURBS = {
   booties: 'Puddles become splash discoveries',
   backpack: 'Carry one extra collectible',
   crown: 'Butterflies trail your cat',
+  pearlcrown: 'A tiny crown of pearls, from the Reef\'s treasure chest',
 };

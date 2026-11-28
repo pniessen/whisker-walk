@@ -43,6 +43,23 @@ function haloTexture() {
   return t;
 }
 
+// A lantern's light: an open column of colour that fades out towards its top (so it reads from across the garden) and a flat ring of the same colour on the
+// sea floor, ONE merged additive mesh each (no caster, no light). Vertex colours carry the fade; the material's opacity is the strength.
+function makeBeacon(hex, baseY) {
+  const L = W.LANTERN_LOOK;
+  const c = new THREE.Color(hex);
+  const col = (g, f) => { const n = g.attributes.position.count; const a = new Float32Array(n * 3); for (let i = 0; i < n; i++) { const k = f(g.attributes.position.getY(i)); a[i * 3] = c.r * k; a[i * 3 + 1] = c.g * k; a[i * 3 + 2] = c.b * k; } g.setAttribute('color', new THREE.BufferAttribute(a, 3)); return g; };
+  const column = col(new THREE.CylinderGeometry(0.7, 1.15, L.column, 10, 1, true).translate(0, L.column / 2, 0), (y) => Math.max(0, 1 - y / L.column) ** 1.4 * 0.9);
+  const ring = col(new THREE.RingGeometry(L.ringIn, L.ringOut, 18).rotateX(-Math.PI / 2).translate(0, 0.07, 0), (y) => (y >= 0 ? 1 : 0));
+  const m = new THREE.Mesh(mergeGeometries([column.toNonIndexed(), ring.toNonIndexed()]), new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: true }));
+  m.position.y = baseY;
+  m.castShadow = false; m.receiveShadow = false;
+  Object.assign(m.userData, FLAGS);
+  m.frustumCulled = false;
+  m.visible = false;
+  return m;
+}
+
 // ---- the parade's three kinds of creature (each one small merged mesh; the shoal one InstancedMesh) -----------------------------------------------
 function makeManta(mat) {
   const g = new THREE.Group();
@@ -145,19 +162,22 @@ export function createHousewarming(ctx) {
   const halo = haloTexture();
   const orbs = W.LANTERNS.map((l, i) => {
     const mat = new THREE.MeshBasicMaterial({ color: 0x3b4a52 });
-    const orb = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), mat);
+    const orb = new THREE.Mesh(new THREE.SphereGeometry(W.LANTERN_LOOK.orb, 10, 7), mat);
     orb.name = `reef:lantern${i}`;
-    orb.position.set(l.x, reefY(l.x, l.z) + l.h + 0.2, l.z);
+    orb.position.set(l.x, reefY(l.x, l.z) + l.h + 0.4, l.z);
     orb.castShadow = false; orb.receiveShadow = false; Object.assign(orb.userData, FLAGS);
     const hm = new THREE.SpriteMaterial({ map: halo, color: W.LANTERN_COLORS[i], transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, fog: true });
     const sp = new THREE.Sprite(hm);
     sp.name = `reef:lanternhalo${i}`;
     sp.position.copy(orb.position);
-    sp.scale.setScalar(1.6);
+    sp.scale.setScalar(2.6);
     Object.assign(sp.userData, { noMerge: true, noCast: true, noContactShadow: true });
-    return { orb, sp, mat, level: 0 };
+    const beam = makeBeacon(W.LANTERN_COLORS[i], reefY(l.x, l.z));
+    beam.name = `reef:lanternlight${i}`;
+    beam.position.x = l.x; beam.position.z = l.z;
+    return { orb, sp, mat, beam, level: 0, pop: 0, wasOn: false };
   });
-  for (const o of orbs) scene.add(o.orb, o.sp);
+  for (const o of orbs) scene.add(o.orb, o.sp, o.beam);
 
   // the parade's creatures
   const paint = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 });
@@ -207,8 +227,10 @@ export function createHousewarming(ctx) {
     return true;
   }
 
+  let primed = false; let lastPlace = 0;
   function placeLanterns(t, catPos, k) {
     const r = rec();
+    const popDt = Math.min(0.25, Math.max(0, clock - lastPlace)); lastPlace = clock;
     const g = paradeAt(k);
     for (let i = 0; i < orbs.length; i++) {
       const o = orbs[i];
@@ -217,14 +239,25 @@ export function createHousewarming(ctx) {
       const target = Math.max(on, g.glow);
       o.level += (target - o.level) * Math.min(1, (reducedMotion ? 1 : 0.12));
       const next = r.step === M.STEP.tried && i === lit && !on;
-      const pulse = reducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(t * 3);
+      const pulse = reducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(t * 2);
       const flick = clock - nudgeAt < 1.2 && i === nudged && !reducedMotion ? 0.5 * Math.abs(Math.sin((clock - nudgeAt) * 14)) * (1 - (clock - nudgeAt) / 1.2) : 0; // a small flicker, never a fail
-      const strength = Math.min(1, o.level + (next ? 0.3 * pulse : 0) + flash * 0.4 + flick);
+      // the lit/unlit change: a pop of brightness the moment a lantern turns on, then it settles at full colour; an unlit one is a dull grey ball
+      if (primed && on && !o.wasOn && !reducedMotion) o.pop = 1; // (a lantern already lit when the walk begins does not pop)
+      o.wasOn = !!on;
+      o.pop = Math.max(0, o.pop - popDt / 1.4);
+      const slow = reducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(t * 1.2 + i * 2.1); // the slow pulse of a lit lantern
+      const strength = Math.min(1, o.level + (next ? 0.3 * pulse : 0) + flash * 0.4 + flick + o.pop * 0.5);
       o.mat.color.setHex(0x3b4a52).lerp(_glow.setHex(W.LANTERN_COLORS[i]), strength);
-      o.sp.material.opacity = 0.85 * (o.level > 0.02 || next ? Math.min(1, o.level + (next ? 0.3 * pulse : 0) + flash * 0.3 + flick) : 0);
-      o.sp.scale.setScalar(1.3 + 0.9 * strength + (reducedMotion ? 0 : 0.1 * Math.sin(t * 2 + i)));
+      o.sp.material.opacity = 0.6 * (o.level > 0.02 || next ? Math.min(1, o.level * (0.8 + 0.2 * slow) + (next ? 0.35 + 0.25 * pulse : 0) + flash * 0.3 + flick + o.pop * 0.3) : 0);
+      o.sp.scale.setScalar(2.0 + 1.8 * strength + (reducedMotion ? 0 : (0.25 + 0.6 * o.pop) * Math.sin(t * 1.4 + i)) + 1.5 * o.pop);
       o.sp.visible = o.sp.material.opacity > 0.01;
+      o.orb.scale.setScalar(1 + (reducedMotion ? 0 : 0.05 * Math.sin(t * 1.2 + i * 2.1) * (on ? 1 : 0)) + 0.35 * o.pop);
+      // the column and the floor ring: strong once lit, a softer breathing one on the lantern she is to touch next, none on a lantern still waiting its turn
+      const beamLevel = o.level * (0.55 + 0.25 * slow) + (next ? 0.22 + 0.2 * pulse : 0) + flash * 0.25 + o.pop * 0.35;
+      o.beam.material.opacity = Math.min(0.42, beamLevel * 0.55);
+      o.beam.visible = o.beam.material.opacity > 0.01;
     }
+    primed = true;
     void catPos;
   }
 
@@ -299,7 +332,7 @@ export function createHousewarming(ctx) {
       if (disposed) return;
       disposed = true;
       par = null;
-      for (const o of orbs) { scene.remove(o.orb, o.sp); o.orb.geometry.dispose(); o.mat.dispose(); o.sp.material.dispose(); }
+      for (const o of orbs) { scene.remove(o.orb, o.sp, o.beam); o.orb.geometry.dispose(); o.mat.dispose(); o.sp.material.dispose(); o.beam.geometry.dispose(); o.beam.material.dispose(); }
       for (const o of [manta, turtle, shoal]) {
         scene.remove(o);
         o.traverse?.((m) => { m.geometry?.dispose?.(); });

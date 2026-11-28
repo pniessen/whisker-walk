@@ -32,17 +32,28 @@ export function drawCave(kit, M) {
   kit.put('glow', M.glow, paint(at(new THREE.CircleGeometry(1.1, 10).rotateX(-Math.PI / 2), W.SHELL_THREE.x, W.SHELL_THREE.z, 0.03), 0xdff7ee), { noCast: true });
 }
 
-// The lantern corals' stalks: three tube coral clusters each in its own colour, dim (the orb on top glows when it is touched).
+// The lantern corals' stalks: a thick fan of tube coral clusters each in its own colour, 3 m tall (the orb on top is the life's), a cup under the orb, and a
+// wide soft disc of the lantern's colour on the sea floor round the foot so it can be seen from far across the garden (all in the kit's buckets; the disc
+// does not cast).
+const mix = (hex, to, k) => { const a = new THREE.Color(hex).lerp(new THREE.Color(to), k); return a.getHex(); };
 export function drawLanternStalks(kit, M) {
   W.LANTERNS.forEach((l, i) => {
     const hue = COL.coral[i];
     const deep = COL.coralDeep[i];
-    for (let b = 0; b < 3; b++) {
-      const a = b * 2.1 + i;
-      const h = l.h * (0.75 + 0.18 * b);
-      kit.put('paint', M.paint, paint(at(cyl(0.07, 0.17, h, 6).translate(0, h / 2, 0), l.x + Math.cos(a) * 0.16, l.z + Math.sin(a) * 0.16, 0), b % 2 ? hue : deep));
+    const glowHex = W.LANTERN_COLORS[i];
+    // the floor disc: the lantern's own colour thinned out towards the sand, two rings so it fades at the edge (a few triangles each)
+    kit.put('glow', M.glow, paint(at(new THREE.CircleGeometry(2.3, 8).rotateX(-Math.PI / 2), l.x, l.z, 0.035), mix(glowHex, 0xecd9a0, 0.78)), { noCast: true });
+    kit.put('glow', M.glow, paint(at(new THREE.CircleGeometry(1.3, 8).rotateX(-Math.PI / 2), l.x, l.z, 0.045), mix(glowHex, 0xecd9a0, 0.5)), { noCast: true });
+    // the main spire runs right up to the orb, a flared cup holds the orb on top, two shorter tubes lean beside it, a low mound makes the foot
+    // (the same number of triangles the old three thin tubes and cap had: the Reef's row is tight)
+    kit.put('paint', M.paint, paint(at(cyl(0.14, 0.27, l.h, 6).translate(0, l.h / 2, 0), l.x, l.z, 0), hue));
+    kit.put('paint', M.paint, paint(at(cyl(0.36, 0.14, 0.3, 6).translate(0, l.h + 0.05, 0), l.x, l.z, 0), deep));
+    for (let b = 0; b < 2; b++) {
+      const a = b * 3.1 + i;
+      const h = l.h * (0.55 + 0.2 * b);
+      kit.put('paint', M.paint, paint(at(new THREE.CylinderGeometry(0.07, 0.2, h, 5, 1, true).translate(0, h / 2, 0), l.x + Math.cos(a) * 0.3, l.z + Math.sin(a) * 0.3, 0), b ? hue : deep));
     }
-    kit.put('paint', M.paint, paint(at(new THREE.SphereGeometry(0.4, 7, 4, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.5, 1), l.x, l.z, 0), deep));
+    kit.put('paint', M.paint, paint(at(new THREE.SphereGeometry(0.6, 6, 3, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.5, 1), l.x, l.z, 0), deep));
   });
 }
 

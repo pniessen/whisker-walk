@@ -7,6 +7,7 @@ import { phrase } from '../clanphrases.js';
 import * as W from './reefwreckplan.js';
 import './reefwreckwords.js';
 import { createReefHuntLife } from './reefhuntlive.js';
+import { createReefChestLife } from './reefchestlive.js';
 
 const reefY = W.topY;
 
@@ -35,6 +36,7 @@ export const flagWave = (d, t) => Math.sin(d * 3.2 - t * 2.6) * 0.13 * Math.min(
 // createReefWreckLife({ scene, THREE, reducedMotion, tier, say }) -> { update(dt, t, catPos), dispose(), spottable, flag }
 export function createReefWreckLife({ scene, THREE, reducedMotion = false, tier = null, say = null, progression = null, log = null, audio = null, sendEvent = null }) {
   const hunt = createReefHuntLife({ scene, THREE, progression, log, audio, say, send: sendEvent }); // the torn map, the clues and the Captain's Chest (R17)
+  const chest = createReefChestLife({ scene, THREE, progression, log, audio, say, reducedMotion }); // the Treasure Chest on the Sandy Flats you can open (offered through the Reef's prompt arbiter)
   const { rest, col, count } = flagCloth();
   const pos = new Float32Array(count * 3);
   const geo = new THREE.BufferGeometry();
@@ -68,18 +70,20 @@ export function createReefWreckLife({ scene, THREE, reducedMotion = false, tier 
   return {
     flag,
     hunt,
+    chest,
     credit: (ev) => hunt.credit(ev),
     spottable: [spot],
     update(dt, t, catPos) {
       clock += dt > 0 ? Math.min(dt, 1) : 0;
       if (!reducedMotion && (!lite || (frame++ & 1) === 0)) shape(clock);
       hunt.update(dt, t, catPos);
+      chest.update(dt, t, catPos);
       if (!catPos || !say) return;
       if (W.cabinInside(catPos.x, catPos.z)) tell('cabin', () => phrase('reef.wreck.cabin'));
       else if (W.deckInside(catPos.x, catPos.z)) tell('deck', () => phrase('reef.wreck.deck'));
       else if (Math.hypot(catPos.x - W.BRASS_SUIT.x, catPos.z - W.BRASS_SUIT.z) < 2.6) tell('suit', () => phrase('reef.wreck.suit'));
       void t;
     },
-    dispose() { hunt.dispose(); scene.remove(flag); geo.dispose(); mat.dispose(); },
+    dispose() { chest.dispose(); hunt.dispose(); scene.remove(flag); geo.dispose(); mat.dispose(); },
   };
 }

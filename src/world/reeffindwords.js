@@ -12,7 +12,7 @@ export const FIND_LINES = Object.freeze({
   'reef.find.oyster': 'You found the Pearl Oyster! It opens a little and shows its pearl.',
   'reef.find.seahorse': clan('A tiny seahorse peeks out of the kelp. Hello!', 'A tiny seahorse peeks out of the kelp. Hello, little one!'),
   'reef.find.cave': 'You found the Glow Cave! The walls shine like little stars.',
-  'reef.find.chest': 'You found the Treasure Chest! Its lid creaks open.',
+  'reef.find.chest': 'You found the Treasure Chest! Something inside is waiting.',
   'reef.find.anchor': 'You found the Old Anchor, half asleep in the sand.',
   'reef.shell': 'a pearly shell',
   'reef.glass': 'a piece of sea-glass',
