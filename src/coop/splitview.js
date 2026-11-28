@@ -47,6 +47,16 @@ export function createSplit({ renderer, camera, doc = typeof document !== 'undef
     doc.body.appendChild(el);
   }
 
+  // S3: the HUD for each half (src/coop/splithud.js), a lazy chunk fetched the first time the split picture is up.
+  let sh = null; let shLoad = false;
+  function hudStep(session, cam2) {
+    if (!sh) {
+      if (res.active && !shLoad && doc) { shLoad = true; import('./splithud.js').then((m) => { sh = m.createSplitHud({ doc }); }).catch(() => {}); }
+      return;
+    }
+    sh.update(res, { session, cam2, camera, pos2: coop.secondPos?.() });
+  }
+
   function readout(t1) {
     if (el && t1 - shown > 500) {
       shown = t1;
@@ -61,6 +71,7 @@ export function createSplit({ renderer, camera, doc = typeof document !== 'undef
     if (!cam2 || !info0 || !session?.scene) {
       if (res.active) { rule.reset(); res = { mode: 'shared', t: 0, dividerX: 1, reason: 'start', active: false }; }
       coop.splitRes = null; poseFrom = null;
+      sh?.update(res);
       if (divider) divider.style.display = 'none';
       return false;
     }
@@ -69,6 +80,7 @@ export function createSplit({ renderer, camera, doc = typeof document !== 'undef
     lastRule = t0;
     res = rule.step({ ...info0, reducedMotion: !!session.reducedMotion, dt: dtRule, nowMs: t0 });
     coop.splitRes = res; // S4: the pads' mapping follows the picture (src/coop/padsplit.js)
+    hudStep(session, cam2);
     if (!res.active) { poseFrom = null; if (divider) divider.style.display = 'none'; readout(t0); return false; }
     renderer.getSize(size);
     const dpr = renderer.getPixelRatio();
@@ -120,5 +132,5 @@ export function createSplit({ renderer, camera, doc = typeof document !== 'undef
     readout(t1);
     return true;
   }
-  return { draw, active: () => res.active, state: () => res, stats: () => ({ frameMs: ema, drawMs: ms, calls, tris }), dispose() { el?.remove(); divider?.remove(); } };
+  return { draw, active: () => res.active, state: () => res, stats: () => ({ frameMs: ema, drawMs: ms, calls, tris }), dispose() { sh?.dispose(); el?.remove(); divider?.remove(); } };
 }

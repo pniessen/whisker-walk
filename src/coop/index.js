@@ -131,7 +131,7 @@ export function start(ctx) {
     emit: (it) => {
       const merge = it.key ? { merge: `coop:${it.key}`, mergeText: () => it.both ?? it.text } : undefined;
       if (merge) ctx.toast?.(it.text, 0, merge); else ctx.toast?.(it.text);
-      hud?.chipShow(it.slots, [nameOne(), nameTwo()], tvToastTiming.life(it.text));
+      hud?.chipShow(it.slots, [nameOne(), nameTwo()], tvToastTiming.life(it.text), it.text);
     },
   });
   const profile = ctx.profile ?? getProfile;
@@ -657,6 +657,7 @@ export function start(ctx) {
   };
 
   // After cat one's player.update: cat two's step, the leash, the picture of both.
+  coop.secondPos = () => (state.joined && mover ? mover.body.position : null); // where cat two stands (the split HUD's second corner map)
   coop.second = () => (state.joined && mover ? mover.cam : null); // cat two's own follow camera (the split view draws through it)
   coop.frame = (dt) => {
     const s = cur;
@@ -796,7 +797,7 @@ export function start(ctx) {
       leave(false);
       cards?.dispose();
       hud?.dispose();
-      coop.poll = null; coop.two = false; coop.pad = null; coop.frame = null; coop.late = null; delete coop.second; delete coop.splitInfo; delete coop.splitRes;
+      coop.poll = null; coop.two = false; coop.pad = null; coop.frame = null; coop.late = null; delete coop.second; delete coop.secondPos; delete coop.splitInfo; delete coop.splitRes;
     },
   };
   if (import.meta.env?.DEV) globalThis.__coop = handle; // the browser pane's handle (development server only; not in a build)

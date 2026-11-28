@@ -5,6 +5,7 @@
 // elements inside the TV's 5 % safe margins; type never under the TV floors
 // (24 px body, 20 px small), markers never under 48 px. Words come in from
 // the caller (src/coop/words.js).
+import { coop } from '../coopseam.js';
 import { EDGE_PX, EDGE_MARGIN } from './rules.js';
 import { MARK_ONE, MARK_TWO } from './markers.js';
 
@@ -31,6 +32,10 @@ html.coop-on .hud-prompt{left:5vw !important;right:auto !important;transform:non
 html.tv .coop-slot,html.tv .coop-chip{font-size:24px}
 html.tv .coop-pop{font-size:28px}
 `;
+
+/** Split screen (src/coop/splithud.js) sets `fn(slotsList, text)` to learn who a toast and the finder chip belong to; null in every other mode.
+ * Lives on the seam object, so the split HUD's lazy chunk imports nothing from this file (a shared module between two lazy chunks reshuffled the build). */
+export const chipHook = { get fn() { return coop.chipHook ?? null; }, set fn(f) { coop.chipHook = f; } };
 
 export function createCoopHud({ doc = document, view = () => ({ w: 1920, h: 1080 }) } = {}) {
   const make = (tag, cls) => { const e = doc.createElement(tag); e.style ??= {}; if (cls) e.className = cls; return e; };
@@ -63,7 +68,8 @@ export function createCoopHud({ doc = document, view = () => ({ w: 1920, h: 1080
       e.innerHTML = html; e.dataset.text = text; e.setAttribute('aria-label', text); e.hidden = false;
     },
     /** The finder chip: the cat's shape, colour and name, for `ms` milliseconds; `slots` more than one when both found it. */
-    chipShow(slotsList, names, ms) {
+    chipShow(slotsList, names, ms, text) {
+      chipHook.fn?.(slotsList, text);
       const one = slotsList.length === 1;
       chip.style['--c'] = one ? HEX[slotsList[0]] : '#ffffff';
       chip.textContent = one ? `${SHAPE[slotsList[0]]} ${names[slotsList[0]]}` : `${SHAPE[0]} ${SHAPE[1]}`;
