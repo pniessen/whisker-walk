@@ -13,14 +13,15 @@ import { withLocalUuids } from './localuuids.js';
 import * as P from './snowvilleplan.js';
 import * as K from './snowvilleparts.js';
 import { drawBeauty } from './snowvillebeauty.js';
-import { createSnowvilleLight, isLowTier } from './snowvillelight.js';
+import { createSnowvilleLight, isLowTier, gustAt } from './snowvillelight.js';
+import { createSoundBed } from './snowvillesound.js';
 import { createTilly, createSnowvillePrompts } from './snowvillelife.js';
 import './snowvillewords.js';
 import { ST } from './snowvillestages.js'; // the two stages' slots (filled by their chunks, loaded with this one: areas.js)
 
 export { SNOWVILLE_NAME, SNOWVILLE_BOUNDS, SNOWVILLE_SPAWN } from './snowvilleplan.js';
 
-const SKY = Object.freeze({ top: P.SNOW_LOOK.top, horizon: P.SNOW_LOOK.horizon });
+const SKY = Object.freeze({ top: P.SNOW_LOOK.top, horizon: P.SNOW_LOOK.horizon, warm: P.SNOW_LOOK.warm });
 // Always bright, always snowy: the place's look is the walk's "evening" switch with daylight numbers (no weather rolls, one calm light).
 const SNOW_LIGHT = Object.freeze({
   sunColor: P.SNOW_LOOK.sunColor, sunIntensity: P.SNOW_LOOK.sunIntensity, hemiSky: P.SNOW_LOOK.hemiSky, hemiIntensity: P.SNOW_LOOK.hemiIntensity, groundDim: 0.9,
@@ -87,6 +88,7 @@ export function build(scene, opts = {}) {
         const finds = ST.b?.finds?.life(ctx); // the six discoveries (milestone V3)
         const strayNotes = ST.b?.strayNotes?.(); // a line the first time she meets each of the four friendly strays (round two)
         const critters = ST.b?.critters?.(ctx); // the otters, hare, robin, fox kit, smoke, bells and crunch (milestone V4)
+        const bed = createSoundBed(ctx.audio, ctx.reducedMotion ? () => 0 : gustAt); // beauty pass 2: wind with the gusts, sleigh bells, a distant carol chime (silent when muted)
         return {
           light,
           spottable: critters?.spottable ?? [],
@@ -96,7 +98,7 @@ export function build(scene, opts = {}) {
           wing,
           // a step done by anyone in the room (an `sv-` event): an errand done by a partner is credited to ours, a show begun by a partner starts ours, any other step is Tilly's
           credit: (ev) => errand?.credit(ev) ?? wing?.credit(ev) ?? tilly.credit(ev),
-          update(dt, t, catPos, camera, session) { light.update(dt, t, catPos, camera, session); tilly.update(dt, t, catPos, camera, session); wing?.update(dt, t, catPos); errand?.update(dt, t, catPos, camera, session); finds?.update(dt, t, catPos); critters?.update(dt, t, catPos); strayNotes?.update(catPos, session); sled?.frame(dt, t, catPos, camera, session); skis?.frame(dt, t, catPos, camera, session); mobile?.frame(dt, t, catPos, camera, session); },
+          update(dt, t, catPos, camera, session) { light.update(dt, t, catPos, camera, session); bed.update(t); tilly.update(dt, t, catPos, camera, session); wing?.update(dt, t, catPos); errand?.update(dt, t, catPos, camera, session); finds?.update(dt, t, catPos); critters?.update(dt, t, catPos); strayNotes?.update(catPos, session); sled?.frame(dt, t, catPos, camera, session); skis?.frame(dt, t, catPos, camera, session); mobile?.frame(dt, t, catPos, camera, session); },
           dispose() { mobile?.dispose(); skis?.dispose(); sled?.dispose(); errand?.dispose(); critters?.dispose(); finds?.dispose(); wing?.dispose(); tilly.dispose(); light.dispose(); },
         };
       },

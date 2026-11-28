@@ -31,7 +31,26 @@ function doorPath(c, x, z, len = 5.5) {
 }
 
 /** Tints colour `c` (a THREE.Color holding the snow so far) for one ground vertex; `d` is a scratch colour. */
+// Beauty pass 2: the low sun (rig.js SUN_POSITION -36, 15, -24) throws long shadows toward +x +z (unit 0.83, 0.55). A cottage's shadow reaches ~7 m, a fir's ~2.8 of its scale; the snow in them is blue.
+const SUN_DX = 0.832; const SUN_DZ = 0.555;
+function shadowOf(x, z) {
+  let sh = 0;
+  for (const k of P.COTTAGES) {
+    const dx = x - k.x; const dz = z - k.z;
+    const along = dx * SUN_DX + dz * SUN_DZ; const across = -dx * SUN_DZ + dz * SUN_DX;
+    if (along > 0 && along < 9 + k.w * 0.4) sh = Math.max(sh, fall(along, 9 + k.w * 0.4) ** 0.6 * fall(Math.abs(across), Math.max(k.w, k.d) * 0.85));
+  }
+  for (const k of firs()) {
+    const dx = x - k.x; const dz = z - k.z;
+    const along = dx * SUN_DX + dz * SUN_DZ; const across = -dx * SUN_DZ + dz * SUN_DX;
+    if (along > -0.5 && along < 6 * k.s) sh = Math.max(sh, 0.8 * fall(along, 6 * k.s) * fall(Math.abs(across), 1.5 * k.s));
+  }
+  return sh;
+}
+
 export function groundShade(x, z, c, d) {
+  c.lerp(d.setHex(0xfff0d8), 0.22); // the low sun's gold on the whole snow ...
+  c.lerp(d.setHex(0x8fa8d6), 0.5 * shadowOf(x, z)); // ... and the blue the long shadows leave behind
   // zone tones: a cooler, greyer floor in the fir wood, a rosy-white bank on the sled hill, a pale ice-blue rim round the pond, a greyer trodden square
   c.lerp(d.setHex(0xc3d2de), 0.34 * fall(Math.hypot(x, (z + 26) * 1.35), 17));
   c.lerp(d.setHex(0xf4eaf2), 0.4 * fall(Math.hypot(x - P.HILL.x, z - P.HILL.z), P.HILL.r));
@@ -49,7 +68,7 @@ export function groundShade(x, z, c, d) {
     if (f.out > 4.2) continue;
     c.lerp(d.setHex(0xaebfd6), 0.38 * fall(f.out, 2.4)); // the shade against the walls
     c.lerp(d.setHex(0xc9d3e0), 0.5 * fall(doorPath(k, x, z), 1.2)); // the path to the door
-    if (f.lz > 0 && f.out < 3.6) c.lerp(d.setHex(0xf6dcae), 0.42 * fall(Math.hypot(Math.abs(f.lx) - k.w * 0.32, f.out * 1.4), 2.0)); // a window's pool of warm light
+    if (f.lz > 0 && f.out < 3.6) c.lerp(d.setHex(0xffbe66), 0.8 * fall(Math.hypot(Math.abs(f.lx) - k.w * 0.32, f.out * 1.1), 2.8)); // a window's pool of warm light, spilled out across the snow
   }
   return c;
 }

@@ -212,8 +212,8 @@ export const rockColliders = () => scatterRocks().filter((k) => k.s >= 0.8).map(
 
 // ---- the look: soft blue shadows, a pearl-white haze, a low pale sun -------------------------------------------------------
 export const SNOW_LOOK = Object.freeze({
-  top: 0x9dbbde, horizon: 0xd8e4f1, fog: 0xd8e4f1, fogNear: 22, fogFar: 120,
-  sunColor: 0xfff1d8, sunIntensity: 0.62, hemiSky: 0xc4d6ee, hemiIntensity: 0.62, envScale: 0.5,
+  top: 0x86a8dc, horizon: 0xe8e0ea, fog: 0xe8e0ea, fogNear: 22, fogFar: 120, warm: 0xffc08a, // beauty pass 2: a golden-hour sky (a rose-and-gold band at the haze) over the same snow
+  sunColor: 0xffd7a2, sunIntensity: 0.68, hemiSky: 0xc4d6ee, hemiIntensity: 0.62, envScale: 0.5,
   snow: 0xdde6f1, snowShade: 0xbccfe6, bounce: 0xc9d8ea,
 });
 export const FLAKES = Object.freeze({ count: 60, reduced: 20, low: 30, box: 16, top: 9, fall: 0.7 }); // start: the walk's flake layer (snowvillelight.js)

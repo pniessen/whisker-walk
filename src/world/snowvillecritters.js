@@ -20,7 +20,7 @@ const fr = (v) => v - Math.floor(v);
 const smooth = (u) => (u <= 0 ? 0 : u >= 1 ? 1 : u * u * (3 - 2 * u));
 
 export const lifeRung = (tier) => (tier && tier.shadows === false ? 'lite' : isLowTier(tier) ? 'low' : 'high');
-export const COUNTS = Object.freeze({ high: Object.freeze({ otters: 3, puffs: 5 }), low: Object.freeze({ otters: 2, puffs: 3 }), lite: Object.freeze({ otters: 1, puffs: 2 }) });
+export const COUNTS = Object.freeze({ high: Object.freeze({ otters: 3, puffs: 7 }), low: Object.freeze({ otters: 2, puffs: 4 }), lite: Object.freeze({ otters: 1, puffs: 2 }) });
 export const RANGES = Object.freeze({ sw1: 12, sw2: 7, sw3: 6 }); // how near she must be (and facing it) to spot one
 
 // ---- where things are (all over the plan's own places) --------------------------------------------------------------------------------------
@@ -173,7 +173,7 @@ export function createSnowvilleCritters({ scene, reducedMotion = false, tier = n
   const sPos = new Float32Array(nPuffs * 3); const sCol = new Float32Array(nPuffs * 3);
   const sGeo = new THREE.BufferGeometry();
   sGeo.setAttribute('position', new THREE.BufferAttribute(sPos, 3)); sGeo.setAttribute('color', new THREE.BufferAttribute(sCol, 3));
-  const smoke = mark(new THREE.Points(sGeo, new THREE.PointsMaterial({ map: dotTexture(), alphaTest: 0.02, size: 0.7, sizeAttenuation: true, vertexColors: true, transparent: true, opacity: 0.7, depthWrite: false, fog: true })));
+  const smoke = mark(new THREE.Points(sGeo, new THREE.PointsMaterial({ map: dotTexture(), alphaTest: 0.02, size: 1.9, sizeAttenuation: true, vertexColors: true, transparent: true, opacity: 0.85, depthWrite: false, fog: true })));
   smoke.name = 'snowville:smoke';
   smoke.frustumCulled = false;
   scene.add(smoke);
@@ -185,7 +185,7 @@ export function createSnowvilleCritters({ scene, reducedMotion = false, tier = n
     { type: 'sw3', label: phrase('snowville.life.fox'), pos: new THREE.Vector3(FOX.x, P.snowY(FOX.x, FOX.z) + 0.2, FOX.z), range: RANGES.sw3 },
   ];
   const pose = {}; const spuff = {};
-  const cA = new THREE.Color(0xaeb9c9); const cB = new THREE.Color(P.SNOW_LOOK.horizon); const cTmp = new THREE.Color();
+  const cA = new THREE.Color(0xd8c6bc); const cB = new THREE.Color(P.SNOW_LOOK.horizon); const cTmp = new THREE.Color(); // (beauty pass 2: the smoke starts a warm grey, the hearth's glow in it, and thins into the haze)
 
   fox.position.set(FOX.x, P.snowY(FOX.x, FOX.z) - 0.02, FOX.z); fox.rotation.y = FOX.yaw;
   hare.position.set(HARE.x, P.snowY(HARE.x, HARE.z), HARE.z); hare.rotation.y = HARE.yaw;
