@@ -64,7 +64,7 @@ describe('lighthouse sound beds', () => {
   it('start nothing while muted or without a context, and follow her once running', () => {
     const made = [];
     const mk = (muted) => ({
-      isMuted: () => muted,
+      isMuted: () => muted, playBuffer() {}, setVolume() {},
       getMaster: () => ({}),
       getContext: () => {
         made.push('ctx');
