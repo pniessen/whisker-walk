@@ -15,6 +15,7 @@ import { planBeauty2, ZONE_RGB } from './crystaldecor.js';
 import { crystalY } from './crystalplan.js';
 import { humNote } from './crystallife.js';
 import { HUE_PITCH } from './crystalsound.js';
+import { createVista } from './crystalvista.js'; // beauty pass 8: photogenic vistas and the golden moment
 
 export const MOOD = Object.freeze({ len: 90, fade: 15, count: 4 });
 export const SONG = Object.freeze({ still: 6, speed: 0.3, gap: 14, phrase: Object.freeze([1, 1.25, 1.5, 2, 1.5]), step: 0.5, rise: 2.2 });
@@ -35,6 +36,7 @@ export function createCrystalMood({ scene, decor = null, audio = null, tier = nu
   const U = decor?.uniforms; const heroes = heroSites();
   const door = scene.getObjectByName('crystal:glow')?.material; // the arch's door of light: it thins out as she comes through, so the camera behind never loses her (pass 7)
   if (door) { door.transparent = true; door.needsUpdate = true; }
+  const vista = createVista({ scene, tier, reducedMotion, chime: (v) => { try { [1, 1.25, 1.5].forEach((r, i) => humNote(audio, v.stone, 2 * r, i * 0.26, { level: 0.55 })); } catch { /* a chime is a nicety */ } } });
   const uM = { value: new THREE.Vector4(0, 0, 0, 0) }; // the dome's: aurora, clock, dream, resonance
   const gm = scene.getObjectByName('crystal:ground')?.material; const dome = scene.getObjectByName('crystal:dome'); const dm = dome?.material;
   if (dm) {
@@ -86,8 +88,10 @@ export function createCrystalMood({ scene, decor = null, audio = null, tier = nu
   return {
     points,
     get songs() { return songs; },
+    vista,
+    late: (catPos, camera) => vista.late(catPos, camera), // after Lumi's update (crystal.js): the vista's warm rim on her fur borrows the cave's one light
     get state() { return state; },
-    update(dt, t, catPos) {
+    update(dt, t, catPos, camera) {
       dt = Math.max(0, Math.min(dt, 0.25)) || 0; clock += dt;
       // the linger: still for SONG.still seconds beside a hero crystal
       if (catPos) {
@@ -131,7 +135,8 @@ export function createCrystalMood({ scene, decor = null, audio = null, tier = nu
           geo.attributes.position.needsUpdate = true; geo.attributes.color.needsUpdate = true;
         }
       }
+      vista.update(dt, t, catPos, camera, w);
     },
-    dispose() { stopSnd(); if (door) { door.opacity = 1; door.transparent = false; door.needsUpdate = true; } if (scene.fog) { scene.fog.near = fogN; scene.fog.far = fogF; } scene.remove(points); geo.dispose(); points.material.dispose(); for (const [l, b] of lights) l.intensity = b; scene.environmentIntensity = envBase; gm?.color.setScalar(1); if (dm) { dm.onBeforeCompile = () => {}; dm.needsUpdate = true; } },
+    dispose() { vista.dispose(); stopSnd(); if (door) { door.opacity = 1; door.transparent = false; door.needsUpdate = true; } if (scene.fog) { scene.fog.near = fogN; scene.fog.far = fogF; } scene.remove(points); geo.dispose(); points.material.dispose(); for (const [l, b] of lights) l.intensity = b; scene.environmentIntensity = envBase; gm?.color.setScalar(1); if (dm) { dm.onBeforeCompile = () => {}; dm.needsUpdate = true; } },
   };
 }
