@@ -4,6 +4,7 @@
 
 import { validPetName } from './net.js';
 import { PERSONALITIES } from './cat/brain.js';
+import { sanitizeCatRole, isDefaultRole, effectiveRole, catWalks, totalWalks, roleScale, shownName } from './catrole.js';
 
 export const CUSTOM_IDS = Object.freeze(['mine1', 'mine2', 'mine3', 'mine4', 'mine5']);
 export const CUSTOM_MAX = 5;
@@ -88,12 +89,16 @@ export function sanitizeCustomCats(raw) {
     seen.add(id);
     const name = own(c, 'name');
     const personality = own(c, 'personality');
-    out.push({
+    const cat = {
       id,
       name: validPetName(name) ? name : FALLBACK_NAME,
       personality: typeof personality === 'string' && Object.hasOwn(CUSTOM_PERSONALITIES, personality) ? personality : DEFAULT_PERSONALITY,
       look: sanitizeLook(own(c, 'look')),
-    });
+    };
+    // additive (catrole.js): a cat at the default role carries no field, so an old save is unchanged
+    const role = sanitizeCatRole(own(c, 'catRole'));
+    if (!isDefaultRole(role)) cat.catRole = role;
+    out.push(cat);
   }
   return out;
 }
@@ -140,6 +145,17 @@ export function ownTagName(state) {
   const a = activeCat(state);
   if (!a.custom) return null;
   return (validPetName(a.name) ? a.name : FALLBACK_NAME).slice(0, 16);
+}
+
+// Her made cat's role for this walk (catrole.js): { role, scale, name } or null for a
+// ready-made cat. Read-only: it works out the earned step from the cat's own walks.
+export function ownRole(state) {
+  const a = activeCat(state);
+  if (!a.custom) return null;
+  const rec = sanitizeCustomCats(state?.customCats).find((x) => x.id === a.custom);
+  const stored = sanitizeCatRole(rec?.catRole);
+  const role = effectiveRole(stored, catWalks(totalWalks(state?.walks), stored));
+  return { role, scale: roleScale(role), name: shownName(ownTagName(state), role, stored.stem) };
 }
 
 export function wireLook(accessories) {

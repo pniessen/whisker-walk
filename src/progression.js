@@ -2,6 +2,7 @@ import { DEN_ITEMS, DEN_SPOTS } from './den.js';
 import { isPlainObject } from './plainobject.js';
 import { note, crumb } from './diagnostics.js';
 import { useCatKeyBackup, dropCatKeyBackup, applyKeyState } from './catkey.js';
+import { totalWalks } from './catrole.js';
 import { sanitizeCustomCats, sanitizeLook, CUSTOM_IDS, CUSTOM_MAX, CUSTOM_BASE, MORE_SLOTS_PRICE, CUSTOM_PERSONALITIES } from './customcats.js';
 import { sanitizeOutfits, wornNow, canSaveOutfit, nextOutfitId, OUTFIT_SLOTS } from './outfits.js';
 import { sanitizeUsage, bumpUsage, mergeUsage } from './usage.js';
@@ -1913,7 +1914,8 @@ export function createProgression(storage) {
       if (!validPetName(name) || !Object.hasOwn(CUSTOM_PERSONALITIES, personality)) return null;
       const id = CUSTOM_IDS.slice(0, api.catSlots()).find((i) => !state.customCats.some((c) => c.id === i));
       if (!id) return null;
-      state.customCats.push({ id, name, personality, look: sanitizeLook(look) });
+      const born = totalWalks(state.walks); // her own walks (catrole.js) count from here
+      state.customCats.push({ id, name, personality, look: sanitizeLook(look), ...(born > 0 && { catRole: { born, pick: null, stem: null, seen: 0 } }) });
       // A new cat on a reused id starts clean (R17); editing keeps scars.
       delete state.scars[id];
       save();
