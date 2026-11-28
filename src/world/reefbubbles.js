@@ -10,7 +10,7 @@
 import * as THREE from 'three';
 import * as P from './reefplan.js';
 
-export const BUB = Object.freeze({ high: 60, low: 36, lite: 36, reduced: 14, seeps: 6, cycle: 20, perBurst: 6, top: P.SURFACE_Y - 0.3, fadeFrom: 0.84, salt: 0x62756262, base: 0.12 });
+export const BUB = Object.freeze({ high: 60, low: 36, lite: 36, reduced: 14, seeps: 6, cycle: 20, perBurst: 6, top: P.SURFACE_Y - 0.3, fadeFrom: 0.84, salt: 0x62756262, base: 0.17 });
 
 function hash01(n, salt) {
   let h = (Math.imul(n | 0, 0x9e3779b1) ^ Math.imul((salt | 0) + 0x7f4a7c15, 0x85ebca6b)) | 0;

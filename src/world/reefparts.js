@@ -118,8 +118,47 @@ export function groundGeometry() {
   return g;
 }
 
+// Beauty pass 2: LIVE CAUSTICS on the sand. A moving net of bright light lines laid over the seabed in the fragment shader (no geometry, no texture):
+// the classic folded-sine caustic, three folds, added as emission so it glows in the shade too; it fades out with distance (gone at 30 m) and with the
+// dune's height (a little less on the crests). Its clock is ground.material.userData.causticTime (the life advances it; frozen under reduced motion).
+export const CAUSTIC = Object.freeze({ strength: 0.65, scale: 0.55, speed: 0.55, reach: 30 });
+export function causticGround(mat, time = { value: 0 }) {
+  mat.userData.causticTime = time;
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uCT = time;
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vCW;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvCW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>
+      varying vec3 vCW;
+      uniform float uCT;
+      float caustic(vec2 p, float t) {
+        vec2 i = p; float c = 1.0;
+        for (int n = 0; n < 3; n++) {
+          float tt = t * (1.0 - 3.5 / float(n + 1));
+          i = p + vec2(cos(tt - i.x) + sin(tt + i.y), sin(tt - i.y) + cos(tt + i.x));
+          c += 1.0 / length(vec2(p.x / (sin(i.x + tt) / 0.006), p.y / (cos(i.y + tt) / 0.006)));
+        }
+        c = 1.2 - pow(c / 3.0, 1.4);
+        return pow(abs(c), 7.0);
+      }`)
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+      {
+        float cd = length(vCW - cameraPosition);
+        if (cd < ${CAUSTIC.reach.toFixed(1)}) {
+          float cc = caustic(mod(vCW.xz * ${CAUSTIC.scale.toFixed(2)}, 6.28318) - 250.0, uCT * ${CAUSTIC.speed.toFixed(2)} + 23.0);
+          float cf = (1.0 - smoothstep(10.0, ${CAUSTIC.reach.toFixed(1)}, cd)) * (1.0 - 0.25 * clamp(vCW.y, 0.0, 1.2));
+          totalEmissiveRadiance += vec3(0.62, 0.95, 0.9) * cc * cf * ${CAUSTIC.strength.toFixed(2)};
+        }
+      }`);
+  };
+  mat.customProgramCacheKey = () => 'reef-ground-caustic';
+  return mat;
+}
+
 export function drawGround() {
-  const m = new THREE.Mesh(groundGeometry(), new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 1 }));
+  const m = new THREE.Mesh(groundGeometry(), causticGround(new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 1 })));
   m.name = 'reef:ground';
   m.receiveShadow = true;
   Object.assign(m.userData, { ground: true, noCast: true, noContactShadow: true, noMerge: true });
@@ -332,22 +371,40 @@ export function bladeGeometry() {
 }
 
 export const SWAY = Object.freeze({ amp: 0.4, speed: 0.9, rest: 0.5 });
+export const WAVE = Object.freeze({ amp: 0.3, speed: 1.35, kx: 0.22, kz: 0.12, glow: 0.45 }); // beauty pass 2: the travelling swell (speed rad/s, kx/kz rad/m)
 // The kelp's material: lit, vertex-coloured, two-sided, its sway a time uniform (kelp.time.value) the life advances. At time 0 the blades stand at rest
 // (a little bent: SWAY.rest of the way), which is also what reduced motion shows.
 export function kelpMaterial(time = { value: 0 }) {
   const mat = litMaterial(0xffffff, { vertexColors: true, roughness: 0.8, side: THREE.DoubleSide });
   mat.userData.kelpTime = time;
+  const cat = (time.uCat ??= { value: new THREE.Vector3(999, 0, 999) }); // the cat's place: the plants lean away as she passes (the life moves it)
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uReefT = time;
+    sh.uniforms.uCat = cat;
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nuniform float uReefT;')
+      .replace('#include <common>', '#include <common>\nuniform float uReefT;\nuniform vec3 uCat;')
       .replace('#include <begin_vertex>', `#include <begin_vertex>
       float sw = position.y * position.y;
       vec2 ip = vec2(instanceMatrix[3].x, instanceMatrix[3].z);
       float ph = ip.x * 0.7 + ip.y * 0.5;
       float vr = 0.8 + 0.4 * fract(sin(ip.x * 12.9898 + ip.y * 78.233) * 43758.5453); // beauty pass 1: each plant sways at its own pace and reach
       transformed.x += (sin(uReefT * ${SWAY.speed.toFixed(2)} * vr + ph) + ${SWAY.rest.toFixed(2)}) * ${SWAY.amp.toFixed(2)} * vr * vr * sw;
-      transformed.z += cos(uReefT * ${(SWAY.speed * 0.8).toFixed(2)} / vr + ph * 1.3) * ${(SWAY.amp * 0.55).toFixed(2)} * vr * sw;`);
+      transformed.z += cos(uReefT * ${(SWAY.speed * 0.8).toFixed(2)} / vr + ph * 1.3) * ${(SWAY.amp * 0.55).toFixed(2)} * vr * sw;
+      // beauty pass 2: one swell travelling through the whole garden (in a world direction, whatever way each blade faces), lighter on its crest
+      vec3 ax = normalize(instanceMatrix[0].xyz); vec3 az = normalize(instanceMatrix[2].xyz);
+      float wv = sin(uReefT * ${WAVE.speed.toFixed(2)} - dot(ip, vec2(${WAVE.kx.toFixed(2)}, ${WAVE.kz.toFixed(2)})));
+      vec3 wd = normalize(vec3(${WAVE.kx.toFixed(2)}, 0.0, ${WAVE.kz.toFixed(2)}));
+      transformed.x += dot(wd, ax) * wv * ${WAVE.amp.toFixed(2)} * sw;
+      transformed.z += dot(wd, az) * wv * ${WAVE.amp.toFixed(2)} * sw;
+      #ifdef USE_COLOR
+        vColor.rgb *= 1.0 + ${WAVE.glow.toFixed(2)} * max(wv, 0.0) * position.y;
+      #endif
+      // and the cat: the plants within 2.6 m lean away from her (a push that grows toward her and toward the tips)
+      vec2 away = ip - uCat.xz; float ad = max(length(away), 0.001);
+      float push = smoothstep(2.6, 0.3, ad);
+      vec3 aw = vec3(away.x / ad, 0.0, away.y / ad);
+      transformed.x += dot(aw, ax) * push * 0.9 * sw;
+      transformed.z += dot(aw, az) * push * 0.9 * sw;`);
   };
   mat.customProgramCacheKey = () => 'reef-kelp';
   return mat;

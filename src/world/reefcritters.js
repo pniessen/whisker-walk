@@ -116,6 +116,7 @@ export function fishGeometry() {
   return g;
 }
 
+export const FLEE = Object.freeze({ radius: 4.5, push: 1.1, snap: 4, settle: 0.6 });
 function createFish(scene, rung) {
   const table = fishTable(rung);
   const n = table.length;
@@ -133,13 +134,23 @@ function createFish(scene, rung) {
   scene.add(mesh);
   const dummy = new THREE.Object3D();
   const pose = {};
+  const off = new Float32Array(n * 3); // beauty pass 2: each fish's spring away from her (they flee a swimming cat and drift back)
   return {
     mesh,
     count: n,
-    update(t) {
+    update(t, cat = null, dt = 0) {
       for (let i = 0; i < n; i++) {
         fishPose(table[i], t, pose);
-        dummy.position.set(pose.x, pose.y, pose.z);
+        if (cat) {
+          const dx = pose.x - cat.x; const dy = pose.y - (cat.y + 0.5); const dz = pose.z - cat.z;
+          const d = Math.hypot(dx, dy, dz) || 0.001;
+          const near = d < FLEE.radius;
+          const push = near ? (FLEE.radius - d) * FLEE.push * (table[i].big ? 0.6 : 1) : 0;
+          const rate = Math.min(1, dt * (near ? FLEE.snap : FLEE.settle));
+          const o = i * 3;
+          off[o] += ((dx / d) * push - off[o]) * rate; off[o + 1] += ((dy / d) * push * 0.4 - off[o + 1]) * rate; off[o + 2] += ((dz / d) * push - off[o + 2]) * rate;
+        }
+        dummy.position.set(pose.x + off[i * 3], pose.y + off[i * 3 + 1], pose.z + off[i * 3 + 2]);
         // the tail beat: the whole body swings a little side to side at its own phase and speed (bigger fish beat slower), with a small roll
         const beat = t * (table[i].big ? 3.2 : 6) + hash01(table[i].id + 41, SALTS.fish) * 6.28;
         dummy.rotation.set(0, pose.yaw + 0.16 * Math.sin(beat), 0.1 * Math.sin(beat + 1.2));
@@ -301,15 +312,19 @@ export function createReefCritters({ scene, tier, reducedMotion = false }) {
   const crabs = createCrabs(scene, rung);
   const bubbles = createBubbles(scene, reducedMotion, rung);
   let clock = 0;
+  let lastDt = 0;
   let frozen = false; // reduced motion: posed once at time zero
   const counts = { rung, fish: fish.count, crabs: crabs.count, bubbles: bubbles.count, meshes: (fish.mesh ? 1 : 0) + 4 + 1 + 1 };
-  const draw = () => { fish.update(clock); sela.update(clock, reducedMotion); crabs.update(clock); bubbles.update(clock); };
+  let catNow = null;
+  const draw = () => { fish.update(clock, catNow, lastDt); sela.update(clock, reducedMotion); crabs.update(clock); bubbles.update(clock); };
   return {
     counts,
     fish, sela, crabs, bubbles,
-    update(dt) {
+    update(dt, cat = null) {
       if (reducedMotion) { if (!frozen) { frozen = true; draw(); } return; }
-      clock += Math.max(0, Math.min(dt, 1)) || 0;
+      lastDt = Math.max(0, Math.min(dt, 1)) || 0;
+      catNow = cat;
+      clock += lastDt;
       draw();
     },
     dispose() { fish.dispose(); sela.dispose(); crabs.dispose(); bubbles.dispose(); },
