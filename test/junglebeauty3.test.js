@@ -81,7 +81,7 @@ describe('the cost', () => {
   it('adds no mesh, no triangle and no point beyond the pooled few', () => {
     const scene = new THREE.Scene(); const a = B.createJungleBeauty2({ scene, tier: { name: 'high' } });
     expect(scene.children).toHaveLength(3);
-    const base = a.counts.points; expect(base).toBeLessThan(200);
+    const base = a.counts.points; expect(base).toBeLessThan(260); // pass 5 added the creatures and the light bloom (about 36 points)
     expect(a.counts.swayTriangles).toBe(mk().counts.swayTriangles);
   });
   it('keeps LITE small', () => { expect(mk({ tier: { name: 'low', rung: 5, shadows: false } }).counts.points).toBeLessThan(mk().counts.points); });
