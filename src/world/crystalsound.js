@@ -9,6 +9,7 @@
 import { DRIP_SITES, DRIP, dripIn, hash01 } from './crystalcritters.js';
 import { humNote } from './crystallife.js';
 import { ROSE_GREAT } from './crystalplan.js';
+import { planBeauty2 } from './crystaldecor.js';
 import { BLUE_GREAT, GOLD_GREAT, HEART_GREAT } from './crystalwingplan.js';
 
 export const HUM = Object.freeze({ low: 49, high: 73.5, gain: 0.008, fade: 3 });
@@ -16,6 +17,8 @@ export const DRIP_EAR = 16;
 export const PLINK_GAIN = 0.018;
 // the great crystals and which of the soft notes each one sings (the Heart sings the Rose's)
 export const GREATS = Object.freeze([[ROSE_GREAT, 0], [BLUE_GREAT, 1], [GOLD_GREAT, 2], [HEART_GREAT, 0]].map(([g, note]) => Object.freeze({ x: g.x, z: g.z, note, reach: g.s * 0.55 + 1.6, away: g.s * 0.55 + 4 })));
+// beauty round 2: the hero crystals (the cluster-sized ones, not the four greats, which have their own notes) chime softly too when she walks up to them, same soft note, same muting
+export const HERO_CHIMES = Object.freeze(planBeauty2('high').hero.filter((h) => !h.great).map((h, i) => Object.freeze({ x: h.x, z: h.z, note: (i + 1) % 3, reach: h.s * 0.55 + 1.9, away: h.s * 0.55 + 4 })));
 export const NOTE_GAP = 6; // seconds before the same crystal may sing again
 
 export const loud = (d) => { const k = Math.min(1, Math.max(0, 1 - d / DRIP_EAR)); return k * k; };
@@ -30,6 +33,7 @@ export function createCrystalSound({ audio }) {
   let pending = []; // [{ at, site }] this slot
   const near = new Array(GREATS.length).fill(false);
   const lastNote = new Array(GREATS.length).fill(-1e9);
+  const nearH = new Array(HERO_CHIMES.length).fill(false); const lastH = new Array(HERO_CHIMES.length).fill(-1e9);
   let broken = false; // a context that throws silences the rest of the walk
   const muted = () => !audio || typeof audio.getContext !== 'function' || !!audio.isMuted?.();
 
@@ -79,7 +83,7 @@ export function createCrystalSound({ audio }) {
         pending = DRIP_SITES.map((s) => ({ site: s, at: dripIn(s.id, n) })).filter((p) => p.at !== null);
       }
       if (broken) return;
-      if (muted()) { stopHum(); pending = []; near.fill(false); return; }
+      if (muted()) { stopHum(); pending = []; near.fill(false); nearH.fill(false); return; }
       const ac = audio.getContext();
       if (!ac) return;
       const dest = audio.getMaster?.() ?? ac.destination;
@@ -95,6 +99,11 @@ export function createCrystalSound({ audio }) {
           const d = Math.hypot(catPos.x - g.x, catPos.z - g.z);
           if (d < g.reach && !near[i]) { near[i] = true; if (clock - lastNote[i] >= NOTE_GAP) { lastNote[i] = clock; if (humNote(audio, g.note)) notes++; } }
           else if (d > g.away) near[i] = false;
+        });
+        HERO_CHIMES.forEach((g, i) => {
+          const d = Math.hypot(catPos.x - g.x, catPos.z - g.z);
+          if (d < g.reach && !nearH[i]) { nearH[i] = true; if (clock - lastH[i] >= NOTE_GAP) { lastH[i] = clock; if (humNote(audio, g.note)) notes++; } }
+          else if (d > g.away) nearH[i] = false;
         });
       }
     },

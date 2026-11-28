@@ -25,7 +25,7 @@ const ROWS = [
   // name, builder, meshes, casters, triangles (measured build+life +12%; numbers in docs/headroom.md)
   ['moon', buildMoon, 61, 8, 49400],
   ['reef', buildReef, 101, 2, 74200],
-  ['crystal', buildCrystal, 32, 2, 36900],
+  ['crystal', buildCrystal, 32, 2, 42200], // beauty pass 2 (2026-11-28, raised on purpose): +2,656 (hero crystals + halos, chamber washes, dome shafts, motes, ripples), measured 28 / 1 / 37,680 (35,024 before), bound 36,900 -> 42,200 (measured +12%); the street limit stays 62,000 for the whole frame
   ['treehouse', buildTreehouse, 23, 2, 66200],
   ['snowville', buildSnowville, 37, 3, 51800], // beauty pass 1 (2026-11-28): +1,596 built (eave bulbs, frost corners, sill planters, wreath bows, lintel holly, skates by the pond), measured 37 / 3 / 51,777, bound 50,231 -> 51,800; frost round (2026-11-27): +575 net (side drifts, west icicles, tufts, lane banks and prints, paid in part by open birch/stump/well cylinders and flat pads), measured 37 / 3 / 50,181, bound 49,620 -> 50,231 (measured +50); 46,500 before the ski slope (round three, +1,356 built), 47,700 after it; the snowmobile (round four): ring, marks and garage +1,162 built, the machine +1 non-casting mesh +686 (measured 37 / 3 / 49,514, bound +106)
   ['jungle', buildJungle, 31, 4, 55700],

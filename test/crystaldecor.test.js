@@ -102,7 +102,7 @@ describe('the drawing', () => {
     expect(d.meshes.length).toBeLessThanOrEqual(3);
     expect(scene.children.length).toBe(3);
     for (const m of d.meshes) { expect(m.castShadow).toBe(false); expect(m.userData.noMerge).toBe(true); }
-    expect(d.triangles).toBeGreaterThan(500); expect(d.triangles).toBeLessThan(12000); // (beauty round 1, 2026-11-28: shard satellites, glints, veins, small stalagmites, pockets; measured below)
+    expect(d.triangles).toBeGreaterThan(500); expect(d.triangles).toBeLessThan(13000); // (beauty round 2, 2026-11-28: hero crystals + halos, washes, shafts, motes, ripples: 9,642 -> 12,298, bound 12,000 -> 13,000; beauty round 1, 2026-11-28: shard satellites, glints, veins, small stalagmites, pockets; measured below)
     d.dispose(); expect(scene.children.length).toBe(0);
   });
   it('LOW and LITE draw about half the triangles of HIGH', () => {
@@ -126,5 +126,38 @@ describe('the walk', () => {
   it('the sources draw no random number and read no clock', () => {
     for (const f of ['src/world/crystaldecor.js', 'src/world/crystaldecorparts.js']) expect(readFileSync(f, 'utf8').replace(/\/\/.*$/gm, ''), f).not.toMatch(/Math\.random|Date\.now|performance\.now|new Date/);
     expect(readFileSync('src/world/crystaldecor.js', 'utf8')).not.toMatch(/from 'three'/);
+  });
+});
+
+describe('beauty round 2', () => {
+  const B2 = D.planBeauty2('high');
+  it('is deterministic, LOW is a prefix of HIGH, and every hue shows in the heroes and the washes', () => {
+    expect(D.planBeauty2('high')).toEqual(B2);
+    const lo = D.planBeauty2('low');
+    for (const k of Object.keys(D.BEAUTY2_COUNT.high)) { expect(B2[k].length).toBe(D.BEAUTY2_COUNT.high[k]); expect(lo[k]).toEqual(B2[k].slice(0, lo[k].length)); }
+    expect(new Set(B2.wash.map((w) => w.hue))).toEqual(new Set(P.HUES));
+    expect(new Set(B2.hero.slice(0, 4).map((h) => h.hue))).toEqual(new Set(P.HUES));
+  });
+  it('the hero crystals stand inside the footprint of an existing solid cluster, so nothing new is solid or standable', () => {
+    const cols = P.crystalColliders();
+    for (const h of B2.hero) {
+      const c = cols.find((k) => Math.hypot(k.x - h.x, k.z - h.z) < 0.3);
+      expect(c, `${h.x},${h.z}`).toBeTruthy();
+      for (const sp of h.spikes) expect(Math.hypot(h.x + sp.dx - c.x, h.z + sp.dz - c.z) + sp.r, `${h.x},${h.z}`).toBeLessThanOrEqual(c.r + 0.02);
+    }
+  });
+  it('the shafts, motes and ripples are in the cave; the ripples are on the pool', () => {
+    for (const m of [...B2.motes, ...B2.shafts]) { expect(m.x).toBeGreaterThan(B.minX); expect(m.x).toBeLessThan(B.maxX); expect(m.z).toBeGreaterThan(B.minZ); expect(m.z).toBeLessThan(B.maxZ); }
+    for (const r of B2.ripples) expect(Math.hypot(r.x - W.POOL.x, r.z - W.POOL.z)).toBeLessThan(W.POOL.r * 0.8);
+  });
+  it('moves with time, and stands still in reduced motion', () => {
+    const mk = (reducedMotion) => createCrystalDecor({ scene: new THREE.Scene(), tier: null, reducedMotion });
+    const a = mk(false); a.update(0.2); a.update(0.2); expect(a.time).toBeCloseTo(0.4); a.dispose();
+    const r = mk(true); r.update(1); expect(r.time).toBe(0); r.dispose();
+  });
+  it('the shader reads one time uniform and nothing else changes: still three meshes, and every glow and light vertex carries a move tag', () => {
+    const d = createCrystalDecor({ scene: new THREE.Scene(), tier: null });
+    for (const m of d.meshes.slice(1)) { expect(m.geometry.attributes.aMove.count).toBe(m.geometry.attributes.position.count); expect(m.material.onBeforeCompile).toBeTypeOf('function'); }
+    expect(d.meshes.length).toBe(3); expect(d.counts.motes).toBe(56);
   });
 });

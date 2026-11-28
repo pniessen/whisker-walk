@@ -187,3 +187,54 @@ export function planBeauty(rung = 'high') {
   return (_bcache[rung] = Object.freeze(out));
 }
 export const beautySites = (rung = 'high') => { const d = planBeauty(rung); return [...d.veins, ...d.mini]; };
+
+// ---- beauty round 2 (2026-11-28) ------------------------------------------------------------------------------------------------------------------
+// Things that read at a glance from the play camera: HERO crystals (tall, strongly graded spikes standing INSIDE the footprint of the biggest existing clusters, so nothing new is
+// solid or standable) with a glow halo each, a big colour WASH under every chamber (rose, cyan, amber, violet), light SHAFTS from the dome, MOTES that rise with trails and
+// water RIPPLES on the Blue Pool. Planned apart again (own salts), pure data; LOW keeps about half of each list, a prefix of HIGH. The drawing animates them in the shader.
+export const ZONE_RGB = Object.freeze({ rose: Object.freeze([1, 0.4, 0.68]), blue: Object.freeze([0.15, 0.8, 1]), gold: Object.freeze([1, 0.64, 0.18]), heart: Object.freeze([0.6, 0.36, 1]) });
+export const BEAUTY2_SALTS = Object.freeze({ hero: 0x6865726f, shaft: 0x73686674, mote: 0x6d6f7465, ripple: 0x72697070 });
+export const BEAUTY2_COUNT = Object.freeze({
+  high: Object.freeze({ hero: 8, wash: 4, shafts: 8, motes: 56, ripples: 8 }),
+  low: Object.freeze({ hero: 4, wash: 4, shafts: 4, motes: 28, ripples: 4 }),
+});
+export const SHAFT_TOP = 14; // metres up: the dome's roots, where the shafts begin
+const _b2 = {};
+export function planBeauty2(rung = 'high') {
+  if (_b2[rung]) return _b2[rung];
+  const N = BEAUTY2_COUNT[rung === 'high' ? 'high' : 'low']; const full = BEAUTY2_COUNT.high;
+  // the biggest clusters (the four greats first), interleaved by hue so a prefix still has every colour
+  const all = [...P.scatterClusters(), W.BLUE_GREAT, W.GOLD_GREAT, W.HEART_GREAT, P.ROSE_GREAT, ...W.POOL_RING, ...W.GOLD_ROW, ...W.HEART_RING]
+    .filter((k, i, arr) => arr.findIndex((o) => o.x === k.x && o.z === k.z) === i)
+    .map((k, i) => ({ k, i })).sort((a, b) => (b.k.great ? 9 : b.k.s) - (a.k.great ? 9 : a.k.s) || a.i - b.i).slice(0, full.hero);
+  const byHue = {}; for (const { k } of all) (byHue[k.hue] ??= []).push(k);
+  const order = []; for (let i = 0; order.length < all.length; i++) for (const h of P.HUES) if (byHue[h]?.[i]) order.push(byHue[h][i]);
+  const rng = mulberry32(BEAUTY2_SALTS.hero);
+  const hero = order.map((k) => {
+    const top = 3 + k.s * 1.9 + (k.great ? 1.2 : 0);
+    const spikes = Array.from({ length: 4 }, (_, j) => {
+      const a = (j / 4) * Math.PI * 2 + rng() * 0.8; const d = j === 0 ? 0 : k.s * (0.12 + rng() * 0.1);
+      return { dx: Math.cos(a) * d, dz: Math.sin(a) * d, h: top * (j === 0 ? 1 : 0.55 + rng() * 0.3), r: k.s * (j === 0 ? 0.2 : 0.12) + 0.08, yaw: rng() * 6.28, lean: (j === 0 ? 0.04 : 0.12 + rng() * 0.12), lean2: a };
+    });
+    return Object.freeze({ x: k.x, z: k.z, s: k.s, great: !!k.great, hue: k.hue, top, halo: k.s * 2.1 + 1.6, spikes });
+  });
+  const wash = CH.map((c) => Object.freeze({ x: c.x, z: c.z + 1, r: c.r * 0.92, hue: c.hue, rgb: ZONE_RGB[c.hue] }));
+  const sr = mulberry32(BEAUTY2_SALTS.shaft);
+  const shafts = Array.from({ length: full.shafts }, (_, i) => {
+    const c = CH[i % CH.length]; const a = sr() * 6.28; const r = c.r * (0.15 + sr() * 0.6);
+    return Object.freeze({ x: c.x + Math.cos(a) * r, z: c.z + Math.sin(a) * r * 0.9, lx: (sr() - 0.5) * 4, lz: (sr() - 0.5) * 4, w: 0.9 + sr() * 0.7, hue: c.hue, rgb: ZONE_RGB[c.hue], ph: sr() });
+  });
+  const mr = mulberry32(BEAUTY2_SALTS.mote);
+  const motes = Array.from({ length: full.motes }, (_, i) => {
+    const c = CH[i % CH.length]; const a = mr() * 6.28; const r = c.r * Math.sqrt(mr()) * 0.95;
+    return Object.freeze({ x: c.x + Math.cos(a) * r, z: c.z + Math.sin(a) * r * 0.9, y: 0.2 + mr() * 1.6, rise: 3 + mr() * 3, speed: 0.05 + mr() * 0.06, ph: mr(), hue: c.hue, rgb: ZONE_RGB[c.hue], len: 0.7 + mr() * 0.6 });
+  });
+  const rr = mulberry32(BEAUTY2_SALTS.ripple);
+  const ripples = Array.from({ length: full.ripples }, (_, i) => {
+    const a = (i / full.ripples) * 6.28 + rr() * 0.6; const r = W.POOL.r * (0.15 + rr() * 0.55);
+    return Object.freeze({ x: W.POOL.x + Math.cos(a) * r, z: W.POOL.z + Math.sin(a) * r, ph: i / full.ripples + rr() * 0.1, reach: 1.3 + rr() * 0.8, speed: 0.17 + rr() * 0.08 });
+  });
+  const out = { hero: hero.slice(0, N.hero), wash: wash.slice(0, N.wash), shafts: shafts.slice(0, N.shafts), motes: motes.slice(0, N.motes), ripples: ripples.slice(0, N.ripples) };
+  for (const k of Object.keys(out)) Object.freeze(out[k]);
+  return (_b2[rung] = Object.freeze(out));
+}
