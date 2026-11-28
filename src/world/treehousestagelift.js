@@ -5,7 +5,8 @@ import { drawBeauty } from './treehousebeauty.js';
 import { drawNature } from './treehousenature.js';
 import { drawGrass } from './treehousegrass.js';
 import { drawTrim } from './treehousetrim.js';
+import { skyPatch } from './treehouseglow.js';
 
 // Round two (2026-11-27): realistic trees, shrubs, the leaf canopy and the houses' dressing (treehousenature.js), then grass (treehousegrass.js); treehouse.js leaves its plain rim, ferns and canopy out when this is in.
-function draw(kit, M) { drawBeauty(kit, M); drawNature(kit, M); drawGrass(kit, M); drawTrim(kit, M); }
+function draw(kit, M) { skyPatch(M); drawBeauty(kit, M); drawNature(kit, M); drawGrass(kit, M); drawTrim(kit, M); }
 Object.assign(ST, { lift: Object.freeze({ draw }) });

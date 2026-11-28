@@ -80,7 +80,7 @@ export function build(scene) {
           interact: () => prompts.interact(),
           // a step done by anyone in the room (a `th-` event): a round done by a partner is credited to ours, a supper begun by a partner starts ours, any other step is Nutmeg's
           credit: (ev) => errand?.credit(ev) ?? wing?.credit(ev) ?? nutmeg.credit(ev),
-          update(dt, t, catPos, camera, session) { light.update(dt, t); nutmeg.update(dt, t, catPos, camera, session); wing?.update(dt, t); errand?.update(dt, t, catPos, camera, session); finds?.update(dt, t, catPos); critters?.update(dt, t, catPos); treeCats?.update(dt, t, catPos); },
+          update(dt, t, catPos, camera, session) { light.update(dt, t, catPos); nutmeg.update(dt, t, catPos, camera, session); wing?.update(dt, t); errand?.update(dt, t, catPos, camera, session); finds?.update(dt, t, catPos); critters?.update(dt, t, catPos); treeCats?.update(dt, t, catPos); },
           dispose() { treeCats?.dispose(); errand?.dispose(); critters?.dispose(); finds?.dispose(); wing?.dispose(); nutmeg.dispose(); light.dispose(); },
         };
       },

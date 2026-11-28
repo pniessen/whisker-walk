@@ -72,6 +72,9 @@ export function createTreehouseLight({ scene, tier = null, reducedMotion = false
   // the grass tufts and the wildflower specks (round two) are drawn only on the tiers that can spare them
   const tufts = scene.getObjectByName('treehouse:tufts') ?? null;
   if (tufts) tufts.visible = !low;
+  // the lamp pools, the golden-hour lean, the autumn pops and the gusts (treehouseglow.js, drawn into the paint and leaves materials by the lift stage): driven here, once a frame
+  const sky = scene.getObjectByName('treehouse:leaves')?.material?.userData?.sky ?? null;
+  const rung = tier && tier.shadows === false ? 'lite' : low ? 'low' : 'high';
   const shaftCol = shafts && !low ? shafts.geometry.attributes.color : null;
   const shaftBase = shaftCol ? Float32Array.from(shaftCol.array) : null;
   let lastShimmer = -1;
@@ -79,7 +82,8 @@ export function createTreehouseLight({ scene, tier = null, reducedMotion = false
     dapple,
     light,
     setGlow(x, y, z, intensity) { if (light) { light.position.set(x, y, z); light.intensity = intensity; } },
-    update(_dt, t) {
+    update(_dt, t, catPos = null) {
+      sky?.update(t, catPos, reducedMotion, rung);
       if (shaftCol && !reducedMotion && t - lastShimmer > 0.1) { // each shaft glimmers on its own slow beat (reduced motion keeps every one at its drawn strength)
         lastShimmer = t;
         const n = shaftBase.length / (SHAFT_VERTS * 3);
