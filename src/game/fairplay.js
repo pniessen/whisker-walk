@@ -131,6 +131,9 @@ export function handleFairEvent(e, ctx) {
   };
   switch (e.type) {
     case 'note': audio.musicBoxNote?.(e.freq, e.volume); break;
+    case 'calliope': audio.calliope?.(e.freq, e.chord, e.volume); break;
+    case 'murmur': audio.crowdMurmur?.(e.volume); break;
+    case 'bell': audio.rideBell?.(e.volume); break;
     case 'ride':
       crumb(`ride:${e.ride}`);
       if (e.ride === 'boat') once('fair-boat', RIDE_TOASTS.boat());

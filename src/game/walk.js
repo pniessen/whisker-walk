@@ -1095,6 +1095,8 @@ export function createWalkLifecycle({
       weather = createWeather(scene, sun, rollWeather(walkRng), walkRng, reducedMotion, ground, { tier, fill, wet });
       // polish-daylight: a graded clear day also takes a touch less exposure.
       if (weather.exposureScale) composerRig.applyDayGrade(weather.exposureScale);
+      // golden hour at the Fairground: the bulbs half lit (world/fair.js SUNSET_GLOW)
+      if (areaId === 'fair' && weather.condition === 'sunset') pack.world.setFairGlow(areaData, pack.world.SUNSET_GLOW);
       if (weather.condition === 'rain') {
         // Extra puddles. These are the only props in the game that EVERY area
         // gets whether it authored them or not, which is why their surface is

@@ -98,7 +98,7 @@
     fair.setFairGlow(area, 1);
   } else {
     weather = createWeather(scene, sun, MOOD === 'sunset' ? 'sunset' : 'clear', rng, true, undefined, { tier, fill, wet: [] });
-    fair.setFairGlow(area, 0);
+    fair.setFairGlow(area, MOOD === 'sunset' ? fair.SUNSET_GLOW : 0);
   }
   const shadows = createShadowFit(sun, camera, { radius: tier.shadowFitRadius, mapSize: tier.shadowMapSize });
   sun.shadow.bias = SUN_BIAS;

@@ -683,6 +683,45 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
       tone(freq, 0.5, { type: 'triangle', gain: 0.028 * v, attack: 0.004 });
       tone(freq * 2, 0.22, { gain: 0.008 * v, attack: 0.004 });
     },
+    // The Fairground's calliope (fairlive.js MIDWAY): an oom-pah-pah for one
+    // bar of three beats. A low note, then the two notes of its chord twice
+    // (`beat` seconds apart): bright, reedy, quiet, and none at volume 0.
+    calliope(freq, chord = [], volume = 1, beat = 0.26) {
+      const v = Math.max(0, Math.min(1, Number(volume) || 0));
+      if (v <= 0 || muted) return;
+      tone(freq, 0.3, { type: 'sawtooth', gain: 0.014 * v, attack: 0.01 });
+      for (let b = 1; b <= 2; b++) {
+        for (const f of chord) tone(f, 0.18, { type: 'square', gain: 0.0045 * v, attack: 0.01, delay: b * beat });
+      }
+    },
+    // A crowd's murmur: a swell of band-passed noise, low and short.
+    crowdMurmur(volume = 1) {
+      const v = Math.max(0, Math.min(1, Number(volume) || 0));
+      if (v <= 0 || muted) return;
+      const ac = ensure();
+      const src = ac.createBufferSource();
+      src.buffer = splashNoise(ac);
+      const f = ac.createBiquadFilter();
+      f.type = 'bandpass';
+      f.frequency.value = 520 + Math.random() * 260;
+      f.Q.value = 0.9;
+      const g = ac.createGain();
+      const t0 = ac.currentTime;
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.014 * v, t0 + 0.7);
+      g.gain.exponentialRampToValueAtTime(0.0005, t0 + 1.6);
+      src.connect(f).connect(g).connect(master);
+      src.start(t0); src.stop(t0 + 1.7);
+    },
+    // A ride's bell: two small bright rings.
+    rideBell(volume = 1) {
+      const v = Math.max(0, Math.min(1, Number(volume) || 0));
+      if (v <= 0 || muted) return;
+      for (const d of [0, 0.16]) {
+        tone(1900, 0.5, { gain: 0.02 * v, attack: 0.002, delay: d });
+        tone(2850, 0.3, { gain: 0.008 * v, attack: 0.002, delay: d });
+      }
+    },
     // A short tune on the music box (the birthday song, src/birthdaysong.js):
     // notes [{ at, freq, dur }], `at` seconds from now. Each is musicBoxNote's
     // shape, a touch louder because it is the thing to hear. Muted, or at

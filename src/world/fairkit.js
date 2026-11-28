@@ -391,6 +391,7 @@ export function recentre(mesh, x, z) {
 export const FAIR_CLOCK = Object.freeze({
   chase: { value: 0 },     // the chase's phase, in waves (0..1)
   chaseOn: { value: 0 },   // 1: the bulbs chase; 0: steady
+  lit: { value: 0 },       // 0 (day) to 1 (dusk): a lit bulb swells into its own halo (setFairGlow)
   flutterA: { value: 0 },  // the bunting's two flutters, as angles (0..2pi)
   flutterB: { value: 0 },
   flutterOn: { value: 0 }, // 1: the pennants flutter; 0: still
@@ -476,7 +477,8 @@ export const GLOW_LOOK = Object.freeze({
   near: 1.2, far: 5.0, nearScale: 0.06,
   shrinkNear: 0.7, shrinkFar: 2.4, shrink: 0.4,
   pane: 0.55,
-  wave: 2.8, speed: 0.45, low: 0.4,
+  wave: 2.8, speed: 0.45, low: 0.2,
+  halo: 1.4, pulse: 0.6, // a fully lit bulb is drawn (1 + halo) times its size, the chase's crest (1 + pulse) larger again
   wide: 20, slant: Object.freeze([0.62, 0.55, 0.56]),
 });
 // The near-camera dimming as a number (the shader's smoothstep), for tests.
@@ -490,7 +492,7 @@ export function glowMaterial() {
     vertexColors: true, roughness: 0.7, metalness: 0, emissive: 0xffffff, emissiveIntensity: 0,
   });
   m.onBeforeCompile = glowShader;
-  m.customProgramCacheKey = () => 'fair-glow-v2';
+  m.customProgramCacheKey = () => 'fair-glow-v3';
   m.name = 'fairGlow';
   return m;
 }
@@ -498,12 +500,14 @@ function glowShader(shader) {
   const L = GLOW_LOOK;
   shader.uniforms.fairChasePhase = FAIR_CLOCK.chase;
   shader.uniforms.fairChaseOn = FAIR_CLOCK.chaseOn;
+  shader.uniforms.fairLit = FAIR_CLOCK.lit;
   shader.vertexShader = shader.vertexShader
     .replace('#include <common>', `#include <common>
 attribute float fairChase;
 attribute float fairBulbR;
 uniform float fairChasePhase;
 uniform float fairChaseOn;
+uniform float fairLit;
 varying vec3 vFairGlow;`)
     .replace('#include <begin_vertex>', `#include <begin_vertex>
 if (fairBulbR > 0.0) {
@@ -511,7 +515,10 @@ if (fairBulbR > 0.0) {
   vec3 fairOut = normalize(objectNormal) * fairBulbR;
   vec3 fairMid = transformed - fairOut;
   float fairDm = distance((modelMatrix * vec4(fairMid, 1.0)).xyz, cameraPosition);
-  transformed = fairMid + fairOut * mix(${glsl(L.shrink)}, 1.0, smoothstep(${glsl(L.shrinkNear)}, ${glsl(L.shrinkFar)}, fairDm));
+  // lit, a bulb swells into its own halo (more at the chase's crest): the same eight triangles, drawn bigger
+  float fairCr = 0.5 + 0.5 * cos(6.2831853 * (fairChase - fairChasePhase));
+  float fairSwell = 1.0 + fairLit * smoothstep(2.0, 10.0, fairDm) * (${glsl(L.halo)} + ${glsl(L.pulse)} * fairCr * fairCr * (fairChase > -0.5 ? fairChaseOn : 0.0));
+  transformed = fairMid + fairOut * fairSwell * mix(${glsl(L.shrink)}, 1.0, smoothstep(${glsl(L.shrinkNear)}, ${glsl(L.shrinkFar)}, fairDm));
 }`)
     .replace('#include <project_vertex>', `#include <project_vertex>
 {
