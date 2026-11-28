@@ -6,6 +6,7 @@
 //   * the GOLDEN MOMENT: stand still 3 s at a vista and fireflies and leaf-sparkles rise round her with a soft chime, once per vista per visit.
 // No mesh, no triangle, no light, no caster, no texture: one pooled Points (not a mesh), uniforms and the existing light. Reduced motion: the look is held at once, nothing rises, no chime. LITE: no rim, no focal
 // glow and a small pool. `shape` and `pick` are pure. Stage chunk code (made by treehousecritters.js).
+import { capGlow, gate } from './treehousecaps.js';
 import * as THREE from 'three';
 
 const sm = (u) => { const t = Math.min(1, Math.max(0, u)); return t * t * (3 - 2 * t); };
@@ -52,12 +53,12 @@ export function createVista(ctx, env) {
     for (let i = 0; i < N; i++) pos[i * 3 + 1] = -200;
   }
   const done = new Set(); // the vistas whose golden moment has played this visit
-  let k = 0; let cur = null; let lastT = -1; let ax = 0; let az = 0; let still0 = -1; let burstAt = -99; let bx = 0; let by = 0; let bz = 0; let set = 0; let shown = false; let have = false;
+  let k = 0; let cur = null; let lastT = -1; let ax = 0; let az = 0; let still0 = -1; let gotGold = 0; let burstAt = -99; let bx = 0; let by = 0; let bz = 0; let set = 0; let shown = false; let have = false;
   const dir = { x: 0, z: -1 };
   function apply(v, kk, gold) {
     if (!sky) return;
     const f = v ? v.f : { x: 0, y: -50, z: 0 };
-    sky.setVista(f.x, f.y, f.z, kk * (v ? v.haze : 1) * (1 + 0.25 * gold), kk, lite ? 0 : kk * (v ? v.glow : 0) * (1 + 0.7 * gold));
+    sky.setVista(f.x, f.y, f.z, kk * (v ? v.haze : 1) * (1 + 0.25 * gold), kk, lite ? 0 : kk * (v ? v.glow : 0) * capGlow(1 + 0.7 * gold, 1.5));
     if (shafts?.material) { shafts.material.opacity *= 1 - 0.3 * kk; if (shafts.material.color) shafts.material.color.setRGB(1, 1 - 0.1 * kk, 1 - 0.32 * kk); }
   }
   function rim(catPos, camera, kk, gold) { // a warm rim on her fur: the borrowed light sits behind her, up, towards the focal point's side
@@ -71,6 +72,7 @@ export function createVista(ctx, env) {
   }
   return {
     get k() { return k; },
+    get gold() { return gotGold; },
     update(t, catPos, camera) {
       const dt = lastT < 0 ? 1 : Math.min(0.5, Math.max(0, t - lastT)); lastT = t;
       let target = 0; let v = null;
@@ -90,7 +92,7 @@ export function createVista(ctx, env) {
           done.add(v.id); burstAt = t; bx = catPos.x; by = catPos.y; bz = catPos.z; env.chime?.(done.size);
         }
       } else { have = false; still0 = -1; }
-      const age = t - burstAt; if (age >= 0 && age <= GOLDEN.life) gold = sm(age / 0.8) * (1 - sm((age - 3.2) / 2));
+      const age = t - burstAt; if (age >= 0 && age <= GOLDEN.life) gold = sm(age / 0.8) * (1 - sm((age - 3.2) / 2)); gotGold = gold; gold *= gate.gold;
       apply(cur, k, gold); rim(catPos ?? { x: 0, y: -50, z: 0 }, camera, cur ? k : 0, gold);
       if (!pts) return;
       if (age < 0 || age > GOLDEN.life) { if (shown) { for (let i = 0; i < N; i++) pos[i * 3 + 1] = -200; pts.geometry.attributes.position.needsUpdate = true; pts.visible = false; shown = false; } return; }
