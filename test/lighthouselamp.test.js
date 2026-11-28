@@ -66,7 +66,7 @@ describe('the lamp job', () => {
     r = rig();
     r.step(3);
     expect(r.life.lit).toBe(false);
-    const meshes = r.scene.children.filter((o) => o.isMesh && o.userData.noMerge && !['lighthouse:glass', 'lighthouse:lamproof'].includes(o.name));
+    const meshes = r.scene.children.filter((o) => o.isMesh && o.userData.noMerge && !['lighthouse:glass', 'lighthouse:lamproof', 'lighthouse:gulls', 'lighthouse:seafx'].includes(o.name));
     expect(meshes.length).toBeGreaterThanOrEqual(4);
     for (const m of meshes) expect(m.visible, 'a lamp piece is hidden').toBe(false);
     expect(r.points.n).toBe(0);
@@ -83,7 +83,7 @@ describe('the lamp job', () => {
     expect(AWARDS.lighthousejob).toBe(25);
     expect(r.events[0]).toMatchObject({ type: 'lighthousejob', key: JOB_KEY, label: phrase('lighthouse.lamp.lit'), points: 25, repeat: false });
     r.step(LIGHT_UP + 0.5);
-    const shown = r.scene.children.filter((o) => o.isMesh && o.userData.noMerge && !['lighthouse:glass', 'lighthouse:lamproof'].includes(o.name));
+    const shown = r.scene.children.filter((o) => o.isMesh && o.userData.noMerge && !['lighthouse:glass', 'lighthouse:lamproof', 'lighthouse:gulls', 'lighthouse:seafx'].includes(o.name));
     expect(shown.length).toBeGreaterThanOrEqual(4);
     expect(shown.filter((m) => m.visible).length).toBeGreaterThanOrEqual(3);
     expect(r.lever.group.getObjectByName('lever-arm').rotation.z).toBeLessThan(-1);

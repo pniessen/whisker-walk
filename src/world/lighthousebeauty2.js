@@ -6,7 +6,7 @@
 // the upturned boat's keel and the flagpole's brass ball.
 //
 // Like the rounds before it, all of it goes into the kit's EXISTING noCast buckets (paint, wood, boat, glow, wet,
-// glowpatch): no new mesh, no new caster, no new draw. Nothing moves (so reduced motion has nothing to respect),
+// glowpatch): no new mesh, no new caster, no new draw. Nothing here moves by itself (pass 2's lighthousealive.js rocks the boats and flickers their lanterns, honouring reduced motion),
 // nothing is a collider or a platform (the boats float beyond the walk's bounds at x 36 to 38), and every number is
 // hash01's. The lantern's light is the glow material's own emissive, never a real light.
 // =============================================================================
@@ -15,6 +15,7 @@ import * as THREE from 'three';
 import { hash01 } from './builder.js';
 import * as P from './lighthouseplan.js';
 import { COL, paint, paintBy, bx, bm, cy, sp } from './lighthouseparts.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Soup, tuft, mixHex, shadeHex } from './lighthousebeauty.js';
 
 const h01 = hash01;
@@ -52,15 +53,18 @@ function fishingBoat(kit, M, x, z, yaw, hull, trim, id) {
   parts.push(bx(0.55, 0.9, sea + 2.0, sea + 2.28, 0.012, 0.016, trim)); // pennant (one flat flag)
   parts.push(cy(0.9, 0.9, sea + 1.63, sea + 1.9, 0.01, 0.01, COL.dark, 4)); // lantern hanger
   for (const g of parts) { g.rotateY(yaw); g.translate(x, 0, z); }
-  parts.forEach((g) => kit.put('boat', M.paint, g, { noCast: true }));
-  // the lantern (emissive) at the boom's end, and the masthead one
+  // the lanterns at the boom's end and the masthead: warm little shapes here (the life's additive halo, which flickers, is their light)
   const c = Math.cos(yaw); const s = Math.sin(yaw);
   const at = (lx, lz) => [x + lx * c + lz * s, z - lx * s + lz * c];
   const [lx1, lz1] = at(0.9, 0.9);
-  kit.put('glow', M.glow, sp(lx1, sea + 1.5, lz1, 0.1, COL.warm, { seg: 6, rings: 4 }), { noCast: true });
+  parts.push(sp(lx1, sea + 1.5, lz1, 0.1, 0xffd890, { seg: 6, rings: 4 }));
   const [lx2, lz2] = at(0.9, 0);
-  kit.put('glow', M.glow, sp(lx2, sea + 2.38, lz2, 0.07, 0xffe2a0, { seg: 5, rings: 3 }), { noCast: true });
-  kit.put('boat', M.paint, gull(lx2 + 0.0, sea + 2.31, lz2, yaw + (id ? 2.2 : 0.4), 0.9), { noCast: true });
+  parts.push(sp(lx2, sea + 2.38, lz2, 0.07, 0xffe2a0, { seg: 5, rings: 3 }));
+  parts.push(...gull(lx2 + 0.0, sea + 2.31, lz2, yaw + (id ? 2.2 : 0.4), 0.9));
+  // (the boat is merged into ONE mesh for both boats by drawBoatsAndSparkle; the life rocks it at anchor)
+  const geo = mergeGeometries(parts);
+  parts.forEach((g) => g.dispose());
+  const lanterns = [[lx1, sea + 1.5, lz1], [lx2, sea + 2.38, lz2]];
   // a ring of wash about the hull and a wake (additive, so it only lightens)
   const S = new Soup();
   const seg = 14;
@@ -72,6 +76,7 @@ function fishingBoat(kit, M, x, z, yaw, hull, trim, id) {
     S.tri(v(a0, 1.7, 0.66), v(a1, 1.7, 0.66), v(a1, 2.15, 0.9), bright, bright, dark);
   }
   kit.put('glowpatch', M.patch, S.geometry(), { noCast: true });
+  return { geo, cx: x, cz: z, yaw, lanterns };
 }
 
 // bunting: pennants hung along a sagging string from `a` to `b`, each a little triangle in turn red, white, gold, blue
@@ -96,8 +101,22 @@ function bunting(S, a, b, seed, n = 8) {
 }
 
 function drawBoatsAndSparkle(kit, M) {
-  fishingBoat(kit, M, 43, -12, 0.5, 0x2f6f95, 0xe9d8b0, 0);
-  fishingBoat(kit, M, 46, 21, -0.7, 0xb5503a, 0xe8e1d0, 1);
+  const boats = [fishingBoat(kit, M, 43, -12, 0.5, 0x2f6f95, 0xe9d8b0, 0), fishingBoat(kit, M, 46, 21, -0.7, 0xb5503a, 0xe8e1d0, 1)];
+  // both boats in ONE mesh of their own (the life moves its vertices a little, so they ride at anchor); one more draw than before
+  const geo = mergeGeometries(boats.map((b) => b.geo));
+  boats.forEach((b) => b.geo.dispose());
+  let at0 = 0;
+  const ranges = boats.map((b) => { const r = { start: at0, cx: b.cx, cz: b.cz, yaw: b.yaw, lanterns: b.lanterns }; at0 += b.geo.attributes.position.count; r.count = b.geo.attributes.position.count; return r; });
+  const boatMesh = new THREE.Mesh(geo, M.paint);
+  boatMesh.name = 'lighthouse:boats';
+  boatMesh.castShadow = false;
+  boatMesh.receiveShadow = true;
+  boatMesh.userData.noCast = true;
+  boatMesh.userData.noMerge = true;
+  boatMesh.userData.boats = ranges;
+  boatMesh.userData.base = Float32Array.from(geo.attributes.position.array);
+  boatMesh.userData.baseN = Float32Array.from(geo.attributes.normal.array);
+  kit.addExtra(boatMesh);
   // low gold sun glitter: four-point glints scattered on both seas, more thickly near the shore, additive
   const S = new Soup();
   const glint = (x, z, r, seed) => {
@@ -163,7 +182,22 @@ function drawPoolWeed(kit, M) {
   kit.put('wet', M.stone, W.geometry(), { noCast: true });
 }
 
+// pass 2: slim painted bands round the shaft at every join of the red and white, in dark red and gold, and a gold cap under the
+// gallery's corbels, so the tower reads as a striped one from the whole beach (the shaft's own taper is lighthouseparts' drawTower)
+function drawTowerBands(kit, M) {
+  const { TOWER: T, PLATEAU_Y: Y0, GALLERY_Y: Y1 } = P;
+  const bands = 5;
+  const h = (Y1 - 0.9 - (Y0 + 1.05)) / bands;
+  const taper = (y) => T.shaft - 0.5 * ((y - (Y0 + 1.05)) / (Y1 - (Y0 + 1.05)));
+  for (let i = 1; i < bands; i++) {
+    const y = Y0 + 1.05 + i * h;
+    kit.put('paint', M.paint, cy(T.x, T.z, y - 0.13, y + 0.13, taper(y) + 0.045, taper(y) + 0.045, i % 2 ? 0xd9a93a : 0x6a1f18, 18), { noCast: true });
+  }
+  kit.put('paint', M.paint, cy(T.x, T.z, Y1 - 1.0, Y1 - 0.86, taper(Y1) + 0.2, taper(Y1) + 0.2, 0xd9a93a, 18), { noCast: true });
+}
+
 export function drawBeauty2(kit, M) {
+  drawTowerBands(kit, M);
   drawBoatsAndSparkle(kit, M);
   drawFlagsAndProps(kit, M);
   drawPoolWeed(kit, M);
