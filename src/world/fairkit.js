@@ -210,7 +210,7 @@ function setFloat(g, name, values) {
   g.setAttribute(name, new THREE.BufferAttribute(values instanceof Float32Array ? values : new Float32Array(values), 1));
   return g;
 }
-function swayOf(g, w) {
+export function swayOf(g, w) {
   return setFloat(g, SWAY, w);
 }
 export function chaseOf(g, c) {
