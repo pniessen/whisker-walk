@@ -161,7 +161,7 @@ function lights(d, out) {
   d.pools.forEach((p, i) => out.push(disc(p.x, p.z, p.r, i, fade(HUE[p.hue], (0.3 * p.k + 0.12) * tame(p.hue)), 3, 14)));
   d.moss.forEach((m, i) => {
     const c = [[0.22, 0.62, 0.34], [0.3, 0.7, 0.4], [0.18, 0.55, 0.5]][i % 3];
-    out.push(disc(m.x, m.z, m.r, m.wob, (t) => { const f = 0.55 * (1 - t) ** 1.2 * (0.8 + 0.2 * Math.sin(t * 17 + m.wob)); return [c[0] * f, c[1] * f, c[2] * f]; }, 3, 9));
+    out.push(disc(m.x, m.z, m.r, m.wob, (t) => { /* pass 7: was 0.55 / 1.2, a blown-out mint blob with a hard edge */ const f = 0.17 * (1 - t) ** 1.5 * (0.8 + 0.2 * Math.sin(t * 17 + m.wob)); return [c[0] * f, c[1] * f, c[2] * f]; }, 3, 9));
   });
 }
 
@@ -206,7 +206,7 @@ function halo(h, strength) {
 }
 // A floor wash: one very wide disc of the chamber's colour.
 function wash(w) {
-  return tag(disc(w.x, w.z, w.r, 1, (t) => { const f = 0.11 * (1 - t) ** 0.9; return [w.rgb[0] * f, w.rgb[1] * f, w.rgb[2] * f]; }, 3, 16), 4);
+  return tag(disc(w.x, w.z, w.r, 1, (t) => { const f = 0.11 * (1 - t) ** 0.9; return [w.rgb[0] * f, w.rgb[1] * f, w.rgb[2] * f]; }, 3, 16), 4, 1);
 }
 // A light shaft: three upright strips round the same line, each brightest down its middle and dim at its top and foot, leaning like the light does.
 function shaft(s) {
@@ -246,30 +246,36 @@ function ripple(r) {
 }
 // The shader: one time uniform; positions are world positions (the meshes sit at the origin).
 function animate(mat, uT, U, key = 'cat') {
-  mat.customProgramCacheKey = () => 'crystalMove5';
+  mat.customProgramCacheKey = () => 'crystalMove6';
   mat.onBeforeCompile = (sh) => {
-    sh.uniforms.uT = uT; sh.uniforms.uCat = U[key]; sh.uniforms.uRip = U.rip; sh.uniforms.uBloom = U.bloom;
-    sh.vertexShader = `attribute vec4 aMove;\nattribute vec3 aCen;\nuniform float uT;\nuniform vec4 uCat;\nuniform vec4 uRip[3];\nuniform vec4 uBloom;\nvarying float vKk;\nvarying vec3 vTint;\nvarying float vBand;\nvarying vec3 vPrism;\n${sh.vertexShader}`
+    sh.uniforms.uT = uT; sh.uniforms.uCat = U[key]; sh.uniforms.uRip = U.rip; sh.uniforms.uBloom = U.bloom; sh.uniforms.uMood = U.mood; sh.uniforms.uLing = U.ling;
+    sh.vertexShader = `attribute vec4 aMove;\nattribute vec3 aCen;\nuniform float uT;\nuniform vec4 uCat;\nuniform vec4 uRip[3];\nuniform vec4 uBloom;\nuniform vec4 uMood;\nuniform vec4 uLing;\nvarying float vKk;\nvarying vec3 vTint;\nvarying float vBand;\nvarying vec3 vPrism;\n${sh.vertexShader}`
       .replace('#include <begin_vertex>', `#include <begin_vertex>
         float kk = 1.0; float kd = aMove.x;
-        if (kd > 0.5 && kd < 1.5) { float f = fract(uT * aMove.z + aMove.y); transformed.y += f * aMove.w; transformed.x += sin(uT * 0.5 + aMove.y * 40.0) * 0.35 * f; transformed.z += cos(uT * 0.45 + aMove.y * 31.0) * 0.35 * f; kk = sin(f * 3.14159); }
+        if (kd > 0.5 && kd < 1.5) { float f = fract(uT * aMove.z + aMove.y); transformed.y += f * aMove.w; transformed.x += sin(uT * 0.5 + aMove.y * 40.0) * 0.35 * f; transformed.z += cos(uT * 0.45 + aMove.y * 31.0) * 0.35 * f; kk = sin(f * 3.14159); transformed.xz += vec2(cos(uLing.w), sin(uLing.w)) * uMood.w * f * 2.2; }
         else if (kd > 1.5 && kd < 2.5) { kk = 0.7 + 0.3 * sin(uT * 0.45 + aMove.y * 6.2832); }
         else if (kd > 2.5 && kd < 3.5) { float f = fract(uT * aMove.z + aMove.y); transformed.xz = aCen.xz + (position.xz - aCen.xz) * (0.3 + f * aMove.w); kk = (1.0 - f) * (1.0 - f) * smoothstep(0.0, 0.12, f) * 2.2; }
         else if (kd > 3.5 && kd < 4.5) { float w = 0.5 + 0.5 * sin(uT * 1.15 - length(position.xz) * 0.17); kk = 0.85 + 0.5 * w * w; }
         else if (kd > 4.5 && kd < 5.5) { float a = clamp(uRip[int(aMove.y + 0.5)].z, 0.0, 1.0); vec4 rp = uRip[int(aMove.y + 0.5)]; transformed.xz = rp.xy + position.xz * (0.25 + a * 2.6); kk = (1.0 - a) * (1.0 - a) * 2.4 * step(0.001, a) * step(a, 0.999); }
         else if (kd > 6.5) { kk = uBloom.z * 2.4; }
-        else if (kd > 5.5) { float f = uT * aMove.z + aMove.y * 6.2832; transformed.x += sin(f) * 1.6; transformed.z += cos(f * 0.8) * 1.2; kk = 0.55 + 0.45 * sin(uT * 0.3 + aMove.y * 20.0); }
+        else if (kd > 5.5) { float f = uT * aMove.z + aMove.y * 6.2832; transformed.x += sin(f) * 1.6; transformed.z += cos(f * 0.8) * 1.2; kk = 0.55 + 0.45 * sin(uT * 0.3 + aMove.y * 20.0); transformed.xz += vec2(cos(uLing.w), sin(uLing.w)) * uMood.w * 1.4 * sin(uT * 0.5 + aMove.y * 9.0); }
         float dc = distance(position.xz, uCat.xz);
         kk *= 1.0 + uCat.w * 1.1 * smoothstep(4.2, 0.6, dc);
         vTint = vec3(1.0) + 0.16 * vec3(sin(uT * 0.1 + position.x * 0.045), sin(uT * 0.1 + position.z * 0.045 + 2.1), sin(uT * 0.1 - position.x * 0.03 + 4.2));
-        // beauty round 4: the prismatic bloom, a soft band of light that rolls out from the cave's middle (uBloom.x metres out, uBloom.y strong) and tints what it passes
         float db = length(position.xz - vec2(0.0, -2.0));
         float band = exp(-pow((db - uBloom.x) / 9.0, 2.0)) * uBloom.y;
         kk *= 1.0 + band * 1.7;
         vBand = clamp(band, 0.0, 1.0); vPrism = 0.5 + 0.5 * cos(6.2832 * (db * 0.045 + vec3(0.0, 0.33, 0.67)));
-        // beauty pass 5: ONE slow breath for the whole cave (every glowing thing swells and eases together, a little later the farther from the middle: it rolls outward like a tide), and the ARRIVAL bloom (uBloom.w, 1 as she enters a chamber, easing out): everything within reach of her glows a little more
         kk *= 0.93 + 0.1 * sin(uT * 0.8 - db * 0.09);
         kk *= 1.0 + uBloom.w * 0.55 * smoothstep(14.0, 1.5, dc);
+        kk *= 1.0 + uMood.x * (0.1 + 0.7 * (0.5 + 0.5 * sin(uT * 2.6 - db * 0.16))) + uMood.z * 0.45;
+        if (kd > 1.5 && kd < 2.5) kk *= 1.0 + uMood.x * 0.9;
+        if (kd > 3.5 && kd < 4.5 && aMove.y > 0.5) kk *= 1.0 - uMood.z * 0.75;
+        kk *= 1.0 + uLing.z * 0.8 * smoothstep(4.5, 0.8, distance(position.xz, uLing.xy)) * (kd > 3.5 && kd < 4.5 ? (aMove.y > 0.5 ? 0.0 : 0.3) : 1.0);
+        vTint *= mix(vec3(1.0), vec3(1.2, 0.65, 1.3), uMood.x * 0.9);
+        vTint += uMood.y * 0.38 * (cos(6.2832 * (db * 0.03 - uT * 0.05 + vec3(0.0, 0.33, 0.67))));
+        if (kd > 3.5 && kd < 4.5 && aMove.y > 0.5) kk = min(kk, 1.3);
+        if (kd < 0.5 || (kd > 3.5 && kd < 4.5)) kk *= (1.0 - 0.8 * smoothstep(8.0, 1.5, distance(position.xz, vec2(22.0, -22.0))) * (1.0 - 0.5 * uMood.z)) * (1.0 - 0.6 * smoothstep(7.0, 1.5, distance(position.xz, vec2(-12.5, -19.5)))); // pass 7: the Heart's and the Gold great's floors stack pool, pockets, washes and the cat's glow: ease them near the great crystal so the floor keeps its colour
         vKk = kk;`)
     ;
     sh.fragmentShader = `varying float vKk;\nvarying vec3 vTint;\nvarying float vBand;\nvarying vec3 vPrism;\n${sh.fragmentShader}`.replace('#include <color_fragment>', '#include <color_fragment>\n        float lum = dot(diffuseColor.rgb, vec3(0.333)); diffuseColor.rgb = mix(diffuseColor.rgb * vKk * vTint, vPrism * lum * 2.0 * vKk, vBand * 0.8);');
@@ -299,7 +305,7 @@ export function createCrystalDecor({ scene, tier = null, reducedMotion = false }
   const stone = []; const glow = []; const light = [];
   const lowR = rung === 'low'; const d2mist = planMist();
   mushrooms(d.mush, stone, glow); gardens(d.garden, glow); stalagmites(d.stag, stone); pebbles(d.pebble, stone); minis(d.mini, stone); lights(d, light); shards(d.sats, glow, light);
-  d2.hero.forEach((h) => { h.spikes.forEach((sp) => glow.push(tag(heroSpike(h, sp), 4))); halo(h, (h.great ? 0.13 : 0.09) * tame(h.hue)).forEach((g) => light.push(g)); light.push(wash({ x: h.x, z: h.z, r: h.s * 2.6 + 1.6, rgb: ZONE_RGB[h.hue].map((v) => v * 0.9 * tame(h.hue)) })); });
+  d2.hero.forEach((h) => { h.spikes.forEach((sp) => glow.push(tag(heroSpike(h, sp), 4))); halo(h, (h.great ? 0.1 : 0.07) * tame(h.hue)).forEach((g) => light.push(g)); light.push(wash({ x: h.x, z: h.z, r: h.s * 2.6 + 1.6, rgb: ZONE_RGB[h.hue].map((v) => v * 0.62 * tame(h.hue)) })); });
   d2.wash.forEach((w) => light.push(wash(w.hue === 'blue' || w.hue === 'gold' ? { ...w, rgb: w.rgb.map((v) => v * (w.hue === 'blue' ? 0.6 : 0.78)) } : w))); d2.shafts.forEach((sh) => light.push(shaft(sh))); d2.motes.forEach((m) => light.push(mote(m))); d2.ripples.forEach((r) => light.push(ripple(r)));
   const mists = lowR ? d2mist.slice(0, 3) : d2mist; mists.forEach((m) => light.push(mist(m)));
   if (!lowR) for (let k = 0; k < 3; k++) light.push(pawRing(k));
@@ -312,7 +318,7 @@ export function createCrystalDecor({ scene, tier = null, reducedMotion = false }
     new THREE.MeshBasicMaterial({ vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, side: THREE.DoubleSide })]; // (double-sided: the standing paint and the rainbow are seen from both ways)
   mats[0].emissive?.setHex(0x3a2c44); // lifts the dark foot of the floor stalagmites (and every stone piece a little)
   const uT = { value: 0 };
-  const U = { cat: { value: new THREE.Vector4(1e5, 0, 1e5, 0) }, catL: { value: new THREE.Vector4(1e5, 0, 1e5, 0) }, rip: { value: [new THREE.Vector4(0, 0, 9, 0), new THREE.Vector4(0, 0, 9, 0), new THREE.Vector4(0, 0, 9, 0)] }, bloom: { value: new THREE.Vector4(-99, 0, 0, 0) } };
+  const U = { cat: { value: new THREE.Vector4(1e5, 0, 1e5, 0) }, catL: { value: new THREE.Vector4(1e5, 0, 1e5, 0) }, rip: { value: [new THREE.Vector4(0, 0, 9, 0), new THREE.Vector4(0, 0, 9, 0), new THREE.Vector4(0, 0, 9, 0)] }, bloom: { value: new THREE.Vector4(-99, 0, 0, 0) }, mood: { value: new THREE.Vector4(0, 0, 0, 0) }, ling: { value: new THREE.Vector4(0, 0, 0, 0) } };
   animate(mats[1], uT, U, 'cat'); animate(mats[2], uT, U, 'catL');
   const meshes = [[stone, 'decorStone', true], [glow, 'decorGlow', false], [light, 'decorLight', false]].map(([geos, name, lit], i) => {
     const m = new THREE.Mesh(mergeGeometries(geos), mats[i]);

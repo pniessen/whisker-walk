@@ -71,6 +71,10 @@
     scene.environmentIntensity = duskEnv(scene.environmentIntensity, look);
     renderer.toneMappingExposure = 1.1;
   }
+  if (RAIN) { // a rainy day's grey light (the game's weather does this; the page stands in for it, same for before and after)
+    scene.background = skyBackground(0x6f7b86, 0x9aa5ac); scene.fog = new THREE.Fog(0x9aa5ac, 40, 120);
+    sun.intensity *= 0.35; fill.intensity *= 0.8; scene.environmentIntensity *= 0.6; renderer.toneMappingExposure = 0.95;
+  }
   if (NOGLASS) scene.getObjectByName('palmHouse-glass').visible = false;
   const cat = buildCat('tabby');
   scene.add(cat);
@@ -79,7 +83,7 @@
   sun.shadow.bias = SUN_BIAS;
   assignShadowCasters(scene);
   const fade = createTreeFade(findFadeOccluders(scene), { reducedMotion: rm });
-  const life = area.life({ reducedMotion: rm, dusk: DUSK, weather: RAIN ? { isRaining: () => true, setSheltered() {} } : null, ground: { y: () => 0 }, visits: Number(params.get('visits') || 0), season: params.get('season') || undefined });
+  const life = area.life({ reducedMotion: rm, dusk: DUSK, weather: RAIN ? { isRaining: () => true, setSheltered() {} } : null, ground: { y: () => 0 }, visits: Number(params.get('visits') || 0), season: params.get('season') || undefined, now: params.get('hour') ? new Date(2026, 5, 15, Number(params.get('hour')), 0) : undefined, fx: params.get('fx') ? Object.fromEntries(params.get('fx').split(',').map((kv) => kv.split(':')).map(([k, v]) => [k, Number(v)])) : undefined });
 
   if (params.get('nocreat') === '1') life.creatures.points.visible = false; // the 'before' pictures of pass 5
   const player = createPlayer(camera, renderer.domElement);
@@ -193,6 +197,13 @@
     p5_hall: { at: [0, -3], face: [0, -1] },
     p5_court: { at: [0, 31], face: [0, -1] },
     p5_lamp: { at: [-2.4, 30], face: [-1, -0.9] },
+    // beauty pass 6: weather as events (play camera); ?rain=1 | ?fx=sun:1 | ?dusk=1&fx=glow:1 | ?fx=wind:1 | ?hour=7&fx=haze:1
+    p6_roof: { at: [0, -3], face: [0, -1], cam: { pos: [0, 1.7, -1.2], look: [0, 6.5, -14], fov: 75 }, hold: true },
+    p6_hall: { at: [0, -3], face: [0, -1] },
+    p6_beds: { at: [-8, 15], face: [-1, -0.5] },
+    p6_court: { at: [0, 31], face: [0, -1] },
+    p6_bench: { at: [20.6, 15.9], face: [0, -1] },
+    p6_hall2: { at: [-6, -2], face: [1, -0.4] },
     palms: { at: [-6, -9], face: [-1, 0], cam: { pos: [12, 2.4, -2.2], look: [-6, 4, -12], fov: 60 }, hold: true },
   };
   window.__shot = (name) => {

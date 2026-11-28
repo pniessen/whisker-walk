@@ -244,13 +244,19 @@ export const plantMat = () => new THREE.MeshStandardMaterial({ vertexColors: tru
 // Beauty pass 2: leaves sway. The palms' and the foliage's material moves a vertex sideways in proportion to its height (a few cm at a
 // palm's crown, none at the ground) on ONE shared clock, SWAY_TIME (set by greenhouselife.js; 0 under reduced motion, so they stand still).
 export const SWAY_TIME = { value: 0 };
+// beauty pass 6: the weather events (set by greenhouseweather.js): plants perk up in a sun burst (a little taller, brighter), a wind gust sways them all in sync
+export const PERK = { value: 0 };
+export const WIND = { value: 0 };
 export const swayMat = () => {
   const m = plantMat();
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uSwayTime = SWAY_TIME;
     shader.uniforms.uCat = CAT_NEAR;
+    shader.uniforms.uPerk = PERK;
+    shader.uniforms.uWind = WIND;
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nuniform float uSwayTime;\nuniform vec4 uCat;')
+      .replace('#include <common>', '#include <common>\nuniform float uSwayTime;\nuniform vec4 uCat;\nuniform float uPerk;\nuniform float uWind;')
+      .replace('#include <color_vertex>', '#include <color_vertex>\n#ifdef USE_COLOR\nvColor.rgb *= 1.0 + 0.2 * uPerk;\n#endif')
       .replace('#include <begin_vertex>', `#include <begin_vertex>
 {
   float hgt = max(0.0, transformed.y - 0.35);
@@ -265,10 +271,12 @@ export const swayMat = () => {
   vec2 dir = away / max(length(away), 0.05);
   float shake = sin(uSwayTime * 13.0 + ph * 6.0) * 0.06 * uCat.z;
   transformed.y -= near * low * 0.12;
+  transformed.y *= 1.0 + 0.035 * uPerk;
+  transformed.x += uWind * hgt * (0.06 + 0.03 * sin(uSwayTime * 5.0 + transformed.z * 0.05)) * (0.6 + 0.4 * sin(uSwayTime * 3.1));
   transformed.xz += dir * near * low * (0.22 + 0.26 * uCat.z) + vec2(shake, -shake) * near * low;
 }`);
   };
-  m.customProgramCacheKey = () => 'greenhouse-sway-v2';
+  m.customProgramCacheKey = () => 'greenhouse-sway-v3';
   return m;
 };
 export const finishMesh = (name, geometry, { cast = false, material = plantMat() } = {}) => {

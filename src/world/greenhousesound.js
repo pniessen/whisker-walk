@@ -10,6 +10,7 @@
 //   * THE BRUSH (beauty pass 3: while she walks through the beds, hedges and plants: a soft rustle of three tiny high ticks, every 0.25 to 0.5 s);
 //   * CRICKETS (beauty pass 3: at dusk, dry weather: a quiet trill of fast ticks, every 2.2 to 4.6 s, out in the garden only);
 //   * THE RAIN PATTER (sheltered under glass while it rains: tiny ticks on the panes, every 0.08 to 0.2 s).
+//     (beauty pass 6: the patter drums in gusts; THUNDER far away every 14 to 30 s in heavy rain; a WHOOSH through the vents when the rare wind blows)
 // Every sound is one or two oscillators through their own gain envelope into the game's master (audio.getMaster()), so the
 // volume setting is the master's. Nothing is made and the context is never asked for until a sound is due and heard.
 // MUTED: while audio.isMuted?.() is anything but false nothing plays and the context is never asked for (an audio without
@@ -24,9 +25,9 @@ import * as P from './greenhouseplan.js';
 import { ORCHID_ROOM as ORCHID } from './greenhouserooms.js';
 
 export const GH_SOUND_SALT = 0x6e5e0; // the four streams below add their own offset (all distinct from every other salt)
-export const STREAM = Object.freeze({ drip: 0, trickle: 1, bird: 2, rain: 3, bee: 4, brush: 5, cricket: 6, tin: 7, hush: 8 });
-export const EVERY = Object.freeze({ drip: [1.6, 4.2], trickle: [0.2, 0.5], bird: [5, 11], rain: [0.08, 0.2], bee: [5, 12], brush: [0.25, 0.5], cricket: [2.2, 4.6], tin: [0.12, 0.4], hush: [2.2, 4.2] });
-export const GAIN = Object.freeze({ drip: 0.02, trickle: 0.012, bird: 0.02, rain: 0.006, bee: 0.011, brush: 0.012, cricket: 0.008, tin: 0.01, hush: 0.014 });
+export const STREAM = Object.freeze({ drip: 0, trickle: 1, bird: 2, rain: 3, bee: 4, brush: 5, cricket: 6, tin: 7, hush: 8, thunder: 9, whoosh: 10 });
+export const EVERY = Object.freeze({ drip: [1.6, 4.2], trickle: [0.2, 0.5], bird: [5, 11], rain: [0.08, 0.2], bee: [5, 12], brush: [0.25, 0.5], cricket: [2.2, 4.6], tin: [0.12, 0.4], hush: [2.2, 4.2], thunder: [14, 30], whoosh: [3, 6] });
+export const GAIN = Object.freeze({ drip: 0.02, trickle: 0.012, bird: 0.02, rain: 0.006, bee: 0.011, brush: 0.012, cricket: 0.008, tin: 0.01, hush: 0.014, thunder: 0.03, whoosh: 0.014 });
 export const TRICKLE = Object.freeze({ ear: 9 });
 export const BIRD_EAR = 22;
 export const TIN_EAR = 9; // beauty pass 5: the shed's tin roof (rain, or the sun ticking in the dry)
@@ -45,8 +46,8 @@ export function createGreenhouseSound(audio, { weather = null, dusk = false, red
   let broken = false;
   let disposed = false;
   const live = new Set();
-  const count = { drip: 0, trickle: 0, bird: 0, rain: 0, bee: 0, brush: 0, cricket: 0, tin: 0, hush: 0 };
-  const due = { drip: 0, trickle: 0, bird: 0, rain: 0, bee: 0, brush: 0, cricket: 0, tin: 0, hush: 0 };
+  const count = { drip: 0, trickle: 0, bird: 0, rain: 0, bee: 0, brush: 0, cricket: 0, tin: 0, hush: 0, thunder: 0, whoosh: 0 };
+  const due = { drip: 0, trickle: 0, bird: 0, rain: 0, bee: 0, brush: 0, cricket: 0, tin: 0, hush: 0, thunder: 0, whoosh: 0 };
   let last = null;
   let speed = 0;
   let walk = 0;
@@ -102,6 +103,8 @@ export function createGreenhouseSound(audio, { weather = null, dusk = false, red
       else if (k === 'bird') { const f = 2800 + 700 * h; plink(c, f, f + 700, 0, 0.07, amp); plink(c, f + 100, f + 800, 0.11, 0.07, amp); }
       else if (k === 'bee') { const f = 170 + 50 * h; plink(c, f, f * 1.18, 0, 0.9, amp, 0.3); plink(c, f * 1.5, f * 1.75, 0.05, 0.8, amp * 0.5, 0.3); plink(c, f * 2.01, f * 2.2, 0.02, 0.85, amp * 0.3, 0.3); }
       else if (k === 'brush') { for (let i = 0; i < 3; i++) plink(c, 5200 + 2600 * hash01(count[k], 5 + i, GH_SOUND_SALT + STREAM[k]), 3800, i * 0.03, 0.025, amp, 0.004); }
+      else if (k === 'thunder') { plink(c, 70 + 20 * h, 38, 0, 2.6, amp, 0.5); plink(c, 52, 30, 0.35 + 0.4 * h, 2.2, amp * 0.8, 0.6); } // far off: low, slow, a second roll
+      else if (k === 'whoosh') plink(c, 260 + 120 * h, 150, 0, 1.9, amp, 0.8); // a breath through the vents
       else if (k === 'tin') plink(c, 900 + 900 * h, 700 + 400 * h, 0, 0.05, amp, 0.003);
       else if (k === 'hush') plink(c, 240 + 50 * h, 200, 0, 1.6, amp, 0.7);
       else if (k === 'cricket') { const f = 4300 + 300 * h; for (let i = 0; i < 4; i++) plink(c, f, f - 80, i * 0.07, 0.03, amp, 0.005); }
@@ -111,9 +114,11 @@ export function createGreenhouseSound(audio, { weather = null, dusk = false, red
   }
 
   // which of the four are wanted now, and how loudly (0: not at all)
-  function level(k, catPos, under, raining) {
+  function level(k, catPos, under, raining, fx) {
+    if (k === 'thunder') return raining && (fx?.rain ?? 1) > 0.6 ? (under ? 1 : 0.7) : 0;
+    if (k === 'whoosh') return fx?.wind > 0.25 ? (under ? 1 : 0.5) * fx.wind : 0;
     if (k === 'drip') return under && !raining ? 1 : 0;
-    if (k === 'rain') return under && raining ? 1 : 0;
+    if (k === 'rain') return under && raining ? 0.6 + 0.4 * Math.max(0, Math.sin(walk * 0.8 + 1)) ** 2 : 0; // the drumming comes in gusts
     if (k === 'brush') return speed > 0.8 && BRUSH_SPOTS.some(([x, z]) => Math.hypot(catPos.x - x, catPos.z - z) < 1.6) ? 1 : 0;
     if (k === 'cricket') return dusk && !raining && !under ? 1 : 0;
     if (k === 'tin') { const l = loudness(dist(catPos, P.SHED), TIN_EAR); return raining ? l : hash01(count.tin, 9, GH_SOUND_SALT + STREAM.tin) < 0.2 ? l * 0.5 : 0; }
@@ -133,7 +138,7 @@ export function createGreenhouseSound(audio, { weather = null, dusk = false, red
   }
 
   return {
-    update(dt, catPos, under = false) {
+    update(dt, catPos, under = false, fx = null) {
       if (disposed || !audio || !catPos) return;
       walk += dt > 0 ? dt : 0;
       if (last && dt > 0) speed = Math.hypot(catPos.x - last.x, catPos.z - last.z) / dt;
@@ -143,7 +148,7 @@ export function createGreenhouseSound(audio, { weather = null, dusk = false, red
       const raining = !!weather?.isRaining?.();
       for (const k of Object.keys(due)) {
         if (walk < due[k]) continue;
-        const l = quiet ? 0 : level(k, catPos, under, raining);
+        const l = quiet ? 0 : level(k, catPos, under, raining, fx);
         if (l > 0) make(k, l);
         count[k]++; // a call that falls out of earshot or while muted is skipped and counted: the schedule is the same
         due[k] = walk + gap(k);

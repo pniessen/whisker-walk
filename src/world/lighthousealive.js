@@ -340,8 +340,8 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
     cat.x = catPos.x; cat.z = catPos.z; cat.set = true;
     // the arrival: a gull's call, then a wash of surf, a moment after she lands (once a walk)
     st.since += dt;
-    if (!st.arrivedGull && st.since > 0.9) { st.arrivedGull = true; sound?.gull?.(); }
-    if (!st.arrivedSurf && st.since > 2.4) { st.arrivedSurf = true; sound?.surf?.(0.9); }
+    if (sound?.ambient && !st.arrivedGull && st.since > 0.9) { st.arrivedGull = true; sound?.gull?.(); }
+    if (sound?.ambient && !st.arrivedSurf && st.since > 2.4) { st.arrivedSurf = true; sound?.surf?.(0.9); }
     if (moved > 3) return; // a jump (a teleport, a respawn), not a step
     const inWater = inWaterAt(catPos);
     if (inWater) { st.wet = 1; st.travel = 0; } else if (st.wet > 0) { st.travel += moved; if (st.travel > WET_TRAVEL) st.wet = 0; }

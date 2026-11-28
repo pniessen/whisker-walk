@@ -87,8 +87,8 @@ export function createLiving({ scene, tier = null, reducedMotion = false, audio 
     if (h.wait > 0) return;
     const x = d > 0 ? H.x0 + (H.x1 - H.x0) * u : H.x1 + (H.x0 - H.x1) * u; const z = d > 0 ? H.z0 + (H.z1 - H.z0) * u : H.z1 + (H.z0 - H.z1) * u;
     const yaw = Math.atan2((H.x1 - H.x0) * d, (H.z1 - H.z0) * d); const y = P.snowY(x, z); const a = Math.min(1, h.s / 2, (L - h.s) / 2 + 0.2); const hy = hopY(h.ph); const ear = seen ? 0.07 : 0;
-    sc = 1.8; dot(x, y + 0.16, z, 0.95, 0.3, 0.36, 0.6, 0.45 * a); // its shadow
-    part(x, y + hy, z, yaw, 0, 0.17, -0.06, 0.34, 0.5, 0.55, 0.74, a); part(x, y + hy, z, yaw, 0, 0.17, 0.1, 0.27, 0.62, 0.67, 0.84, a); // body and chest (a hare looks white on white: a grey-blue shade under it)
+    sc = 2.3; dot(x, y + 0.16, z, 0.95, 0.3, 0.36, 0.6, 0.5 * a); // its shadow
+    part(x, y + hy, z, yaw, 0, 0.17, -0.06, 0.34, 0.4, 0.46, 0.68, a); part(x, y + hy, z, yaw, 0, 0.17, 0.1, 0.27, 0.52, 0.58, 0.8, a); // body and chest (a hare looks white on white: a grey-blue shade under it)
     part(x, y + hy, z, yaw, 0, 0.17, -0.22, 0.14, 0.95, 0.95, 1, a); part(x, y + hy, z, yaw, 0, 0.36 + ear * 0.2, 0.22, 0.2, 0.6, 0.65, 0.82, a); // tail, head
     part(x, y + hy, z, yaw, -0.05, 0.56 + ear, 0.16, 0.08, 0.42, 0.4, 0.55, a); part(x, y + hy, z, yaw, 0.05, 0.56 + ear, 0.16, 0.08, 0.42, 0.4, 0.55, a); // ears
     part(x, y + hy, z, yaw, -0.06, 0.4 + ear * 0.2, 0.3, 0.05, 0.1, 0.1, 0.16, a); part(x, y + hy, z, yaw, 0.06, 0.4 + ear * 0.2, 0.3, 0.05, 0.1, 0.1, 0.16, a); // eyes
@@ -99,13 +99,13 @@ export function createLiving({ scene, tier = null, reducedMotion = false, audio 
     if (a <= 0) return;
     const F = foxFirs[(k + 1) % foxFirs.length]; const x = F.x + 1.0; const z = F.z + 1.5; const y = P.snowY(x, z); const yaw = 0.5 + 0.25 * Math.sin(t * 0.3 + k);
     const flick = still ? 0 : Math.max(0, Math.sin(t * 1.9)) ** 6; const sw = 0.18 * Math.sin(t * 9) * flick + 0.1 * Math.sin(t * 0.8);
-    sc = 1.7; dot(x, y + 0.16, z, 1.4, 0.4, 0.45, 0.6, 0.28 * a);
+    sc = 2.1; dot(x, y + 0.16, z, 1.4, 0.4, 0.45, 0.6, 0.28 * a);
     part(x, y, z, yaw, 0, 0.3, 0, 0.52, 0.92, 0.5, 0.2, a); part(x, y, z, yaw, 0, 0.34, 0.28, 0.4, 0.94, 0.52, 0.2, a); part(x, y, z, yaw, 0, 0.5, 0.48, 0.3, 0.94, 0.54, 0.22, a); // body, chest, head
     part(x, y, z, yaw, 0, 0.45, 0.64, 0.12, 0.96, 0.92, 0.86, a); // muzzle
     part(x, y, z, yaw, sw * 0.6, 0.36, -0.42, 0.4, 0.9, 0.46, 0.17, a); part(x, y, z, yaw, sw, 0.4, -0.7, 0.34, 0.94, 0.5, 0.18, a); part(x, y, z, yaw, sw * 1.6, 0.42, -0.95, 0.24, 1, 0.97, 0.92, a); // the brush and its white tip
   }
   function owls(t) {
-    sc = 1.7;
+    sc = 2.1;
     owlFirs.forEach((F, i) => {
       const yaw = Math.atan2(-2 - F.x, 12 - F.z); const H = 4.5 * F.s; const rr = (1.55 - 1.1 * 0.62) * F.s * 1.3; const x = F.x + Math.sin(yaw) * rr; const z = F.z + Math.cos(yaw) * rr; const y = P.snowY(F.x, F.z) + H * 0.66;
       const turn = still ? 0 : Math.max(-1, Math.min(1, 2.4 * Math.sin(t * 0.34 + i * 2.1))); const blink = !still && Math.sin(t * 0.9 + i * 5) > 0.97 ? 0.1 : 1; // it stares, then swivels, now and then it blinks
@@ -115,7 +115,7 @@ export function createLiving({ scene, tier = null, reducedMotion = false, audio 
     });
   }
   function ducks(t) {
-    sc = 1.6; const nD = low ? 3 : 4;
+    sc = 2.0; const nD = low ? 3 : 4;
     for (let i = 0; i < nD; i++) {
       const tt = still ? 0 : t; const p = DUCK_PATH(tt - i * 1.1 - (i ? 0.9 : 0)); const q = DUCK_PATH(tt - i * 1.1 - (i ? 0.9 : 0) + 0.2);
       const yaw = Math.atan2(q.x - p.x, q.z - p.z) + (i && !still ? 0.35 * Math.sin(tt * 2.1 + i * 2) : 0); const y = P.snowY(p.x, p.z) + 0.06;

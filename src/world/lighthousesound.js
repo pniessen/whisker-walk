@@ -141,6 +141,8 @@ export function createLighthouseSound(audio) {
 
   // ---- the beds: one looping noise, three filtered voices whose gains follow her position (setTargetAtTime: a smooth blend, never a jump)
   let stormK = 0; let fogK = 0; // the weather's (lighthouseweather.js): the wind bed rises into a howl in a storm
+  // the ambient sounds (the beds, the arrival's call and wash) belong to the game's own audio only (it has playBuffer and setVolume); a bare stub never has them asked of it
+  const ambient = typeof audio?.playBuffer === 'function' && typeof audio?.setVolume === 'function';
   let bed = null; let bedAcc = 0; let nextCliffGull = 6; let bedClock = 0;
   const clamp01 = (v) => Math.min(1, Math.max(0, v));
   // [filter type, Hz, Q, gain, zone(cat) -> 0..1]: surf by the nearest shore, wind by height and the tower, creak by the quays and the post
@@ -165,7 +167,7 @@ export function createLighthouseSound(audio) {
   }
   // dt s; cat { x, y, z }: the gains ease toward her zone's values (setTargetAtTime: a smooth blend, never a jump)
   function beds(dt, cat) {
-    if (dead || !audio || !cat) return;
+    if (dead || !ambient || !cat) return;
     bedAcc += dt > 0 ? dt : 0;
     if (bedAcc < 0.2) return;
     bedClock += bedAcc; bedAcc = 0;
@@ -180,5 +182,5 @@ export function createLighthouseSound(audio) {
 
   const weather = (storm = 0, fog = 0) => { stormK = storm; fogK = fog; };
   const quiet = (on) => { hushGulls = !!on; };
-  return { weather, quiet, horn, bell, echo, gull, surf, mew, purr, beds, dispose() { dead = true; hush(); bed = null; } };
+  return { weather, quiet, horn, bell, echo, gull, surf, mew, purr, beds, ambient, dispose() { dead = true; hush(); bed = null; } };
 }

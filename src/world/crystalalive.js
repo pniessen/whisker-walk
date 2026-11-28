@@ -98,7 +98,7 @@ export function createCrystalAlive({ scene, decor, tier = null, reducedMotion = 
   // beauty pass 5: the creatures are their own Points too (bigger dots, so a moth or a fish reads from the play camera); one more draw, not a mesh and no light
   const bPos = new Float32Array(nBeing * 3).fill(-999); const bCol = new Float32Array(nBeing * 4);
   const bGeo = new THREE.BufferGeometry(); bGeo.setAttribute('position', new THREE.BufferAttribute(bPos, 3)); bGeo.setAttribute('color', new THREE.BufferAttribute(bCol, 4));
-  const beings = new THREE.Points(bGeo, new THREE.PointsMaterial({ map: crispDot(), alphaTest: 0.02, size: 0.55, sizeAttenuation: true, vertexColors: true, transparent: true, opacity: 1, blending: THREE.NormalBlending, depthWrite: false, fog: true }));
+  const beings = new THREE.Points(bGeo, new THREE.PointsMaterial({ map: crispDot(), alphaTest: 0.02, size: 0.72, sizeAttenuation: true, vertexColors: true, transparent: true, opacity: 1, blending: THREE.NormalBlending, depthWrite: false, fog: true }));
   beings.name = 'crystal:beings'; beings.frustumCulled = false; beings.renderOrder = 5; /* after the additive light meshes, so their wash never covers a moth */ Object.assign(beings.userData, { noCast: true, noContactShadow: true, noMerge: true }); scene.add(beings);
   const putB = (i, x, y, z, r, g, b, a = 1) => { bPos[i * 3] = x; bPos[i * 3 + 1] = y; bPos[i * 3 + 2] = z; bCol[i * 4] = r; bCol[i * 4 + 1] = g; bCol[i * 4 + 2] = b; bCol[i * 4 + 3] = a; }; // (normal blending with an alpha: a moth or a fish stays visible on the brightest pink or cyan, where additive dots wash out)
   // the shooting sparkle is its own little Points (bigger dots; hidden unless a streak is on)

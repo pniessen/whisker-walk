@@ -28,7 +28,7 @@ const thin = (r, h, rotZ = 0) => new THREE.CylinderGeometry(r, r, h, 3, 1, true)
 // Where each cottage's sign hangs (right of the door, between it and the window) and what it shows.
 export const SIGN = Object.freeze({ x: 0.86, y: 1.45, w: 0.46, h: 0.4 });
 export const TRADES = Object.freeze({ baker: 'loaf', west1: 'yarn', west2: 'hammer', east1: 'fish', north1: 'star', gate1: 'letter', gate2: 'leaf' });
-export const SIGN_HUE = Object.freeze({ loaf: 0xf0dcae, yarn: 0xf0d6d8, hammer: 0xdbe3c8, fish: 0xcfe2f0, star: 0xe4daf0, letter: 0xf0e8c8, leaf: 0xdceac8 });
+export const SIGN_HUE = Object.freeze({ loaf: 0xf2c878, yarn: 0xf2b8c0, hammer: 0xb8d09a, fish: 0x9cc8e8, star: 0xc8b4ec, letter: 0xf0d890, leaf: 0xa8d890 });
 
 // The snowlings: two small snowmen beside the big one in the lane's east verge, each with its own scarf and cap (the families of the village's other snowmen wear teal, red and gold).
 export const SNOWLINGS = Object.freeze([
@@ -129,8 +129,8 @@ export function drawLore(kit, M, { low = false } = {}) {
     const x = N.x + s.dx; const z = N.z + s.dz;
     const put = (geo, hex) => kit.put(FINE, M.paint, paint(stand(geo, x, z, 0, s.yaw), hex), { noCast: true });
     put(ball(0.34 * s.k * 1.6, 5, 3).translate(0, 0.3 * s.k * 1.6, 0), COL.snowBright); put(ball(0.25 * s.k * 1.6, 5, 3).translate(0, 0.82 * s.k * 1.6, 0), COL.snowBright);
-    put(new THREE.TorusGeometry(0.2 * s.k * 1.6, 0.05, 3, 6).rotateX(Math.PI / 2).translate(0, 0.66 * s.k * 1.6, 0), s.scarf);
-    put(box(0.06, 0.26 * s.k * 1.6, 0.04).translate(0.12 * s.k * 1.6, 0.52 * s.k * 1.6, 0.18 * s.k * 1.6), s.scarf); // the scarf's end
+    put(new THREE.TorusGeometry(0.2 * s.k * 1.6, 0.075, 3, 6).rotateX(Math.PI / 2).translate(0, 0.66 * s.k * 1.6, 0), s.scarf);
+    put(box(0.09, 0.3 * s.k * 1.6, 0.05).translate(0.12 * s.k * 1.6, 0.52 * s.k * 1.6, 0.18 * s.k * 1.6), s.scarf); // the scarf's end
     put(new THREE.ConeGeometry(0.17 * s.k * 1.6, 0.2 * s.k * 1.6, 5).translate(0, 1.14 * s.k * 1.6, 0), s.cap);
     put(new THREE.ConeGeometry(0.035, 0.2, 3, 1, true).rotateX(Math.PI / 2).translate(0, 0.84 * s.k * 1.6, 0.25 * s.k * 1.6), 0xe8782a);
   }
@@ -141,11 +141,11 @@ export function drawLore(kit, M, { low = false } = {}) {
     for (let k = 0; k < 6; k++) {
       if (k === 2 || k === 3) continue; // the doorway and a gap
       const a = k * (Math.PI / 3) + 0.3;
-      put(box(1.1, 0.7 + 0.1 * (k % 2), 0.4).rotateY(-a).translate(Math.sin(a) * 1.6, 0.34, Math.cos(a) * 1.6), k % 2 ? COL.roofSnow : COL.snowBright);
+      put(box(1.1, 0.7 + 0.1 * (k % 2), 0.4).rotateY(-a).translate(Math.sin(a) * 1.6, 0.34, Math.cos(a) * 1.6), k % 2 ? 0x9fc2e2 : 0xc4dcf2); // (pass 6: icy blue blocks, so the fort reads on the white snow)
     }
-    put(thin(0.03, 1.6).translate(0, 0.8, 0), COL.woodDark);
-    put(tri([0, 0], [0.5, 0.14], [0, 0.28]).translate(0.03, 1.4, 0.02), 0xc8483f);
-    put(tri([0, 0.28], [0.5, 0.14], [0, 0]).translate(0.03, 1.4, 0.02), 0xf2c14e);
+    put(thin(0.04, 2.2).translate(0, 1.1, 0), COL.woodDark);
+    put(tri([0, 0], [0.85, 0.24], [0, 0.48]).translate(0.04, 1.8, 0.02), 0xd23a30);
+    put(tri([0, 0.48], [0.85, 0.24], [0, 0]).translate(0.04, 1.8, 0.02), 0xf2c14e);
     for (const [dx, dz] of [[0.5, 0.4], [-0.4, 0.55]]) put(ball(0.14, 4, 3).translate(dx, 0.1, dz), COL.snowBright); // a few snowballs ready
   }
 }
