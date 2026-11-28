@@ -139,7 +139,7 @@ const SCENES = [
   ['greenhouse', buildGreenhouse, 85350, 187, 117], // 85,267 / 183 / 113 measured: the whole scene with both dressed cats
   ['treehouse', buildTreehouse, 83450, 119, 111], // 83,373 / 115 / 107 measured: the whole scene with both dressed cats
   ['jungle', buildJungle, 76650, 121, 113], // 76,578 / 117 / 109 measured: the whole scene with both dressed cats
-  ['snowville', buildSnowville, 72227, 119, 112], // frost round: 72,177 measured (+575 net), ceiling 71,650 -> 72,227 (measured +50); 71,602 (70,348 before the snowmobile, 1,162 + holiday) / 115 / 108 measured: the whole scene with both dressed cats
+  ['snowville', buildSnowville, 73800, 119, 112], // beauty pass 1 (2026-11-28): 73,773 measured (+1,596), ceiling 72,227 -> 73,800; frost round: 72,177 measured (+575 net), ceiling 71,650 -> 72,227 (measured +50); 71,602 (70,348 before the snowmobile, 1,162 + holiday) / 115 / 108 measured: the whole scene with both dressed cats
   ['crystal', buildCrystal, 46850, 126, 111], // 46,782 / 122 / 107 measured: the whole scene with both dressed cats
   ['reef', buildReef, 72557, 136, 111], // 72,507 / 132 / 107 measured: the whole scene (all three lazy stages loaded) with both dressed cats; over the 70,000 soft couch line by 2,507 (place alone 45,823)
   ['moon', buildMoon, 66700, 141, 118], // 63,500 / 134 / 112 measured: the whole scene (all stages loaded) with both dressed cats, under the 70,000 of the place alone

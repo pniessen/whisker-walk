@@ -10,6 +10,8 @@ import * as P from './snowvilleplan.js';
 import * as BP from './snowvillebeautyplan.js';
 import { mulberry32 } from '../rng.js';
 import { COL, paint, stand, box, cyl, ball, laneDist } from './snowvilleparts.js';
+import { ST } from './snowvillestages.js';
+import { POND } from './snowvilleplan.js';
 
 const HOLLY = 0x3b6a52;
 const BERRY = 0xd23a3a;
@@ -115,7 +117,72 @@ function peakGeometry(k) {
   return g;
 }
 
-export function drawBeauty(kit, M) {
+// ---- BEAUTY PASS 1 (2026-11-28): colour and warmth on what is already there. All merged into the same buckets (no new mesh, no caster); the lite rungs skip the finest pieces. -------
+const BULBS = [0xff6b5e, 0xffd45a, 0x6fd6a0, 0x7ab8ff, 0xff9ad0];
+const FROST = 0xeaf6ff;
+// A string of little coloured bulbs along each cottage's front eave: glow-coloured (no real light), sagging a hair between the hooks.
+function eaveLights(kit, M, c) {
+  const n = Math.round(c.w * 1.6);
+  for (let i = 0; i < n; i++) {
+    const u = (i + 0.5) / n;
+    const lx = -c.w / 2 + 0.1 + (c.w - 0.2) * u;
+    const sag = 0.12 * Math.sin(Math.PI * ((i % 4) / 3 + 0.0)) * 0.6;
+    kit.put('glow', M.glow, stand(paint(new THREE.OctahedronGeometry(0.06, 0).translate(lx, c.h - 0.2 - sag, c.d / 2 + 0.5), BULBS[(i + Math.round(c.x)) % BULBS.length]), c.x, c.z, -0.08, c.yaw), { noCast: true });
+  }
+}
+// Frost in the top corners of each front window, a holly-and-berry planter on the left sill, a red bow on the wreath and holly on the lintel.
+function cottageExtras(kit, M, c, low) {
+  const put = (geo, hex) => kit.put('paint', M.paint, stand(paint(geo, hex), c.x, c.z, -0.08, c.yaw), { noCast: true });
+  const wy = c.h * 0.55; const fz = c.d / 2 + 0.056;
+  for (const sx of [-1, 1]) {
+    const wx = sx * c.w * 0.32;
+    for (const k of [-1, 1]) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute([k * 0.35, 0.31, 0, k * 0.35 - k * 0.2, 0.31, 0, k * 0.35, 0.31 - 0.17, 0], 3));
+      g.setAttribute('normal', new THREE.Float32BufferAttribute([0, 0, 1, 0, 0, 1, 0, 0, 1], 3));
+      g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 2));
+      if (k > 0) g.setIndex([0, 1, 2]); else g.setIndex([0, 2, 1]);
+      put(g.translate(wx, wy, fz), FROST);
+    }
+  }
+  if (low) return;
+  const px = -c.w * 0.32; const py = wy - 0.4 + 0.12; const pz = c.d / 2 + 0.12;
+  put(box(0.8, 0.12, 0.17).translate(px, py, pz), COL.woodDark);
+  for (let i = 0; i < 3; i++) put(new THREE.OctahedronGeometry(0.1, 0).scale(1, 0.8, 1).translate(px - 0.26 + i * 0.26, py + 0.1, pz), i === 1 ? 0xe9f3ff : HOLLY);
+  put(new THREE.TetrahedronGeometry(0.045, 0).translate(px - 0.13, py + 0.2, pz + 0.04), BERRY);
+  put(new THREE.TetrahedronGeometry(0.045, 0).translate(px + 0.13, py + 0.2, pz + 0.04), BERRY);
+  // the wreath's bow
+  put(new THREE.ConeGeometry(0.07, 0.2, 3).rotateZ(Math.PI / 2).translate(-0.12, 1.47, c.d / 2 + 0.16), BERRY);
+  put(new THREE.ConeGeometry(0.07, 0.2, 3).rotateZ(-Math.PI / 2).translate(0.12, 1.47, c.d / 2 + 0.16), BERRY);
+  put(new THREE.OctahedronGeometry(0.05, 0).translate(0, 1.47, c.d / 2 + 0.17), 0xf2c14e);
+  // holly and berries heaped on the snow of the lintel
+  for (const sx of [-0.45, 0.45]) {
+    for (const o of [-0.1, 0.1]) put(new THREE.OctahedronGeometry(0.08, 0).scale(1.2, 0.8, 1).translate(sx + o, 1.97, c.d / 2 + 0.3), HOLLY);
+    put(new THREE.TetrahedronGeometry(0.04, 0).translate(sx, 2.02, c.d / 2 + 0.34), BERRY);
+  }
+}
+// A few pairs of skates left on the snow round the pond (one boot, its blade, a snow cap), where nothing else stands.
+function skatesAbout(kit, M) {
+  const hard = [...P.snowvilleColliders(), ...(ST.b?.colliders?.() ?? [])];
+  let pairs = 0;
+  for (let i = 0; i < 14 && pairs < 4; i++) {
+    const a = 0.35 + i * 0.62;
+    const r = 9.6 + (i % 2) * 0.5;
+    const x = POND.x + Math.cos(a) * r; const z = POND.z + Math.sin(a) * r;
+    if (hard.some((h) => (h.r != null ? Math.hypot(x - h.x, z - h.z) < h.r + 0.7 : false))) continue;
+    if (!P.clearOf(x, z, -0.5)) continue;
+    pairs++;
+    const put = (geo, hex, jit = 0) => kit.put('paint', M.paint, paint(stand(geo, x, z, 0.0, a * 2), hex, jit), { noCast: true });
+    for (const s of [-1, 1]) {
+      put(box(0.1, 0.1, 0.26).translate(s * 0.09, 0.1, 0), i % 2 ? 0xc8483f : 0x2f8f8a);
+      put(box(0.09, 0.14, 0.09).translate(s * 0.09, 0.2, -0.08), i % 2 ? 0xc8483f : 0x2f8f8a);
+      put(box(0.02, 0.035, 0.32).translate(s * 0.09, 0.025, 0), 0xc9d3e0);
+      put(box(0.11, 0.025, 0.26).translate(s * 0.09, 0.17, 0.0), COL.snowBright);
+    }
+  }
+}
+
+export function drawBeauty(kit, M, { low = false } = {}) {
   scatterShrubs().forEach((k, ci) => {
     for (let i = 0; i < k.n; i++) {
       const a = k.yaw + i * 2.2;
@@ -126,6 +193,8 @@ export function drawBeauty(kit, M) {
   for (const id of ['west2', 'north1', 'east1', 'baker']) woodpile(kit, M, by(id));
   for (const id of ['baker', 'gate1', 'gate2', 'west1']) crates(kit, M, by(id));
   for (const c of P.COTTAGES) { icicles(kit, M, c); wreath(kit, M, c); }
+  for (const c of P.COTTAGES) { cottageExtras(kit, M, c, low); if (!low) eaveLights(kit, M, c); }
+  skatesAbout(kit, M);
   const L = P.LAMPS;
   bunting(kit, M, L[0], L[1], [0x2f8f8a, 0xf2c14e]);
   bunting(kit, M, L[2], L[3], [0xc8483f, 0xf4ecd8]);
