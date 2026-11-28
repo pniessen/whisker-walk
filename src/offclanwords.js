@@ -12,8 +12,8 @@
 // asks "is the set 'off'?": they ask the set in use for a table or a rule.
 //
 // The set every build holds, and the one a player has until a family code
-// opens the family's own (wordset.js: it starts on this set, and the family's
-// is added next to it as 'on'). The tests put the family's set in use through
+// opens the family set (wordset.js: it starts on this set, and the other is
+// added next to it as the on set). The tests put the family's set in use through
 // test/setup/familywords.js and this one through test/helpers/offwords.js.
 //
 // What a reader of this set never sees: a name that changes with rank, a
@@ -228,8 +228,8 @@ export const PHRASES = Object.freeze({
   'pick.changeAskClick': 'Click a crew to make it your home.',
   'map.camp': (group) => `${group} home base`,
 
-  // (star.pick, the long fight-move names and the landmark labels are the base table's: clanphrases.js says the
-  // everyday thing there, and the family's set overrides it)
+  // (star.pick, the long fight-move names and the landmark labels are the base table: clanphrases.js says the
+  // everyday thing there, and the family set overrides it)
 
   // walking the bounds with a cat of your crew
   'patrol.prompt': (name) => `E — walk the bounds with ${name}`,
@@ -240,7 +240,7 @@ export const PHRASES = Object.freeze({
 
   'journal.chasedOff': 'Outsiders chased away',
 
-  // the fight moves keep their four short names; the long name is the same word (the base table's)
+  // the fight moves keep their four short names; the long name is the same word (the base table)
   'move.pin.name': 'Pin',
 
   // ---- the Woods' south strip (bigger areas, 2026-11-19; only seen with the

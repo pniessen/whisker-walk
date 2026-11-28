@@ -6,6 +6,7 @@ import { CAT_WORDS, generateCatCode, normalizeCatCode, snapWord, completeWord, c
 import { randomIndex } from '../src/randomindex.js';
 import { randomIndex as randomIndexFromSavecode } from '../src/savecode.js';
 import { CATALOG } from '../src/progression.js';
+import { literalsIn } from './helpers/serieswords.js';
 
 const src = (f) => readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8');
 const badwords = JSON.parse(readFileSync(new URL('./fixtures/badwords.json', import.meta.url), 'utf8'));
@@ -15,10 +16,11 @@ function fakeCrypto(values) {
   return { getRandomValues(buf) { for (let j = 0; j < buf.length; j++) buf[j] = values[i++ % values.length]; return buf; } };
 }
 
-// every word inside a quoted string of a source file, upper-cased (the words the series sets and the stray names say)
+// every word inside a string of a source file, upper-cased (the words the series sets and the stray names say);
+// comments are skipped, so an apostrophe in one cannot pair up with another and read the code between them as text
 const literalWords = (text) => {
   const out = new Set();
-  for (const m of text.matchAll(/(['"`])((?:\\.|(?!\1)[^\\])*)\1/g)) for (const w of m[2].toUpperCase().match(/[A-Z]+/g) ?? []) out.add(w);
+  for (const lit of literalsIn(text)) for (const w of lit.toUpperCase().match(/[A-Z]+/g) ?? []) out.add(w);
   return out;
 };
 
@@ -46,7 +48,8 @@ describe('the 1,024 cat code words', () => {
   });
   it('are not any word of the series sets, the stray names or the family cats (so the public bundle carries no series word)', () => {
     const taken = new Set();
-    for (const f of ['clanwords.js', 'offclanwords.js', 'straynames.js']) for (const w of literalWords(src(f))) taken.add(w);
+    // (the everyday set is plain English and public by design, so a code word may equal one of its words: AWARD, SOUTH, WAKE)
+    for (const f of ['clanwords.js', 'straynames.js']) for (const w of literalWords(src(f))) taken.add(w);
     for (const c of Object.values(CATALOG.cats)) for (const w of String(c.name).toUpperCase().match(/[A-Z]+/g) ?? []) taken.add(w);
     expect(taken.size).toBeGreaterThan(500); // the harvest really read them
     expect(CAT_WORDS.filter((w) => taken.has(w))).toEqual([]);

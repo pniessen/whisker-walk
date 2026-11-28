@@ -296,8 +296,8 @@ export const EMBLEMS = Object.freeze({
   gorge: '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path fill="#6b4128" d="M3 20.5L6.5 13.5h4L12.5 6H21v14.5z"/></svg>',
 });
 
-// The lines only the family's game says: where the base table (clanphrases.js)
-// says the everyday thing, this set says its own (wordset.js: a set's PHRASES win).
+// The lines only the family game says: where the base table (clanphrases.js)
+// says the everyday thing, this set says its own (wordset.js: a set PHRASES win).
 // Strings only, so the set packs to JSON.
 export const PHRASES = Object.freeze({
   'star.pick': 'Or pick a star name',
