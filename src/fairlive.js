@@ -154,7 +154,7 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
   let whooshAt = -99;   // when a ride last whooshed past her
   let prevXZ = null;
   // beauty pass 3: kicked confetti, steam and a firework (fairalive.js), drawn only when the scene can take them
-  const alive = scene?.add ? createFairAlive({ scene, reducedMotion, scale, area, onEvent, weather }) : null;
+  const alive = scene?.add ? createFairAlive({ scene, reducedMotion, scale, area, onEvent, weather, ground }) : null;
   let boatSwung = false; // on the boat, and it has swung since she got on: the lap is hers once it is calm again
   let quarterAt = -1; // the swing of the boat, in quarters: a whoosh at the bottom, a creak at each end
 

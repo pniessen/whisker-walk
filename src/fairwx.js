@@ -11,6 +11,7 @@
 // =============================================================================
 import { FAIR_CLOCK, GLOW_MAX, LAMP_LOOK } from './world/fairkit.js';
 import { SPOTS, WIND, BEAT } from './fairpals.js';
+import { FLAT_GROUND } from './ground.js';
 
 // the numbers of the pass (a gust: every 330 s, 40% of them, 42 s long; a finale: every 540 s, 30%, 11 s, a burst each 0.55 s living 1.9 s)
 const RAIN_LIT = 0.5; const RAIN_UP = 6; const RAIN_DOWN = 25; const GOLD_TO = 0.95; const GOLD_FROM = 20; const GOLD_LEN = 260; const SHINE = 0.75;
@@ -46,7 +47,7 @@ export function wxCounts(k, reducedMotion) {
 }
 
 /** createFairWx({ scene, area, k, onEvent, weather, hub, mgr, calli, bulbs, glow, bits, fire }) -> { update(dt, T, me, lit, dim) } (the pools: { pos, col, siz, at } each) */
-export function createFairWx({ scene, area, k = 1, onEvent = () => {}, weather = null, hub, mgr, calli, bulbs, glow, bits, fire }) {
+export function createFairWx({ scene, area, k = 1, onEvent = () => {}, weather = null, ground = FLAT_GROUND, hub, mgr, calli, bulbs, glow, bits, fire }) {
   const lite = k < 0.5; let base = -1; let walkT = 0; let rl = 0; let rw = 0; let cw = 0; let applied = -1;
   let lastThunder = -1; let nextDrum = 0; let gustN = -1; let lastK = -1; let wet = null; let rainbow = null;
   const lam = (a) => { FAIR_CLOCK.lit.value = a; const g = area?.glow; if (!g?.material) return; g.material.emissiveIntensity = GLOW_MAX * a; for (const m of g.lamps ?? []) m.emissiveIntensity = LAMP_LOOK.max * a; g.level = a; };
@@ -61,7 +62,7 @@ export function createFairWx({ scene, area, k = 1, onEvent = () => {}, weather =
     if (rainbow || !weather?.rainbowVisible) return;
     rainbow = scene.children.find((o) => o.isGroup && o.children[0]?.geometry?.type === 'TorusGeometry');
     if (!rainbow) return;
-    rainbow.position.set(hub.x, 0, hub.z - RAINBOW_BACK); rainbow.rotation.y = 0;
+    rainbow.position.set(hub.x, ground.y(hub.x, hub.z - RAINBOW_BACK), hub.z - RAINBOW_BACK); rainbow.rotation.y = 0;
     if (weather.rainbowPos) { weather.rainbowPos.x = hub.x; weather.rainbowPos.z = hub.z - RAINBOW_BACK; }
   }
 
