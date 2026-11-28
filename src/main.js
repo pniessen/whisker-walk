@@ -248,6 +248,7 @@ function init() {
   // The app's news about the device while the game is open: running hot, Low
   // Power Mode, memory short. Never fired in a browser. A memory warning also
   // lets go of the menu pictures (thumbnails.js), which are remade on demand.
+  let perfUp = null; // the performance upload (src/perfupload.js), made on the first row sent
   let perfLog = null; // the device performance log (src/perflog.js, its own small chunk, started below)
   window.addEventListener(DEVICE_EVENT, (e) => {
     perfLog?.onDevice(e.detail);
@@ -445,7 +446,7 @@ function init() {
     send: m.liveSender({ url: import.meta.env.VITE_SUPABASE_URL, key: import.meta.env.VITE_SUPABASE_ANON_KEY }),
   })).catch(() => {});
   // The device performance log (src/perflog.js): one small row about every 30 s of walking, kept on this device only.
-  // Never sent anywhere; read from For grown-ups in Settings. Not started under tests.
+  // Sent only if the crash-report switch is on (src/perfupload.js); read from For grown-ups in Settings. Not started under tests.
   if (import.meta.env.MODE !== 'test') {
     import('./perflog.js').then((m) => {
       perfLog = m.startPerfLog({
@@ -453,6 +454,15 @@ function init() {
         renderer,
         build: BUILD_STAMP,
         isApp: !!readDeviceProfile(window),
+        // Only with "Send crash reports and performance numbers" on: the upload chunk (src/perfupload.js) takes each row.
+        onSample: (row) => {
+          if (settings.get('crashUpload') !== true) return;
+          perfUp ??= import('./perfupload.js').then((u) => u.startPerfUpload({
+            settings, storage: window.localStorage, isApp: !!readDeviceProfile(window),
+            send: u.livePerfSender({ url: import.meta.env.VITE_SUPABASE_URL, key: import.meta.env.VITE_SUPABASE_ANON_KEY }),
+          }));
+          perfUp.then((u) => u.offer(row)).catch(() => {});
+        },
         device: () => readDeviceProfile(window),
         paint: () => { const p = performance.getEntriesByName?.('first-contentful-paint')?.[0]; return p ? p.startTime / 1000 : null; },
         rung: () => ({ rung: qualityAdapter.status?.rung, tier: String(session?.tier?.label ?? session?.tier?.name ?? '').toLowerCase().replace(/[^a-z0-9 -]/g, '').slice(0, 16) }),

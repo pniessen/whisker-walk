@@ -1,7 +1,7 @@
 // The device performance log sampler (lazy chunk; main.js loads it after start-up and the For grown-ups
 // settings load it on a tap). While a walk is on screen it keeps one tally of frame gaps (one add per frame) and,
 // about every 30 s, writes ONE small row. Draw calls and triangles come from the Performance readout's counter
-// when that is on, else from one measured frame at sample time. Nothing is sent anywhere.
+// when that is on, else from one measured frame at sample time. Nothing is sent from here: onSample hands each finished walk row to src/perfupload.js, which sends only when the grown-up's switch is on.
 import { createRenderCounter } from './render/perfstats.js';
 import {
   createGapTally, addRow, loadRows, saveRows, minuteStamp, cleanRow, SAMPLE_MS, MIN_FRAMES,
@@ -15,7 +15,7 @@ const PAUSE_MS = 1000; // a longer gap is a backgrounded page, not a slow frame 
  * deps: storage, renderer, build, now() clock, rung() -> { rung, tier }, device() -> the app's profile or null,
  * paint() -> seconds to the first paint or null. Returns { frame, end, onDevice }.
  */
-export function startPerfLog({ storage, renderer = null, build = '', now = () => Date.now(), rung = () => ({}), device = () => null, paint = () => null, isApp = false, boot = () => performance.now() }) {
+export function startPerfLog({ storage, renderer = null, build = '', now = () => Date.now(), rung = () => ({}), device = () => null, paint = () => null, isApp = false, onSample = null, boot = () => performance.now() }) {
   const tally = createGapTally();
   const launch = Math.floor(now() / 1000);
   let last = -1;
@@ -29,7 +29,11 @@ export function startPerfLog({ storage, renderer = null, build = '', now = () =>
   const profile = () => { try { return device(); } catch { return null; } };
   const mem = () => profile()?.memoryGB ?? (typeof globalThis.navigator?.deviceMemory === 'number' ? globalThis.navigator.deviceMemory : null);
   const model = () => profile()?.model ?? '';
-  const write = (row) => saveRows(storage, addRow(loadRows(storage), row));
+  const write = (row) => {
+    const rows = addRow(loadRows(storage), row);
+    saveRows(storage, rows);
+    if (onSample && row.kind === 'walk') { try { onSample(rows[rows.length - 1]); } catch { /* the upload is optional */ } }
+  };
 
   write({ kind: 'start', time: minuteStamp(now()), device: model(), build, memoryGB: mem(), app: isApp, firstFrameS: paint(), launch });
 

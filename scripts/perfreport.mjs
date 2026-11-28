@@ -1,6 +1,7 @@
 // Reads a copied performance log (the CSV from For grown-ups > Copy log) and prints one table per device model:
 // each place's median and p95 frame ms, share of slow frames (over 40 ms), and the share of time on LOW or lower.
 //   node scripts/perfreport.mjs path/to/log.csv
+//   node scripts/perfreport.mjs --json rows.json   (rows exported from the perf_reports table, daily summaries only)
 import { readFileSync } from 'node:fs';
 
 export function parseCsv(text) {
@@ -40,8 +41,20 @@ export function report(rows) {
   return out.join('\n') || 'No walk rows in that file.';
 }
 
+// Rows exported from the perf_reports table (docs/supabase-v13-perf-reports.sql) as a JSON array → the same row shape
+// the report reads (snake_case columns renamed; 'rung' change rows are not windows, so they are left out).
+export function fromTableRows(list) {
+  const rows = Array.isArray(list) ? list : [];
+  return rows.filter((r) => r && r.kind === 'summary').map((r) => ({
+    kind: 'walk', device: r.device ?? '', memoryGB: r.memory_gb ?? '', place: r.place ?? '', rung: r.rung ?? '',
+    medianMs: r.median_ms ?? 0, p95Ms: r.p95_ms ?? 0, slowShare: r.slow_share ?? 0, frames: 1,
+  }));
+}
+
 if (process.argv[1] && import.meta.url === new URL(process.argv[1], 'file://').href) {
-  const path = process.argv[2];
-  if (!path) { console.error('usage: node scripts/perfreport.mjs log.csv'); process.exit(1); }
-  console.log(report(parseCsv(readFileSync(path, 'utf8'))));
+  const json = process.argv[2] === '--json';
+  const path = json ? process.argv[3] : process.argv[2];
+  if (!path) { console.error('usage: node scripts/perfreport.mjs log.csv | --json rows.json'); process.exit(1); }
+  const text = readFileSync(path, 'utf8');
+  console.log(report(json ? fromTableRows(JSON.parse(text)) : parseCsv(text)));
 }
