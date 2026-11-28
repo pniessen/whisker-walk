@@ -14,6 +14,7 @@
 // doMeow's reply timeout still re-reads getSession() so an ended walk stays
 // silent exactly as before.
 
+import { callVoice, isChicken } from '../catvoice.js';
 import { PERSONALITIES } from '../cat/brain.js';
 import { bestPerch, canReach, fenceRunning } from '../climbing.js';
 import { placeArc, placeBudget } from '../placephysics.js';
@@ -213,7 +214,7 @@ export function createInteractions({
     session.farm?.reactToMeow(session.cat.position); // a cow moos back
     session.fair?.meow?.(session.cat.position); // a visitor at the fair says hello
     if (session.strayCats.reactToMeow(session.cat.position, { far: farCall }) > 0) {
-      setTimeout(() => { if (getSession()) audio.meow(); }, 350); // a reply from a friend
+      setTimeout(() => { const now = getSession(); if (now) callVoice(audio, isChicken(now.cat?.userData?.breed) ? 'hagrid' : 'tabby'); }, 350); // a reply from a friend
     }
     if (session.net) {
       session.net.sendEvent({

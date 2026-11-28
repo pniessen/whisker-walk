@@ -22,6 +22,14 @@ const MEOW_KINDS = Object.freeze({
   chirp: { dur: 0.2, f: [420, 640, 560], peakAt: 0.55, f1: [420, 520], f2: [2500, 2100], vib: 12, vd: 0.015, breath: 0.06, amp: 0.8 },
   mew: { dur: 0.45, f: [520, 650, 450], peakAt: 0.4, f1: [400, 560], f2: [2400, 1500], vib: 7.5, vd: 0.02, breath: 0.22, amp: 0.6 },
 });
+// The crow's notes: [f0, f1, f2, filter0, dur, delay, gain]. Pure data, so a
+// test can bound the whole call (the last note ends by delay + dur).
+export const CROW_NOTES = [
+  [520, 640, 600, 1500, 0.14, 0, 0.06],
+  [560, 700, 640, 1600, 0.14, 0.17, 0.06],
+  [600, 800, 760, 1700, 0.2, 0.34, 0.07],
+  [760, 900, 520, 1500, 0.55, 0.58, 0.08],
+];
 export function meowParams(kind = 'meow', { volume = 1, pitch = 1, rate = 1, gain = 1 } = {}) {
   const k = MEOW_KINDS[kind] ?? MEOW_KINDS.meow;
   const sf = (x) => (Number.isFinite(x) && x > 0 ? x : 1);
@@ -586,6 +594,14 @@ export function createAudio({ contextFactory = () => new (window.AudioContext ||
       tone(700 * pitch, 0.08, { type: 'square', gain: 0.07 * volume, slideTo: 500 * pitch });
       tone(650 * pitch, 0.1, { type: 'square', gain: 0.06 * volume, slideTo: 420 * pitch, delay: 0.12 });
       tone(760 * pitch, 0.07, { type: 'square', gain: 0.05 * volume, slideTo: 520 * pitch, delay: 0.26 });
+    },
+    // A rooster's crow, Hagrid's other call: "cuh-cuh-CUH-doooo", four notes
+    // in about 1.1 s. Same square/vocal synth family as cluck; always bounded.
+    crow(volume = 1, pitch = 1) {
+      if (muted) return;
+      for (const [f0, f1, f2, filt, dur, delay, g] of CROW_NOTES) {
+        vocal({ f0: f0 * pitch, f1: f1 * pitch, f2: f2 * pitch, filt0: filt * pitch, filt1: filt * 1.3 * pitch, dur, gain: g * volume, delay, vibrato: 8 });
+      }
     },
     // kind (optional): 'meow' (default), 'call', 'chirp' or 'mew'; see meowParams().
     meow(volume = 1, pitch = 1, voice = {}, kind = 'meow') {

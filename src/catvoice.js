@@ -18,3 +18,20 @@ export const VOICES = {
 export function voiceFor(breed) {
   return VOICES[breed] ?? VOICES.tabby;
 }
+
+// Every call and reply goes through here, so the breed's own voice is the only
+// one that sounds: a chicken (hagrid) clucks and now and then crows, and never
+// meows. `turn` alternates cluck and crow across calls.
+export const isChicken = (breed) => breed === 'hagrid';
+let callTurn = 0;
+export function callVoice(audio, breed, { volume = 1, pitch = 1 } = {}) {
+  if (isChicken(breed)) {
+    const p = pitch * voiceFor(breed).pitch;
+    callTurn += 1;
+    if (callTurn % 2 === 0 && typeof audio.crow === 'function') { audio.crow(volume, p); return 'crow'; }
+    audio.cluck(volume, p);
+    return 'cluck';
+  }
+  audio.meow(volume, pitch, voiceFor(breed));
+  return 'meow';
+}

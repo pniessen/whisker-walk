@@ -33,7 +33,7 @@ import { createAudio } from './audio.js';
 import { createMusic } from './music.js';
 import { birthdayTune } from './birthdaysong.js';
 import { createSamples } from './samples.js';
-import { voiceFor } from './catvoice.js';
+import { callVoice } from './catvoice.js';
 import { createAlbum } from './album.js';
 import { askToKeepSaves } from './savekeep.js';
 import { createSettings } from './settings.js';
@@ -457,9 +457,7 @@ function init() {
       samples.play(breed, { rate: 0.95 + Math.random() * 0.1 });
       return;
     }
-    const v = voiceFor(breed);
-    if (breed === 'hagrid') audio.cluck(1, pitch * v.pitch);
-    else audio.meow(1, pitch, v);
+    callVoice(audio, breed, { pitch });
   };
   const clock = new THREE.Clock();
 

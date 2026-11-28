@@ -8,7 +8,7 @@
 
 import * as THREE from 'three';
 import { tagState } from '../verbs.js';
-import { voiceFor } from '../catvoice.js';
+import { callVoice } from '../catvoice.js';
 import { nowSec, meowVolumeForDistance } from './util.js';
 import { phrase } from '../clanphrases.js';
 import { isStrayName } from '../straynames.js';
@@ -286,7 +286,7 @@ export function createNetEvents({ MP, getCloud, getPsecret, log, hud, audio, sam
       const vol = meowVolumeForDistance(dist);
       if (samples.has(ev.breed)) {
         samples.play(ev.breed, { rate: 0.95 + Math.random() * 0.1, volume: vol });
-      } else if (ev.breed === 'hagrid') audio.cluck(vol); else audio.meow(vol, 1, voiceFor(ev.breed));
+      } else callVoice(audio, ev.breed, { volume: vol });
       s.critters.reactToMeow(pos);
       s.farm?.reactToMeow(pos);
       // duet: a reply meow (V) within the next 3s, from us, harmonizes with this one
