@@ -28,7 +28,7 @@ export const chase = (i, t, amp = 0.9) => 1 + amp * Math.pow(Math.max(0, Math.si
 export const glowNear = (d, r = 9, max = 0.9) => 1 + max * Math.pow(Math.max(0, 1 - d / r), 1.5);
 // Chimney smoke leans with the wind: an extra drift east along its rise `u` (0 .. 1) in a gust g (0 .. 1). Pure.
 // The village's shared look (beauty pass 5, snowvilleliving.js writes it each frame): ONE wind (east, a little south: the flakes, the smoke and the sound lean the same way), the warm lights' breath and the hour (1 gold .. 0 blue).
-export const SHARED = { wx: 0.94, wz: 0.33, breath: 1, hour: 1 };
+export const SHARED = { wx: 0.94, wz: 0.33, breath: 1, hour: 1, hear: -99, heed: -99 }; // (pass 8: when she last meowed, and when she last settled to stand still: the creatures look up and turn)
 export const smokeLean = (u, g) => u * u * (0.5 + 2.6 * g);
 // A footprint's colour: a blue shadow pressed in the snow at age 0, back to the snow at age 1 (hex-free, rgb 0..1). Pure.
 const FOOT_NEW = [0.2, 0.3, 0.58]; const SNOW = [0.89, 0.92, 0.96];
