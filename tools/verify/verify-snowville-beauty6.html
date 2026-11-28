@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Snowville beauty picture page (round 6: weather and atmosphere as events)</title>
+<!-- Snowville beauty pass 6 (weather and atmosphere as events): the REAL build and life with the walk's tone mapping and bloom, and the walk's PLAY camera. NOT in the game's page.
+     URL params: size=WxH, tier=high|low|lite, bloom=0, season=early|deep|thaw, hour=13 (the clock the life is built with; 13 = neutral midday = the pass-5 look, the 'before').
+     Shots (all at the play camera): play (hour 13), blizzard, night, thaw, hush (the shot sets the hour and forces the event, then lets it swell), plus the legibility shots lane, baker, knit, carp, fish, fort, fox, owl.
+     Also runs against the pass-5 build (no weather then; the same shots are the 'before'). -->
+<style>html,body{margin:0;background:#cfdcec;overflow:hidden}canvas{position:fixed;left:0;top:0;display:block}</style>
+</head>
+<body>
+<script type="module">
+  import * as THREE from 'three';
+  import { buildEnvMap } from '/src/render/materials.js';
+  import { setTextureTier } from '/src/render/textures.js';
+  import { createSun, createFill, SUN_BIAS, assignShadowCasters } from '/src/render/rig.js';
+  import { createShadowFit } from '/src/render/shadowfit.js';
+  import { buildCat } from '/src/cat/model.js';
+  import { animateCat } from '/src/cat/animator.js';
+  import { facingYaw } from '/src/traversal.js';
+  import { applyDusk, duskEnv, tintDuskLawn } from '/src/render/dusk.js';
+  import { createComposerRig } from '/src/game/composer.js';
+  import { effectiveWear } from '/src/suithook.js';
+  import { mergeStaticProps } from '/src/render/mergeprops.js';
+  import { build } from '/src/world/snowville.js';
+  import { loadSnowvilleStages } from '/src/world/snowvillestages.js';
+  import { createProgression } from '/src/progression.js';
+  import { createDiscoveryLog } from '/src/discoveries.js';
+  import { createFx } from '/src/fx.js';
+  import * as P from '/src/world/snowvilleplan.js';
+  import { createStrayCats, strayStream } from '/src/straycats.js';
+
+  const params = new URLSearchParams(location.search);
+  const [W0, H0] = (params.get('size') || '960x540').split('x').map(Number);
+  const TIER = params.get('tier') || 'high';
+  const TIME = params.get('time') || 'noon';
+  const DT = 1 / 30;
+  const tier = TIER === 'lite' ? { name: 'low', rung: 5, shadows: false, envIntensity: 0.3 } : TIER === 'low' ? { name: 'low', rung: 3, shadows: true, envIntensity: 0.32 } : { name: 'high', shadows: true, envIntensity: 0.45, msaaSamples: 4 };
+  let W = W0, H = H0;
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H); renderer.setPixelRatio(1);
+  renderer.shadowMap.enabled = tier.shadows; renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1;
+  document.body.prepend(renderer.domElement);
+  setTextureTier(tier);
+  const scene = new THREE.Scene();
+  scene.environment = buildEnvMap(renderer);
+  const sun = createSun(); scene.add(sun);
+  const fill = createFill(0x8d8c93); scene.add(fill);
+  await loadSnowvilleStages();
+  const area = build(scene, { water: { quality: tier, reducedMotion: false } });
+  const look = applyDusk({ scene, sun, fill, areaData: area });
+  tintDuskLawn({ ground: scene.children.filter((c) => c.isMesh && (c.userData.ground || c.userData.duskTint)), grass: null, look });
+  scene.environmentIntensity = duskEnv(tier.envIntensity, look);
+  // the sun's three angles (the walk has the one look; these only stress the exposure)
+  const SUNS = { morning: [-60, 22, 30, 0xffe2c0, 1.0], noon: [10, 70, 20, null, 1.0], dusk: [70, 18, -20, 0xffc890, 0.9] };
+  const sp = SUNS[TIME] || SUNS.noon;
+  sun.position.set(sp[0], sp[1], sp[2]);
+  if (sp[3]) sun.color.set(sp[3]);
+  sun.intensity *= sp[4];
+  const ground = area.ground;
+  const wear = effectiveWear({ collar: null, head: null, face: null, neck: null, body: params.get('wear') || null, back: null, feet: null }, 'snowville');
+  const cat = buildCat('tabby', wear); scene.add(cat);
+  const camera = new THREE.PerspectiveCamera(70, W / H, 0.1, 300);
+  const shadows = tier.shadows ? createShadowFit(sun, camera, { radius: 20, mapSize: tier.rung >= 3 ? 1024 : 2048 }) : null;
+  sun.shadow.bias = SUN_BIAS; sun.castShadow = tier.shadows;
+  assignShadowCasters(scene);
+  mergeStaticProps(scene);
+  const rig = createComposerRig(renderer, camera);
+  const useBloom = TIER === 'high' && params.get('bloom') !== '0';
+  if (useBloom) { rig.ensure(4); rig.attachScene(scene); rig.resize(W, H); }
+  const fx = createFx(scene, { reducedMotion: false });
+  const store = new Map();
+  const progression = createProgression({ getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)), removeItem: (k) => store.delete(k) });
+  const log = createDiscoveryLog(progression); log.startWalk();
+  const player = { floatY: 0, perchY: 0, inputActive: false, inputDirection: () => ({ x: 0, z: 0 }), halt() {} };
+  const session = { cat, ground, perched: null, perchHold: null, idleTime: 0, fair: { update() {}, late() {}, jump: () => false, pawKind: () => null, groundSpot: () => null, riding: null } };
+  const life = area.life({ now: new Date(2026, 11, 5, Number(params.get('hour') || 13), 0), season: params.get('season') || undefined, fill, roomSeed: 7, sendEvent: () => {}, scene, sun, fill, ground, reducedMotion: false, tier, progression, log, audio: null, doc: document, win: window, clock: () => 250, visits: 3, player });
+  const strayCats = createStrayCats(scene, area, 4, strayStream(7), { roomSeed: 7, homes: area.strayHomes ?? [] }); // the four friendly strays (standing at their homes: not stepped here)
+  let t = 0;
+  const lookAt = (pos, tgt, fov = 70) => { camera.fov = fov; camera.updateProjectionMatrix(); camera.position.set(...pos); camera.lookAt(...tgt); };
+  let lock = null;
+  let follow = false;
+  let noDraw = false;
+  function frame() {
+    t += DT;
+    if (lock) lookAt(...lock);
+    else if (!follow) playCam();
+    else if (follow) { const r = cat.rotation.y; camera.position.set(cat.position.x + Math.sin(r) * 3.0, cat.position.y + 1.6, cat.position.z + Math.cos(r) * 3.0); camera.lookAt(cat.position.x, cat.position.y + 0.5, cat.position.z); } // (the walk's follow camera puts the camera back every frame; the sled's live then carries it)
+    life.update(DT, t, cat.position, camera, session);
+    session.fair.update(DT, t, { cat, player, session });
+    fx.update(DT, camera);
+    animateCat(cat, session.perched ? 'requestPet' : 'idle', t, 0, false);
+    if (noDraw) return;
+    if (shadows) shadows.update(0, DT);
+    if (useBloom) rig.renderFrame({ useComposer: true, scene, cat: null }); else renderer.render(scene, camera);
+  }
+  const tag = Object.assign(document.createElement('div'), { style: 'position:fixed;left:6px;bottom:4px;font:11px monospace;color:#234;background:#fffa;padding:1px 4px' });
+  document.body.append(tag);
+  const settle = (n) => { for (let i = 0; i < n; i++) frame(); };
+  const put = (x, z, fx_, fz_, lift = 0) => { cat.position.set(x, ground.y(x, z) + lift, z); cat.rotation.set(0, facingYaw(fx_, fz_), 0); };
+  const cam = (pos, tgt, fov = 70, size = null) => { if (size) { W = size[0]; H = size[1]; } else { W = W0; H = H0; } renderer.setSize(W, H); camera.aspect = W / H; if (useBloom) rig.resize(W, H); lock = [pos, tgt, fov]; };
+  // Beauty pass 3 (the village reacts to her): scripted walks with the PLAY camera (behind and above her, the walk's own offset 0, 2.9, 4.4 turned with her heading).
+  // Shots: play (standing in the square), run (mid-run up the lane: puffs and a fresh trail), trail (stopped after the run: footprints behind her), fir (brushing a fir), door (at a cottage door), star (waiting for a shooting star).
+  const playCam = () => { const r = cat.rotation.y; const fx = -Math.sin(r); const fz = -Math.cos(r); camera.fov = 70; camera.updateProjectionMatrix(); camera.position.set(cat.position.x - fx * 4.4, cat.position.y + 2.9, cat.position.z - fz * 4.4); camera.lookAt(cat.position.x, cat.position.y + 0.6 + (window.__tilt || 0) * 4.4, cat.position.z); };
+  const walk = (x0, z0, x1, z1, frames, stopAt = frames) => {
+    const hx = x1 - x0; const hz = z1 - z0; const L = Math.hypot(hx, hz);
+    cat.rotation.set(0, facingYaw(hx / L, hz / L), 0);
+    for (let i = 0; i < Math.min(frames, stopAt); i++) { const u = (i + 1) / frames; cat.position.set(x0 + hx * u, ground.y(x0 + hx * u, z0 + hz * u), z0 + hz * u); frame(); }
+  };
+  const door = (id, back = 3.0, side = 0.6) => { const c = P.COTTAGES.find((k) => k.id === id); const ox = Math.sin(c.yaw); const oz = Math.cos(c.yaw); const rx = Math.cos(c.yaw); const rz = -Math.sin(c.yaw); put(c.x + ox * (c.d / 2 + back) + rx * side, c.z + oz * (c.d / 2 + back) + rz * side, -ox, -oz); lock = null; follow = false; settle(30); };
+  const wait = (secs) => { noDraw = true; for (let i = 0; i < secs * 30; i++) frame(); noDraw = false; };
+  const sky = (kind, secs) => { put(-2, 12, 0, -1); window.__tilt = 0.55; lock = null; follow = false; settle(2); life.light.wonder?.trigger?.(kind); frame(); wait(secs); };
+  const LV = () => life.light.living?.state; // (the pass-4 build has none: the same shots then show the 'before')
+  const at = (x, z, hx, hz, tt = null) => { if (tt != null) t = tt; put(x, z, hx, hz); lock = null; follow = false; };
+  const WX = () => life.light.weather;
+  const weatherShot = (hour, kind, secs) => { put(-2, 12, 0, -1); lock = null; follow = false; const w = WX(); if (w) { w.state.h0 = hour - t / 3600; if (kind) w.trigger(kind); } noDraw = true; for (let i = 0; i < secs * 30; i++) frame(); noDraw = false; settle(6); };
+  const SC = {
+    blizzard: () => weatherShot(13, 'blizzard', 46),
+    night: () => weatherShot(22.5, null, 20),
+    thaw: () => weatherShot(8.2, null, 9),
+    hush: () => weatherShot(13, 'hush', 30),
+    nightsky: () => { weatherShot(22.5, null, 20); window.__tilt = 0.5; },
+    pondnight: () => { weatherShot(22.5, null, 20); put(-16, -3, -0.77, -0.64); },
+    thawbaker: () => { weatherShot(8.2, null, 9); door('baker', 2.6, 1.4); window.__tilt = 0.35; },
+    thawroof: () => { weatherShot(8.2, null, 9); door('baker', 3.4, 1.6); window.__tilt = 0.75; },
+    nightblizz: () => weatherShot(22.5, 'blizzard', 46),
+    play: () => { put(-2, 12, 0, -1); lock = null; follow = false; settle(40); },
+    arrive: () => { t = 400; put(-2, 12, 0, -1); lock = null; follow = false; settle(1); life.light.living?.arrive?.(t, -2, 12); settle(26); },
+    flurry: () => { t = 400; put(-2, 12, 0, -1); lock = null; follow = false; settle(1); life.light.living?.arrive?.(t, -2, 12); settle(50); },
+    harelane: () => { at(1.5, 25, 0, -1, 600); const h = LV()?.hares[0]; if (h) { h.s = 14.6; h.wait = 0; h.dir = 1; h.ph = 0; } settle(20); },
+    hare: () => { at(-0.2, 2.0, 0, -1, 600); const h = LV()?.hares[1]; if (h) { h.s = 3.6; h.wait = 0; h.dir = 1; h.ph = 0; } settle(20); },
+    fox: () => { const v = LV(); const F = v?.foxFirs[1] ?? { x: -2, z: -19 }; at(F.x - 1.4, F.z + 6.5, 0, -1, 70 * 5 + 14); settle(20); },
+    owl: () => { const v = LV(); const F = v?.owlFirs[0] ?? { x: -2, z: 12, s: 1 }; const a = Math.atan2(-2 - F.x, 12 - F.z); at(F.x + Math.sin(a) * 3.6, F.z + Math.cos(a) * 3.6, -Math.sin(a), -Math.cos(a), 3); window.__tilt = 0.7; settle(20); },
+    ducks: () => { at(-17.5, -3, -0.6, -0.7, 5); settle(70); },
+    blue: () => { at(-2, 12, 0, -1, 240); window.__tilt = 0.12; settle(20); },
+    gold: () => { at(-2, 12, 0, -1, 0); window.__tilt = 0.12; settle(20); },
+    sills: () => { door('baker', 2.6, 1.4); t = 700; settle(20); },
+    lane: () => { put(8.5, 19.5, -1, -0.15); lock = null; follow = false; settle(30); },
+    baker: () => door('baker', 2.6, 1.4),
+    knit: () => door('west1', 2.8, -1.2),
+    carp: () => door('west2', 2.8, -2.4),
+    fish: () => door('east1', 2.8, 2.6),
+    fort: () => { const f = window.__fort; put(f[0] + 2.4, f[1] + 3.2, -0.55, -1); lock = null; follow = false; settle(30); },
+  };
+  window.__shot = (name) => {
+    const f = SC[name]; if (!f) throw new Error('no shot ' + name);
+    W = W0; H = H0; renderer.setSize(W, H); camera.aspect = W / H; if (useBloom) rig.resize(W, H);
+    follow = false; lock = null; window.__tilt = 0;
+    f();
+    playCam(); frame(); playCam(); frame();
+    const i = renderer.info.render; let mesh = 0; let cast = 0; let tri = 0; scene.traverse((o) => { if (o.isMesh) { mesh++; if (o.castShadow) cast++; const g = o.geometry; tri += (g.index ? g.index.count : g.attributes.position.count) / 3 * (o.isInstancedMesh ? o.count : 1); } }); tag.textContent = `${name} ${TIER} ${life.light.weather ? 'after' : 'before'} meshes ${mesh} casters ${cast} scene-triangles ${Math.round(tri)} drawn ${renderer.info.render.triangles}`;
+    return name;
+  };
+  window.__starLive = () => { const A = life.light.alive.state; return A.starT >= 0 && t - A.starT > 0.45; };
+  window.__stats = () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles });
+  window.__fort = [14, -16]; try { const lorePath = '/src/world/snowvillelore.js'; const m = await import(/* @vite-ignore */ lorePath); window.__fort = m.fortSpot() ?? window.__fort; } catch (e) { /* the pass-3 build has no lore: the shot looks at the same spot */ }
+  if (life.light.weather) life.light.weather.state.next = 1e9; // (events only when a shot forces one)
+  life.light.wonder.state.next = 1e9; // (and no pass-4 surprise by chance in the pictures)
+  window.__ready = true;
+</script>
+</body>
+</html>
