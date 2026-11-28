@@ -21,7 +21,7 @@ describe('fair beauty pass 6', () => {
     expect(wxCounts(1, true)).toEqual({ glow: 0, bits: 0, fire: 0 }); expect(wxCounts(0.25, false).fire).toBe(0);
     const sc = new THREE.Scene(); const w = { condition: 'rain', rainbowVisible: false, raining: true, isRaining() { return this.raining; } };
     const al = createFairAlive({ scene: sc, weather: w });
-    let meshes = 0; sc.traverse((o) => { if (o.isMesh) meshes++; }); expect(meshes).toBe(0);
+    let meshes = 0; sc.traverse((o) => { if (o.isMesh) meshes++; }); expect(meshes).toBe(1); // the stray cat's (fairpals.js), nothing else
     for (let i = 0; i < 400; i++) al.update(1 / 10, 100 + i / 10, { x: 0, z: 30 }, FAIR_CLOCK.lit.value, 0, 0);
     expect(FAIR_CLOCK.lit.value).toBeGreaterThan(0.4);
     w.raining = false; w.rainbowVisible = true;

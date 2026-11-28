@@ -10,24 +10,10 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import * as b from './builder.js';
 import { litMaterial } from '../render/materials.js';
 import * as P from './treehouseplan.js';
+import { paint, placed, slab, beam, M4 } from './shapekit.js';
+export { paint, placed, slab, beam, M4 };
 
 const L = P.TREE_LOOK;
-const _c = new THREE.Color();
-
-// Paint a geometry one colour (non-indexed, with position, normal, uv and colour so any two merge). `jitter` gives each piece its own tone.
-export function paint(geo, hex, jitter = 0) {
-  const g = geo.index ? geo.toNonIndexed() : geo;
-  if (g !== geo) geo.dispose();
-  if (!g.attributes.normal) g.computeVertexNormals();
-  if (!g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
-  const n = g.attributes.position.count;
-  const col = new Float32Array(n * 3);
-  _c.setHex(hex);
-  if (jitter) _c.offsetHSL(jitter * 0.02, 0, jitter * 0.08);
-  for (let i = 0; i < n; i++) { col[i * 3] = _c.r; col[i * 3 + 1] = _c.g; col[i * 3 + 2] = _c.b; }
-  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  return g;
-}
 
 export function createKit(prefix) {
   const buckets = new Map();
@@ -60,20 +46,8 @@ export function treehouseMaterials() {
 }
 
 // ---- small shapes, placed and painted (each returns a geometry in world space) ----------------------------------------------
-export const M4 = new THREE.Matrix4();
-const Q = new THREE.Quaternion();
-const E = new THREE.Euler();
-const S = new THREE.Vector3();
-const V = new THREE.Vector3();
-export function placed(geo, x, y, z, { yaw = 0, pitch = 0, sx = 1, sy = 1, sz = 1 } = {}) {
-  Q.setFromEuler(E.set(pitch, yaw, 0, 'YXZ'));
-  geo.applyMatrix4(M4.compose(V.set(x, y, z), Q, S.set(sx, sy, sz)));
-  return geo;
-}
 // A flat pad, n sides, lying face up at the origin: a ground slab needs no walls or underside (the closed cylinder it replaces cost 4n triangles, a pad costs n).
 export const pad = (n) => new THREE.CircleGeometry(1, n).rotateX(-Math.PI / 2);
-// A box with its centre at (x, y, z).
-export const slab = (x, y, z, w, h, d, hex, { yaw = 0, pitch = 0, jitter = 0 } = {}) => paint(placed(new THREE.BoxGeometry(w, h, d), x, y, z, { yaw, pitch }), hex, jitter);
 // A cylinder standing from y0 to y1.
 // (Beauty pass 4: the underside cap is never seen, a post stands on something or hangs thin, so the index stops after the top cap: `sides` fewer triangles each.)
 export function postGeo(r0, r1, h, sides) {
@@ -84,15 +58,6 @@ export function postGeo(r0, r1, h, sides) {
   return g;
 }
 export const post = (x, z, y0, y1, r0, r1, hex, sides = 8, jitter = 0) => paint(placed(postGeo(r0, r1, y1 - y0, sides), x, (y0 + y1) / 2, z), hex, jitter);
-// A beam from (x0,y0,z0) to (x1,y1,z1), `t` thick.
-export function beam(x0, y0, z0, x1, y1, z1, t, hex, jitter = 0) {
-  const dx = x1 - x0; const dy = y1 - y0; const dz = z1 - z0;
-  const len = Math.hypot(dx, dy, dz);
-  const g = new THREE.BoxGeometry(t, t, len);
-  Q.setFromUnitVectors(V.set(0, 0, 1), S.set(dx / len, dy / len, dz / len));
-  g.applyMatrix4(M4.compose(V.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2), Q, S.set(1, 1, 1)));
-  return paint(g, hex, jitter);
-}
 export const blob = (x, y, z, s, hex, jitter, detail = 1, squash = 0.78) => paint(placed(new THREE.IcosahedronGeometry(1, detail), x, y, z, { sx: s, sy: s * squash, sz: s, yaw: (x * 7 + z * 3) % 6.28 }), hex, jitter);
 
 // ---- the floor ------------------------------------------------------------------------------------------------------

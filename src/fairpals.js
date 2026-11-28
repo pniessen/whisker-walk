@@ -1,7 +1,7 @@
 // =============================================================================
-// THE FAIRGROUND: BEAUTY PASS 5, LIVING CREATURES AND A WORLD THAT AGREES WITH ITSELF. All pooled THREE.Points (no mesh, no triangle, no caster, no collider, never a perch or a rule):
+// THE FAIRGROUND: BEAUTY PASS 5, LIVING CREATURES AND A WORLD THAT AGREES WITH ITSELF. All pooled THREE.Points (no mesh, no triangle, no caster, no collider, never a perch or a rule), but for the stray's one small mesh:
 //   * PIGEONS AND SPARROWS hop and peck for crumbs by the stalls and fly up (and away, and home again) when she runs by or comes close;
-//   * A STRAY (a ginger cat) sits and watches the merry-go-round, flicks its tail, and edges off if she comes near;
+//   * A STRAY (a ginger cat, one low-poly mesh of the Treehouse cats' model: no caster, no collider) sits and watches the merry-go-round, flicks its tail, and edges off if she comes near;
 //   * MOTHS flit round the stall bulbs at dusk; LADYBIRDS crawl on the hay bales;
 //   * ARRIVAL: a ticket-bell and a puff of confetti as she walks in under the gate's arch; the big wheel sparkles round its rim as she first comes near;
 //   * ONE WIND (WIND) for the bunting's confetti, steam, lanterns and the balloon; ONE BEAT (the calliope's bar) for the pennants' flutter and the lights' pulse;
@@ -10,6 +10,8 @@
 // =============================================================================
 import * as THREE from 'three';
 import { FAIR_CLOCK } from './world/fairkit.js';
+import { catGeometry } from './world/treehousecatmesh.js';
+import { litMaterial } from './render/materials.js';
 
 // the one wind (it blows towards +x and a little +z, over the fair), and the one beat (the music box's note, 3 to a calliope bar: test/fairlights checks it is TUNE.NOTE)
 // Where things stand, copied from world/fair.js and fairrides.js (the stage must not import the place: it would pull the place into the start-up chunk); test/fair5.test.js checks they agree.
@@ -24,7 +26,7 @@ export const BEAT = Object.freeze({ note: 0.26, bar: 0.78 });
 export const PALS = Object.freeze({
   birds: 8, flee: 2.3, fleeRun: 4.2, runSpeed: 3.2, flight: 2.6, away: 9, perch: 6,
   homes: Object.freeze([[3.4, 41.5], [2.9, 38.6], [-3.4, 41.8], [-2.8, 37.5], [3.1, 31], [-3.0, 28.5], [2.8, 20], [-2.9, 18.5]]),
-  stray: Object.freeze({ x: 6.2, z: 5.2, wary: 3.2, hide: 1.4, size: 2.1 }),
+  stray: Object.freeze({ x: 6.2, z: 5.2, wary: 3.2, hide: 1.4, scale: 1.5, look: Object.freeze({ base: 0xe08a36, belly: 0xfbefd8, accent: 0xa85a1a }) }),
   moths: 8, ladybirds: 8, sparkle: 14, wheelNear: 26, welcomeLen: 3.2, welcomeEvery: 90,
   // sound beds: where each is loud (x, z, r), how often it sounds and how loud it is at its loudest
   beds: Object.freeze({
@@ -49,58 +51,36 @@ export function bedWeights(x, z, mgrNear = 0) {
   return out;
 }
 
-// a sitting stray, front on, two frames side by side (watching; tail flick and a blink or a tongue). Drawn on a canvas; none where there is no document.
-function strayTexture() {
-  if (typeof document === 'undefined') return null;
-  const c = document.createElement('canvas'); c.width = 128; c.height = 64;
-  const g = c.getContext('2d'); if (!g) return null;
-  const fur = '#e08a36'; const dark = '#a85a1a'; const light = '#fbefd8';
-  for (let f = 0; f < 2; f++) {
-    const o = f * 64; g.lineWidth = 2; g.strokeStyle = dark;
-    const ell = (x, y, rx, ry, col) => { g.beginPath(); g.ellipse(o + x, y, rx, ry, 0, 0, 7); g.fillStyle = col; g.fill(); g.stroke(); };
-    // tail (flicks out to the other side in frame 2)
-    g.beginPath(); g.lineWidth = 5; g.lineCap = 'round'; g.strokeStyle = fur;
-    g.moveTo(o + 40, 58); g.quadraticCurveTo(o + (f ? 58 : 54), f ? 52 : 60, o + (f ? 56 : 52), f ? 38 : 46); g.stroke(); g.lineWidth = 2;
-    ell(32, 44, 15, 17, fur); ell(32, 50, 7, 10, light); // body, chest
-    ell(25, 60, 5, 3, fur); ell(39, 60, 5, 3, fur); // paws
-    ell(32, 24, 12, 11, fur); // head
-    for (const s of [-1, 1]) { g.beginPath(); g.moveTo(o + 32 + s * 12, 20); g.lineTo(o + 32 + s * 9, 5); g.lineTo(o + 32 + s * 2, 15); g.closePath(); g.fillStyle = fur; g.fill(); g.stroke(); }
-    ell(32, 29, 6, 4.5, light); // muzzle
-    g.fillStyle = '#2a1a10';
-    for (const s of [-1, 1]) { if (f) { g.fillRect(o + 32 + s * 5 - 2, 21, 4, 1.5); } else { g.beginPath(); g.arc(o + 32 + s * 5, 21, 2, 0, 7); g.fill(); } }
-    g.beginPath(); g.arc(o + 32, 27, 1.7, 0, 7); g.fillStyle = '#d9788a'; g.fill();
-  }
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.magFilter = t.minFilter = THREE.LinearFilter; t.generateMipmaps = false;
-  t.repeat.set(0.5, 1); t.needsUpdate = true;
-  return t;
-}
-
-// createFairPals({ scene, reducedMotion, scale, makePoints, hub, onEvent, puff, day }) -> { update(dt, T, catPos, lit, speed), counts, dispose() }
-export function createFairPals({ scene, reducedMotion = false, scale = 1, makePoints, hub = null, onEvent = () => {}, puff = () => {} }) {
+// createFairPals({ scene, reducedMotion, scale, makePoints, hub, onEvent, puff, ground }) -> { update(dt, T, catPos, lit, speed), counts, dispose() }
+export function createFairPals({ scene, reducedMotion = false, scale = 1, makePoints, hub = null, onEvent = () => {}, puff = () => {}, ground = null }) {
   const k = Math.max(0.25, Math.min(1, Number.isFinite(scale) ? scale : 1));
   const nBirds = reducedMotion ? 0 : Math.max(3, Math.round(PALS.birds * k));
   const nMoths = reducedMotion || k < 0.5 ? 0 : PALS.moths;
   const nLady = Math.max(2, Math.round(PALS.ladybirds * k));
   const nSpark = reducedMotion || k < 0.5 ? 0 : PALS.sparkle;
-  const tex = strayTexture();
   const body = makePoints(Math.max(1, nBirds), 0.65, false, 'fair:birds');
   const parts = makePoints(Math.max(1, nBirds * 3), 0.22, false, 'fair:birdparts');
   const lady = makePoints(nLady, 0.2, false, 'fair:ladybirds');
   const moth = makePoints(Math.max(1, nMoths), 0.3, true, 'fair:moths');
   const spark = makePoints(Math.max(1, nSpark), 2.0, true, 'fair:wheelsparkle');
-  const stray = makePoints(1, PALS.stray.size, false, 'fair:stray');
-  if (tex) { stray.pts.material.map = tex; stray.pts.material.alphaTest = 0.4; stray.pts.material.needsUpdate = true; stray.col.fill(1); stray.geo.attributes.color.needsUpdate = true; }
-  const all = [body, parts, lady, moth, spark, stray];
+  const gy = (x, z) => (ground?.flat === false ? ground.y(x, z) : 0);
+  const strayMat = litMaterial(0xffffff, { vertexColors: true, roughness: 0.9 });
+  const strayGeo = { still: catGeometry(PALS.stray.look, 'sit'), flick: catGeometry(PALS.stray.look, 'sit', true) };
+  const stray = new THREE.Mesh(strayGeo.still, strayMat); // the one mesh: scenery, never a caster, a collider or a perch
+  stray.name = 'fair:stray'; stray.castShadow = false; stray.receiveShadow = true; stray.visible = false;
+  Object.assign(stray.userData, { noCast: true, noContactShadow: true, noMerge: true });
+  stray.scale.setScalar(PALS.stray.scale);
+  const all = [body, parts, lady, moth, spark];
   const sc = scene?.add ? scene : null;
   for (const q of all) q.pts.visible = false;
-  if (sc) sc.add(...all.map((q) => q.pts));
+  if (sc) sc.add(...all.map((q) => q.pts), stray);
 
   const birds = Array.from({ length: nBirds }, (_, i) => {
     const h = PALS.homes[i % PALS.homes.length]; const sparrow = i % 3 === 2;
     return { i, hx: h[0] + (i >= PALS.homes.length ? 0.5 : 0), hz: h[1], x: h[0], z: h[1], y: 0.13, st: 0, t: 0, dx: 1, dz: 0, fx: 0, fz: 0, ax: 0, az: 0, sparrow, away: 0 };
   });
   const lvl = { hawkers: 0, sizzle: 0, birds: 0, farm: 0 }; const due = { hawkers: 1, sizzle: 0.3, birds: 2, farm: 3 };
-  const strayAt = { x: PALS.stray.x, z: PALS.stray.z, ox: 0, oz: 0 };
+  const strayAt = { x: PALS.stray.x, z: PALS.stray.z, ox: 0, oz: 0, yaw: Math.atan2(PALS.stray.x, PALS.stray.z) }; // (it sits facing the merry-go-round at the origin)
   const ladyDefs = Array.from({ length: nLady }, (_, i) => { const b = BALE_SEATS[i % BALE_SEATS.length]; return { b, ph: hash(i, 91) * 6.28, sp: 0.06 + hash(i, 92) * 0.05, wp: hash(i, 93) * 6.28 }; });
   let lastCat = null; let arrivedAt = -999; let welcomeAt = -999; let welcomeEnded = true; let drawnStatic = false;
 
@@ -112,15 +92,21 @@ export function createFairPals({ scene, reducedMotion = false, scale = 1, makePo
     }
     lady.geo.attributes.position.needsUpdate = lady.geo.attributes.color.needsUpdate = true; lady.pts.visible = true;
   }
-  function drawStray(T, cat, dim) {
+  function drawStray(T, cat, dt) {
     const S = PALS.stray; const d = cat ? Math.hypot(cat.x - strayAt.x, cat.z - strayAt.z) : 99;
     let tx = 0; let tz = 0;
     if (cat && d < S.wary) { const a = Math.max(0, Math.min(2.6, (S.wary - d) * 1.2)); tx = (strayAt.x - cat.x) / (d || 1) * a; tz = (strayAt.z - cat.z) / (d || 1) * a; }
-    strayAt.ox += (tx - strayAt.ox) * 0.04; strayAt.oz += (tz - strayAt.oz) * 0.04;
-    stray.pos[0] = strayAt.x + strayAt.ox; stray.pos[1] = cat && d < S.hide ? -999 : S.size * 0.5 * 0.82; stray.pos[2] = strayAt.z + strayAt.oz;
-    if (tex) tex.offset.x = (reducedMotion ? 0 : (frac(T / 9.1) < 0.07 || frac(T / 5.3) < 0.03) ? 0.5 : 0);
-    stray.col[0] = stray.col[1] = stray.col[2] = dim;
-    stray.geo.attributes.position.needsUpdate = stray.geo.attributes.color.needsUpdate = true; stray.pts.visible = !!tex;
+    const vx = (tx - strayAt.ox) * 0.04; const vz = (tz - strayAt.oz) * 0.04;
+    strayAt.ox += vx; strayAt.oz += vz;
+    const px = strayAt.x + strayAt.ox; const pz = strayAt.z + strayAt.oz;
+    const walking = Math.hypot(vx, vz) > 0.004; // edging off: it turns its back and bobs; settled, it faces the carousel again
+    const want = walking ? Math.atan2(-vx, -vz) : Math.atan2(px, pz);
+    const turn = want - strayAt.yaw; strayAt.yaw += (turn - Math.PI * 2 * Math.round(turn / (Math.PI * 2))) * Math.min(1, 6 * dt);
+    stray.position.set(px, gy(px, pz) + (walking ? 0.04 * Math.abs(Math.sin(T * 9)) : 0), pz);
+    stray.rotation.y = strayAt.yaw;
+    const flick = !reducedMotion && !walking && (frac(T / 9.1) < 0.07 || frac(T / 5.3) < 0.03);
+    stray.geometry = flick ? strayGeo.flick : strayGeo.still;
+    stray.visible = !(cat && d < S.hide);
   }
   function bird(b, T, dt, cat, speed, dim) {
     let x; let z; let y; let fl = false;
@@ -174,14 +160,14 @@ export function createFairPals({ scene, reducedMotion = false, scale = 1, makePo
   }
 
   return {
-    counts: { birds: nBirds, moths: nMoths, ladybirds: nLady, sparkle: nSpark, stray: tex ? 1 : 0 },
+    counts: { birds: nBirds, moths: nMoths, ladybirds: nLady, sparkle: nSpark, stray: 1 },
     // update(dt, T, catPos {x, z} or null, lit 0..1, speed m/s)
     update(dt, T, cat, lit = 0, speed = 0) {
       dt = Math.max(0, Math.min(dt, 0.25)) || 0;
       const dim = 1 - 0.45 * lit;
-      if (reducedMotion) { if (!drawnStatic) { drawnStatic = true; drawLady(T); drawStray(T, null, dim); } return; }
+      if (reducedMotion) { if (!drawnStatic) { drawnStatic = true; drawLady(T); drawStray(T, null, 0); } return; }
       for (const q of all) q.pts.visible = true;
-      drawLady(T); drawStray(T, cat, dim);
+      drawLady(T); drawStray(T, cat, dt);
       for (const b of birds) bird(b, T, dt, cat, speed, dim);
       body.geo.attributes.position.needsUpdate = body.geo.attributes.color.needsUpdate = true;
       parts.geo.attributes.position.needsUpdate = parts.geo.attributes.color.needsUpdate = true;
@@ -231,9 +217,9 @@ export function createFairPals({ scene, reducedMotion = false, scale = 1, makePo
       }
     },
     dispose() {
-      if (sc) sc.remove(...all.map((q) => q.pts));
+      if (sc) { sc.remove(...all.map((q) => q.pts)); sc.remove(stray); }
       for (const q of all) { q.geo.dispose(); q.pts.material.dispose(); }
-      tex?.dispose();
+      strayGeo.still.dispose(); strayGeo.flick.dispose(); strayMat.dispose();
     },
   };
 }

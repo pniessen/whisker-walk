@@ -8,6 +8,8 @@ import { TUNE } from '../src/fairlive.js';
 import { FAIR_CLOCK, setFairClock } from '../src/world/fairkit.js';
 import { createFairAlive } from '../src/fairalive.js';
 
+const STRAY_TRIS = 468; // measured 2026-11-28 (both tail frames)
+
 describe('fair beauty pass 5', () => {
   it('the copied spots are the place\'s', () => {
     expect(SPOTS.gateZ).toBe(GATE_AT.z); expect(SPOTS.gateHalf).toBe(GATE_HALF); expect(SPOTS.mgr).toEqual({ x: MGR_AT.x, z: MGR_AT.z }); expect(SPOTS.wheelR).toBe(FERRIS.R);
@@ -42,5 +44,43 @@ describe('fair beauty pass 5', () => {
     expect(rm.counts.pals.birds).toBe(0); expect(rm.counts.pals.moths).toBe(0);
     const lite = createFairPals({ scene: new THREE.Scene(), scale: 0.25, makePoints: (n) => ({ pts: new THREE.Points(), geo: new THREE.BufferGeometry(), pos: new Float32Array(n * 3), col: new Float32Array(n * 3) }) });
     expect(lite.counts.birds).toBeLessThan(PALS.birds);
+  });
+  describe('the stray is a real 3D cat (2026-11-28)', () => {
+    const tris = (g) => (g.index ? g.index.count : g.attributes.position.count) / 3;
+    const make = (o = {}) => { const sc = new THREE.Scene(); const al = createFairAlive({ scene: sc, ...o }); return { sc, al, cat: sc.getObjectByName('fair:stray') }; };
+    it('is one mesh that casts nothing, takes no collider, in the Treehouse cats\' model, with a ginger coat and a pale chest', () => {
+      const { sc, cat } = make();
+      expect(cat.isMesh).toBe(true); expect(sc.children.filter((o) => o.name === 'fair:stray').length).toBe(1);
+      expect(cat.castShadow).toBe(false); expect(cat.userData.noCast).toBe(true); expect(cat.userData.perch).toBeUndefined(); expect(cat.userData.collider).toBeUndefined();
+      expect(PALS.stray.look.base).toBe(0xe08a36); expect(PALS.stray.look.belly).toBe(0xfbefd8);
+      // its triangles are what the Fair row grows by (place 71,511 + show + this): pinned so a change is on purpose
+      expect(tris(cat.geometry)).toBe(STRAY_TRIS);
+    });
+    it('sits facing the carousel, flicks its tail now and then, edges off when she comes near, hides when she is close', () => {
+      const { al, cat } = make(); const S = PALS.stray;
+      al.update(1 / 30, 0.5, null, 0, 0);
+      const still = cat.geometry;
+      expect(cat.visible).toBe(true);
+      expect(cat.position.x).toBeCloseTo(S.x, 6); expect(cat.position.z).toBeCloseTo(S.z, 6);
+      expect(cat.rotation.y).toBeCloseTo(Math.atan2(S.x, S.z), 6); // the model looks down -z; this turns it to the origin
+      let flicked = false;
+      for (let t = 0; t < 20; t += 0.05) { al.update(0.05, t, null, 0, 0); if (cat.geometry !== still) flicked = true; }
+      expect(flicked).toBe(true);
+      for (let i = 0; i < 200; i++) al.update(1 / 30, 30 + i / 30, { x: S.x - 2.5, z: S.z }, 0, 0);
+      expect(cat.position.x).toBeGreaterThan(S.x + 0.5); // edged off, away from her
+      al.update(1 / 30, 40, { x: cat.position.x - 0.5, z: cat.position.z }, 0, 0);
+      expect(cat.visible).toBe(false);
+    });
+    it('the same walk gives the same cat (no random number), and reduced motion holds it still and visible', () => {
+      const run = () => { const { al, cat } = make(); for (let i = 0; i < 300; i++) al.update(1 / 30, 3 + i / 30, { x: 3, z: 4 + (i % 7) * 0.1 }, 0, 1); return [cat.position.x, cat.position.z, cat.rotation.y, cat.visible]; };
+      expect(run()).toEqual(run());
+      const { al, cat } = make({ reducedMotion: true }); const still = cat.geometry;
+      for (let t = 0; t < 30; t += 0.1) al.update(0.1, t, { x: 6, z: 5 }, 0, 0);
+      expect(cat.visible).toBe(true); expect(cat.geometry).toBe(still); expect(cat.position.x).toBeCloseTo(PALS.stray.x, 6);
+    });
+    it('is freed with the life', () => {
+      const { sc, al } = make(); al.dispose?.();
+      expect(sc.getObjectByName('fair:stray')).toBeUndefined();
+    });
   });
 });

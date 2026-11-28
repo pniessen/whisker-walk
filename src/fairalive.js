@@ -127,7 +127,7 @@ export function createFairAlive({ scene, reducedMotion = false, scale = 1, area 
   if (area?.rides?.merryGoRound?.musicBoxDrum) { area.rides.merryGoRound.musicBoxDrum.updateWorldMatrix(true, false); area.rides.merryGoRound.musicBoxDrum.getWorldPosition(calli); }
   const wx = reducedMotion ? null : createFairWx({ scene, area, k, onEvent, weather, ground, hub, mgr: { x: 0, z: 0 }, calli, bulbs: ALIVE.bulbs, glow: { pos: glow.pos, col: glow.col, siz: glow.siz, at: nSteam + 2 + nLant }, bits: { pos: bits.pos, col: bits.col, siz: bits.siz, at: nBits + nDrift }, fire: { pos: fire.pos, col: fire.col, siz: fire.siz, at: nSpark, n: wc.fire } });
   const vistas = createVistas({ scene, glow: { pos: vis.pos, col: vis.col, siz: vis.siz, at: 0 }, pts: vis.pts, geo: vis.geo, k, reducedMotion, ground, onEvent });
-  const pals = createFairPals({ scene, reducedMotion, scale: k, makePoints, hub: area?.anchors?.wheelHub ? hub : null, onEvent, puff: (x, z) => { for (let i = 0; i < 16; i++) spawn(x, z, 9, 0); } });
+  const pals = createFairPals({ scene, reducedMotion, scale: k, makePoints, hub: area?.anchors?.wheelHub ? hub : null, ground, onEvent, puff: (x, z) => { for (let i = 0; i < 16; i++) spawn(x, z, 9, 0); } });
 
   function spawn(x, z, speed, yaw) {
     const s = kick[slot]; slot = (slot + 1) % kick.length; n++;
