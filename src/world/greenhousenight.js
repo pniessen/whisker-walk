@@ -30,20 +30,17 @@ export function nightLook(hour = 12) {
   return h >= 21 || h < 5 ? 1 : h >= 19 ? (h - 19) / 2 : h < 6.5 ? (6.5 - h) / 1.5 : 0;
 }
 // how strong each part is: the grade, the stars, the glows (a dusk walk) and the creatures (a dusk walk, or the real night, dimmer)
-export function nightStrength(dusk, hour) {
-  const d = nightLook(hour);
-  return { grade: dusk ? 0.6 + 0.4 * d : 0, life: dusk ? 1 : d >= 0.5 ? 0.7 * d : 0 };
-}
+
 
 export function createNight({ pool, scene = null, sun = null, fill = null, reducedMotion = false, lite = false, dusk = false, hour = 12, mist = [], hoot = null, enabled = true } = {}) {
-  const st = enabled ? nightStrength(dusk, hour) : { grade: 0, life: 0 }; // (enabled: false is the 'before' of the pictures)
+  const d = nightLook(hour), st = enabled ? { grade: dusk ? 0.6 + 0.4 * d : 0, life: dusk ? 1 : d >= 0.5 ? 0.7 * d : 0 } : { grade: 0, life: 0 }; // (enabled: false is the 'before' of the pictures)
   const rm = reducedMotion;
-  let clock = 0, off = false, disposed = false, nextHoot = 7 + 6 * hash01(0, 1, SALT), hoots = 0, hootAt = -9;
+  let clock = 0, disposed = false, nextHoot = 7 + 6 * hash01(0, 1, SALT), hoots = 0, hootAt = -9;
   if (!enabled) nextHoot = 1e9;
   let n = 0;
   const take = (k) => { const s = n; n += k; return s; };
   const NS = lite ? 10 : 26, NF = lite ? 4 : 12, NM = lite ? 2 : 3;
-  const S0 = take(NS), MOON = take(2), F0 = take(NF * 3), M0 = take(NM * 2), LP = take(4), BL = take(6), CATG = take(2), HG = take(6), OW = take(6), GM = take(3);
+  const S0 = take(NS), MOON = take(2), F0 = take(NF * 2), M0 = take(NM), LP = take(4), BL = take(5), CATG = take(2), HG = take(4), OW = take(4), GM = take(2);
   const mistWas = mist.map((m) => m.userData.mist.uColor.value.clone());
 
   // the grade: once, when the walk is made (the dusk look is already on); the stars and the moon are points
@@ -84,7 +81,7 @@ export function createNight({ pool, scene = null, sun = null, fill = null, reduc
     const pools = [[P.COURT_LAMPS[0].x, P.COURT_LAMPS[0].z], [P.COURT_LAMPS[1].x, P.COURT_LAMPS[1].z], [P.SHED.door.x - 0.6, P.SHED.door.z], [0, 1.6]];
     pools.forEach(([x, z], i) => put(LP + i, x, 0.09, z, 1.1, 1, 0.72, 0.36, g * (0.38 + 0.04 * Math.sin(T * 1.7 + i))));
     // night-blooming flowers: glowing halos that open (swell) with the night
-    const spots = [[P.CATNIP_BEDS[0].x, 0.55, P.CATNIP_BEDS[0].z], [P.CATNIP_BEDS[1].x, 0.55, P.CATNIP_BEDS[1].z], [P.KITCHEN_BED.x, 0.6, P.KITCHEN_BED.z], [P.HIBISCUS_SPOTS[0][0], 1.4, P.HIBISCUS_SPOTS[0][1]], [P.HIBISCUS_SPOTS[1][0], 1.4, P.HIBISCUS_SPOTS[1][1]], [P.FOUNTAIN.x, 1.05, P.FOUNTAIN.z]];
+    const spots = [[P.CATNIP_BEDS[0].x, 0.55, P.CATNIP_BEDS[0].z], [P.CATNIP_BEDS[1].x, 0.55, P.CATNIP_BEDS[1].z], [P.HIBISCUS_SPOTS[0][0], 1.4, P.HIBISCUS_SPOTS[0][1]], [P.HIBISCUS_SPOTS[1][0], 1.4, P.HIBISCUS_SPOTS[1][1]], [P.FOUNTAIN.x, 1.05, P.FOUNTAIN.z]];
     spots.forEach(([x, y, z], i) => { const p = rm ? 0.85 : 0.75 + 0.25 * Math.sin(T * 0.9 + i * 1.9); put(BL + i, x, y, z, (0.3 + 0.07 * i % 2 + 0.06 * p) * (0.8 + 0.4 * g), i % 2 ? 0.7 : 0.55, i % 2 ? 0.8 : 0.9, 1, g * 0.55 * p); });
     // the sleepy cat's slow breathing glow, and a moon rim behind the cat so she reads against the dark
     const bed = P.POTTING, br = rm ? 0.5 : 0.5 + 0.5 * Math.sin(T * 1.5);
@@ -95,24 +92,19 @@ export function createNight({ pool, scene = null, sun = null, fill = null, reduc
     } else hide(CATG + 1);
     // fireflies in small clouds with two-step trails; moths with a trail
     for (let j = 0; j < NF; j++) {
-      const c = CLOUDS[j % 4], h = hash01(j, 6, SALT), ph = h * 6.3, base = F0 + j * 3;
-      for (let k = 0; k < 3; k++) {
+      const c = CLOUDS[j % 4], h = hash01(j, 6, SALT), ph = h * 6.3, base = F0 + j * 2;
+      for (let k = 0; k < 2; k++) {
         const t = T - k * 0.28;
         const x = c[0] + c[2] * (0.5 + 0.5 * h) * Math.sin(0.23 * t + ph) + 0.7 * Math.sin(0.9 * t + ph * 2), z = c[1] + c[2] * 0.7 * Math.cos(0.19 * t + ph * 1.3) + 0.7 * Math.cos(0.8 * t + ph);
         const y = 0.7 + 0.9 * hash01(j, 7, SALT) + 0.35 * Math.sin(0.5 * t + ph);
         const bl = rm ? 0.8 : 0.12 + 0.88 * Math.max(0, Math.sin(1.1 * T + ph * 3)) ** 2;
         if (k && rm) { hide(base + k); continue; }
-        put(base + k, x, y, z, (0.16 - 0.04 * k) * (1 + 0.3 * l), 0.85, 1, 0.45, bl * l * (k ? 0.35 / k : 0.9));
+        put(base + k, x, y, z, (0.16 - 0.04 * k) * (1 + 0.3 * l), 0.85, 1, 0.45, bl * l * (k ? 0.35 : 0.9));
       }
     }
-    for (let j = 0; j < NM; j++) {
-      const m = MOTH_AT[j % 3], ph = j * 2.1 + 1;
-      for (let k = 0; k < 2; k++) {
-        const t = T - k * 0.2, a = t * (1.3 + 0.3 * j) + ph, r = 0.55 + 0.25 * Math.sin(0.6 * t + j);
-        if (k && rm) { hide(M0 + j * 2 + k); continue; }
-        const flut = rm || Math.sin(T * 24 + j) > -0.3 ? 1 : 0.55;
-        put(M0 + j * 2 + k, m[0] + Math.cos(a) * r, m[2] + 0.35 * Math.sin(a * 1.4 + j), m[1] + Math.sin(a) * r, (0.15 - 0.04 * k) * flut, 0.92, 0.94, 1, l * (k ? 0.3 : 0.9));
-      }
+    for (let j = 0; j < NM; j++) { // moths loop round their lantern, wings fluttering
+      const m = MOTH_AT[j % 3], a = T * (1.3 + 0.3 * j) + j * 2.1 + 1, r = 0.55 + 0.25 * Math.sin(0.6 * T + j);
+      put(M0 + j, m[0] + Math.cos(a) * r, m[2] + 0.35 * Math.sin(a * 1.4 + j), m[1] + Math.sin(a) * r, 0.15 * (rm || Math.sin(T * 24 + j) > -0.3 ? 1 : 0.55), 0.92, 0.94, 1, l * 0.9);
     }
   }
 
@@ -121,30 +113,24 @@ export function createNight({ pool, scene = null, sun = null, fill = null, reduc
     const run = rm ? 0 : T * 0.05, dir = Math.cos(run) >= 0 || rm ? 1 : -1, hz = 22.2 + (rm ? 0.6 : 1.8 * Math.sin(run)), hx = -3.7;
     const bob = rm ? 0 : 0.025 * Math.sin(T * 9);
     put(HG, hx, 0.17, hz, 0.15, 0.24, 0.16, 0.1, l);
-    for (let k = 0; k < 3; k++) put(HG + 1 + k, hx + 0.01 * k, 0.27 + 0.03 * k, hz - dir * (0.04 - 0.05 * k), 0.085, 0.5, 0.4, 0.28, l);
-    put(HG + 4, hx, 0.14 + bob, hz + dir * 0.17, 0.07, 0.62, 0.48, 0.36, l);
-    put(HG + 5, hx, 0.13 + bob, hz + dir * 0.24, 0.03, 0.12, 0.08, 0.07, l);
+    put(HG + 1, hx, 0.28, hz - dir * 0.02, 0.12, 0.5, 0.4, 0.28, l); // spines
+    put(HG + 2, hx, 0.14 + bob, hz + dir * 0.17, 0.07, 0.62, 0.48, 0.36, l);
+    put(HG + 3, hx, 0.13 + bob, hz + dir * 0.24, 0.03, 0.12, 0.08, 0.07, l);
     // the owl on its rib: a dark body, a head, two eyes that open wide while she hoots
     const hooting = !rm && T - hootAt < 1.3 ? Math.sin(Math.PI * (T - hootAt) / 1.3) : 0;
     put(OW, OWL.x, OWL.y, OWL.z, 0.95, 0.3, 0.26, 0.22, l);
     put(OW + 1, OWL.x, OWL.y + 0.55, OWL.z, 0.62 * (1 + 0.15 * hooting), 0.38, 0.32, 0.27, l);
     put(OW + 2, OWL.x - 0.15, OWL.y + 0.62, OWL.z + 0.2, 0.2 + 0.07 * hooting, 1, 0.9, 0.2, l * (0.8 + 0.2 * hooting));
     put(OW + 3, OWL.x + 0.15, OWL.y + 0.62, OWL.z + 0.2, 0.2 + 0.07 * hooting, 1, 0.9, 0.2, l * (0.8 + 0.2 * hooting));
-    put(OW + 4, OWL.x - 0.2, OWL.y + 0.95, OWL.z, 0.2, 0.26, 0.22, 0.18, l);
-    put(OW + 5, OWL.x + 0.2, OWL.y + 0.95, OWL.z, 0.2, 0.26, 0.22, 0.18, l);
     // the moth on the glass (the Palm House's south pane): its wings open and close
     const op = rm ? 0.8 : 0.35 + 0.65 * Math.abs(Math.sin(T * 0.8));
     put(GM, -2.3 - 0.2 * op, 2.5, 0.12, 0.42, 1, 0.96, 0.8, l * 0.95);
     put(GM + 1, -2.3 + 0.2 * op, 2.5, 0.12, 0.42, 1, 0.96, 0.8, l * 0.95);
-    put(GM + 2, -2.3, 2.5, 0.12, 0.14, 0.3, 0.25, 0.2, l);
   }
 
   return {
-    state: { grade: st.grade, life: st.life },
-    get hoots() { return hoots; },
-    off() { off = true; hideAll(); NIGHT.value = 0; },
     update(dt, t, cat = null, cam = null) {
-      if (disposed || off) return;
+      if (disposed) return;
       clock += dt > 0 ? dt : 0;
       void t;
       const T = rm ? 0 : clock, g = st.grade, l = st.life;
