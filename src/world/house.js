@@ -807,8 +807,8 @@ function buildPlan(scene, P, { wind, gateEnds }) {
     // and the six finds, and the yarn ball kept out of the walls (step 2, Task 6): the walk's
     // log, sound and ball, and its live colliders (the bookcase's row swaps there)
     // `now` is the clock the clock strikes by (the picture page pins it; the walk passes none)
-    areaData.life = ({ scene: lifeScene, reducedMotion, log, audio, toy, dusk, now, rain, sun, fill, tier }) => createHouseLife(lifeScene, areaData.house, {
-      reducedMotion, log, audio, toy, dusk, now, rain, sun, fill, tier, colliders: areaData.colliders,
+    areaData.life = ({ scene: lifeScene, reducedMotion, log, audio, toy, dusk, now, rain, mood, sun, fill, tier }) => createHouseLife(lifeScene, areaData.house, {
+      reducedMotion, log, audio, toy, dusk, now, rain, mood, sun, fill, tier, colliders: areaData.colliders,
     });
     return areaData;
   });
