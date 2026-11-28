@@ -92,10 +92,12 @@ export const FRONT_DOOR_NEAR = 2.4; // m from the door: it opens
 export const FRONT_DOOR_FAR = 2.9; // m: it shuts once she is further
 export const FRONT_DOOR_OPEN = 1.2; // rad each leaf turns, out onto the lawn
 export const FRONT_DOOR_S = 0.4; // s to swing
+export const FRONT_DOOR_ARRIVE_S = 4; // s the door stands open as she comes in (beauty pass 5), then swings shut behind her
 
 // The front door's swing (null pivots: a door that never opens).
 function createFrontDoor(door, reducedMotion, HOUSE_FRONT_DOOR) {
   let open = false;
+  let hold = 0; // s left of her arrival: the door stands open
   let k = 0; // 0 shut .. 1 open
   const turn = () => {
     if (!door) return;
@@ -114,8 +116,10 @@ function createFrontDoor(door, reducedMotion, HOUSE_FRONT_DOOR) {
   };
   return {
     get open() { return open; },
-    settle(p) { near(p); k = open ? 1 : 0; turn(); },
+    // `arriving`: she has just come in at the door (the walk's start): it stands open a few seconds, then shuts behind her
+    settle(p, arriving = false) { near(p); if (arriving && door) { open = true; hold = FRONT_DOOR_ARRIVE_S; } k = open ? 1 : 0; turn(); },
     update(dt, p, partners) {
+      if (hold > 0) { hold -= dt; if (hold <= 0) open = false; } // the arrival's hold is over: shut behind her (unless she is at it)
       near(p, partners);
       const step = reducedMotion ? 1 : dt / FRONT_DOOR_S;
       k = open ? Math.min(1, k + step) : Math.max(0, k - step);
@@ -171,6 +175,7 @@ export function createHouseLife(scene, house, {
   const LIT = new THREE.Color();
   const clockNow = () => (now ? now() : new Date());
   const part = ST.story.dayPart(12);
+  const rhy = ST.story.rhythm(part); // the house's one daily rhythm (houseglow.js): lamps, hearth, creatures and the sound beds all read it
   let partIn = 0;
   const rainy = rain !== null && rain !== undefined ? !!rain : (() => { const d = clockNow(); return hash01(d.getFullYear() * 400 + d.getMonth() * 31 + d.getDate(), 5, 0x4a11) < 0.25; })();
   const rainK = rainy ? 1 : 0;
@@ -180,6 +185,7 @@ export function createHouseLife(scene, house, {
   const retone = () => {
     const d = clockNow();
     ST.story.dayPart(d.getHours() + d.getMinutes() / 60, part);
+    ST.story.rhythm(part, rhy);
     if (lights.length && typeof envBase === 'number') scene.environmentIntensity = envBase * part.env;
     for (const x of lights) { x.l.color.copy(x.c).multiply(LIT.fromArray(part.lit)); if (x.g) x.l.groundColor.copy(x.g).multiply(LIT); }
     air.setTone?.(part.sun, dusk ? 1 : part.sunK * (1 - 0.5 * rainK));
@@ -189,6 +195,8 @@ export function createHouseLife(scene, house, {
     wood: P === OLD_HOUSE_PLAN ? P.rooms.filter((r) => WOOD.has(r.id)) : null,
     rain: rainy && P === OLD_HOUSE_PLAN,
     part: P === OLD_HOUSE_PLAN && !dusk ? part : null,
+    rhythm: P === OLD_HOUSE_PLAN && !dusk ? rhy : null,
+    gust: ST.story.gustAt,
     clock: (P === OLD_HOUSE_PLAN ? HOUSE_FINDS : house.finds ?? []).find((f) => f.id === 'clock') ?? null,
     stairs: P.stairs,
     attic: P.rooms.find((r) => r.id === 'attic') ?? null,
@@ -202,7 +210,11 @@ export function createHouseLife(scene, house, {
   // beauty pass 4 (housestories.js): the season by the date, and the rare surprises (the music box, the cuckoo, the old house's ghost cat)
   const day0 = clockNow();
   const surprises = glowLive ? ST.story.createSurprises({ scene, audio, reducedMotion, low, dayKey: day0.getFullYear() * 400 + day0.getMonth() * 31 + day0.getDate(), floorY: (x, z) => floor.y(x, z) }) : null;
-  const glowOpts = { still: reducedMotion, dusk: !!dusk, low, part: dusk ? null : part, rain: rainK, burst: 0, energy: 0, season: ST.story.seasonOf(day0), box: 0, cuckoo: 0 };
+  const glowOpts = { still: reducedMotion, dusk: !!dusk, low, part: dusk ? null : part, rain: rainK, burst: 0, energy: 0, season: ST.story.seasonOf(day0), box: 0, cuckoo: 0, fireK: rhy.fire, warm: 1 };
+  // beauty pass 5 (housealive.js): the creatures (none on a dusk walk), and the hall wall's standing for the robin's sill
+  const hallS = ids.filter((id) => id.startsWith('hall-s-'));
+  const creatures = glowLive && !dusk ? ST.story.createHouseCreatures({ scene, audio, reducedMotion, low, dayKey: day0.getFullYear() * 400 + day0.getMonth() * 31 + day0.getDate(), lamps: P.lamps ?? NONE, rhythm: rhy, rain: rainy, wallUp: () => hallS.reduce((m, id) => Math.min(m, sink.fraction(id)), 1) }) : null;
+  let arriveT = -1; // s since she came in at the front door (the lamp warms, the door creaks, the clock chimes), -1 when she did not
   let ex = 0, ez = 0, eSeen = false, energy = 0; // her walking, as a smoothed 0..1 (the paws' dust and the curtains' swell)
   const guards = createLedgeGuards(colliders, floor);
   const frontDoor = createFrontDoor(house.parts?.frontDoor ?? null, reducedMotion, P.frontDoor);
@@ -293,7 +305,10 @@ export function createHouseLife(scene, house, {
     glow?.update(0, catPos, glowOpts);
     holdFades(catPos, camera.position);
     guard(catPos);
-    frontDoor.settle(catPos);
+    const arriving = glowLive && Math.hypot(catPos.x - P.frontDoor.arrive.x, catPos.z - P.frontDoor.arrive.z) < 0.6;
+    frontDoor.settle(catPos, arriving);
+    if (arriving && !dusk) { arriveT = 0; glowOpts.warm = 0.3; sound.arrive(); }
+    creatures?.update(0, catPos, drawing.full);
   }
 
   return {
@@ -330,6 +345,9 @@ export function createHouseLife(scene, house, {
       if (partIn <= 0) { partIn = 5; retone(); }
       air.update(dt, t, drawing.full, catPos, glowOpts.energy);
       if (surprises) { const o = surprises.update(dt, catPos, drawing.full); glowOpts.box = o.box; glowOpts.cuckoo = o.cuckoo; }
+      if (arriveT >= 0) { arriveT += dt; const w = Math.min(1, arriveT / 5); glowOpts.warm = 0.3 + 0.7 * w * w * (3 - 2 * w); if (arriveT >= 5) arriveT = -1; }
+      glowOpts.fireK = rhy.fire;
+      creatures?.update(dt, catPos, drawing.full);
       glow?.update(t, catPos, glowOpts);
       finds.update(dt, t, catPos, camera.position, partners); // after the camera's move: the bookcase's fade hold
       wingFinds.update(dt, t, catPos, partners, camera.position);
@@ -337,7 +355,7 @@ export function createHouseLife(scene, house, {
       air.setCalm?.(wingFinds.calm);
       paintSun(t);
       holdFades(catPos, camera.position);
-      sound.update(dt, t, catPos, wingFinds.calm);
+      sound.update(dt, t, catPos, wingFinds.calm, frontDoor.open);
       keepBall(dt);
       guard(catPos);
       frontDoor.update(dt, catPos, partners);
@@ -353,6 +371,7 @@ export function createHouseLife(scene, house, {
       wingFinds.dispose();
       sound.dispose();
       surprises?.dispose();
+      creatures?.dispose();
       air.dispose();
       for (const p of fading) p.obj.userData.fadeHold = false;
       for (const m of lidMeshes) m.visible = true;

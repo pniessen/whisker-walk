@@ -54,6 +54,21 @@ export function dayPart(hour, out = { tone: [1, 1, 1], sun: [1, 1, 1], lit: [1, 
   return out;
 }
 
+// beauty pass 5 (2026-11-28): ONE daily rhythm for the whole house. Lamps, hearth, window light, creatures and the sound beds all read the same few numbers (rhythm(part), from the real clock's
+// dayPart), so every room agrees what time it is: day 1 by daylight and 0 at night, lamp 0..1 (the lamps' warmth), fire 0.75..1.1 (the hearth burns brighter as the lamps come on).
+export function rhythm(part, out = { day: 1, lamp: 0, fire: 0.8 }) {
+  out.lamp = Math.min(1, part.lampK);
+  out.day = part.night ? 0 : Math.max(0, 1 - out.lamp);
+  out.fire = 0.75 + 0.35 * out.lamp;
+  return out;
+}
+// One draught for the whole house: it blows along WIND (towards the north-east), in gusts on one slow clock. The garden's leaves and blooms lean along it (the vertex shader), the curtains billow
+// with it (uBreeze follows gustAt), and the creatures' drifting leaves and the attic's creaks keep to it.
+export const WIND = Object.freeze({ x: 0.8, z: 0.6 });
+export const gustAt = (t) => 0.6 + 0.4 * Math.sin(t * 0.37); // 0.2..1 (the garden's own gust, at the origin)
+// the hall lamp, which warms as she arrives
+export const HALL_LAMP = Object.freeze({ x: -2.9, z: 10.6 });
+
 const DEFAULT_SUN = [1.0, 0.84, 0.5];
 const INWARD = { n: [0, 1], s: [0, -1], w: [1, 0], e: [-1, 0] };
 
@@ -88,8 +103,8 @@ const BEGIN_VERT = (garden) => `#include <begin_vertex>
   ${garden ? `float band = smoothstep(${SWAY.band[0].toFixed(2)}, 0.3, w0.y) * (1.0 - smoothstep(0.45, ${SWAY.band[1].toFixed(2)}, w0.y));
   for (int i = 0; i < 3; i++) if (w0.x > uKeep[i].x && w0.x < uKeep[i].y && w0.z > uKeep[i].z && w0.z < uKeep[i].w) band = 0.0;
   float gust = 0.6 + 0.4 * sin(uTime * 0.37 + w0.x * 0.08 + w0.z * 0.05);
-  transformed.x += sin(uTime * 1.9 + w0.x * 1.3 + w0.z * 0.7) * ${SWAY.amp.toFixed(3)} * band * gust;
-  transformed.z += sin(uTime * 1.5 + w0.z * 1.1 - w0.x * 0.5) * ${SWAY.amp.toFixed(3)} * band * gust;` : `// the hearth's flames lick upward (the cones standing in the grate, nothing else is in that box)
+  transformed.x += (sin(uTime * 1.9 + w0.x * 1.3 + w0.z * 0.7) * ${SWAY.amp.toFixed(3)} + ${(WIND.x * 0.06).toFixed(3)}) * band * gust;
+  transformed.z += (sin(uTime * 1.5 + w0.z * 1.1 - w0.x * 0.5) * ${SWAY.amp.toFixed(3)} + ${(WIND.z * 0.06).toFixed(3)}) * band * gust;` : `// the hearth's flames lick upward (the cones standing in the grate, nothing else is in that box)
   if (w0.x > 13.55 && w0.x < 13.88 && w0.z > 6.7 && w0.z < 7.3 && w0.y > 0.21 && w0.y < 0.7 && uFlick > 0.0) {
     transformed.y += (w0.y - 0.2) * 0.34 * uFlick * (0.5 + 0.5 * sin(uTime * 9.0 + w0.z * 11.0) * sin(uTime * 5.3 + 1.7));
   }`}
@@ -261,6 +276,7 @@ export function createHouseGlow({ windows = [], rooms = [], levels = [], lamps =
     uFire: { value: new THREE.Vector4(FIRE.x, FIRE.y, FIRE.z, fire ? 1 : 0) },
     uKeep: { value: Array.from({ length: 3 }, (_, i) => (keep[i] ? new THREE.Vector4(keep[i].minX, keep[i].maxX, keep[i].minZ, keep[i].maxZ) : new THREE.Vector4(1, 0, 1, 0))) },
   };
+  const fireOn = !!fire;
   const wd = new Float64Array(wins.length);
   const wt = new Uint8Array(wins.length);
   const ld = new Float64Array(lights.length);
@@ -271,7 +287,7 @@ export function createHouseGlow({ windows = [], rooms = [], levels = [], lamps =
     patchPane(material) { patchPane(material, uniforms); return material; },
     // t: the walk's clock; cat { x, y, z }; still: reduced motion; dusk: the lamplight look; low: LOW and LITE tiers
     // pass 3: part (dayPart's result, null: the afternoon the house always had), rain (0 or 1), burst (0..1, the fire's crackle), energy (0..1, how hard she is walking)
-    update(t, cat, { still = false, dusk = false, low = false, part = null, rain = 0, burst = 0, energy = 0, season = 3, box = 0, cuckoo = 0 } = {}) {
+    update(t, cat, { still = false, dusk = false, low = false, part = null, rain = 0, burst = 0, energy = 0, season = 3, box = 0, cuckoo = 0, fireK = 1, warm = 1 } = {}) {
       const calm = still || low;
       uniforms.uCat.value.set(cat?.x ?? 0, cat?.y ?? -100, cat?.z ?? 0, calm ? 0 : energy);
       uniforms.uBurst.value = calm ? 0 : burst;
@@ -279,7 +295,8 @@ export function createHouseGlow({ windows = [], rooms = [], levels = [], lamps =
       uniforms.uSeason.value = season;
       uniforms.uBox.value = box;
       uniforms.uCuckoo.value = cuckoo;
-      uniforms.uBreeze.value = SEASON_BREEZE[season] ?? 1;
+      uniforms.uBreeze.value = (SEASON_BREEZE[season] ?? 1) * (still ? 1 : 0.7 + 0.5 * gustAt(t)); // the curtains breathe with the same gusts as the garden
+      uniforms.uFire.value.w = fireOn ? fireK : 0;
       const sunK = part ? part.sunK : 1;
       const st = SEASON_TONE[season] ?? SEASON_TONE[3];
       if (part) { uniforms.uTone.value.set(part.tone[0] * st[0], part.tone[1] * st[1], part.tone[2] * st[2]); uniforms.uLampK.value = part.lampK; } else { uniforms.uTone.value.set(1.1 * st[0], 1.0 * st[1], 0.82 * st[2]); uniforms.uLampK.value = 0; }
@@ -312,7 +329,7 @@ export function createHouseGlow({ windows = [], rooms = [], levels = [], lamps =
         if (best < 0) { a.w = 0; continue; }
         lt[best] = 1;
         const l = lights[best];
-        a.set(l.x, l.y, l.z, l.w * (still ? 1 : 0.94 + 0.06 * Math.sin(t * 2.3 + best * 1.9)));
+        a.set(l.x, l.y, l.z, l.w * (still ? 1 : 0.94 + 0.06 * Math.sin(t * 2.3 + best * 1.9)) * (l.x === HALL_LAMP.x && l.z === HALL_LAMP.z ? warm : 1));
       }
     },
   };

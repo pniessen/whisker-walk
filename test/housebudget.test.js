@@ -106,7 +106,7 @@ describe('the worst spot in the house', () => {
       const { m: withMochi } = await measured(light, 'shut', 1, true);
       for (const id of ids) {
         const s = m.at(id);
-        expect(s.meshes, `${light} ${id}`).toBeLessThanOrEqual(317); // milestone 3, 314 -> 317: the cat tree's golden mouse, always drawn. The east wing's re-pin, 300 -> 306: its four stand-ins, a box each (milestone 1); 306 -> 314: its two new mice and the kids' top-bunk golden mouse (milestone 2), always drawn (the ceiling is 450)
+        expect(s.meshes, `${light} ${id}`).toBeLessThanOrEqual(318); // beauty pass 5, 317 -> 318: the creatures' one pooled Points (no triangle, no caster; housealive.js). Milestone 3, 314 -> 317: the cat tree's golden mouse, always drawn. The east wing's re-pin, 300 -> 306: its four stand-ins, a box each (milestone 1); 306 -> 314: its two new mice and the kids' top-bunk golden mouse (milestone 2), always drawn (the ceiling is 450)
         expect(s.casters, `${light} ${id}`).toBeLessThanOrEqual(200);
         expect(s.triangles, `${light} ${id}`).toBeLessThanOrEqual(60300); // milestone 2, 60,000 -> 60,300: its two new mice, always drawn. The beauty pass's deliberate re-pin: 55,000 -> 59,500 (cornice, wainscot, wall dressing, glow); the wing's far-room fix round, 59,500 -> 60,000 (the four far stand-ins dressed: 52 -> 302 triangles, in view from the hall)
         expect(withMochi.at(id).triangles, `${light} ${id}`).toBeGreaterThan(s.triangles); // she is drawn

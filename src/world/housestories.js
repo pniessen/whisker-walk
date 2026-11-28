@@ -90,7 +90,7 @@ export function createSurprises({ scene, audio = null, reducedMotion = false, lo
     if (which === 'ghost' && !sprite) {
       try {
         sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: ghostTexture(), color: 0xffe6b0, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
-        sprite.scale.set(1.15, 1.45, 1);
+        sprite.scale.set(1.75, 2.15, 1); // pass 5: bigger, so she sees it at play distance
         sprite.userData.noCast = sprite.userData.noMerge = true;
       } catch (e) { sprite = null; return false; }
     }
@@ -125,7 +125,7 @@ export function createSurprises({ scene, audio = null, reducedMotion = false, lo
         // she shies kindly: near it, it fades sooner
         const shy = cat && Math.hypot(cat.x - SURPRISE_AT.stair.x, cat.z - SURPRISE_AT.stair.z) < 1.1 ? 0.35 : 1;
         sprite.visible = !full || (full.has('ground') && full.has('upstairs'));
-        sprite.material.opacity = 0.62 * fin(age, dur, 2.4, 3) * shy * (reducedMotion ? 1 : 0.88 + 0.12 * Math.sin(age * 2.1));
+        sprite.material.opacity = 0.85 * fin(age, dur, 2.4, 3) * shy * (reducedMotion ? 1 : 0.88 + 0.12 * Math.sin(age * 2.1));
         sprite.position.y = sy() + (reducedMotion ? 0 : 0.03 * Math.sin(age * 1.3));
       }
       return out;
@@ -159,8 +159,8 @@ vec3 k=i.y<.5?vec3(.45,.72,.95):i.y<1.5?vec3(.36,.66,.3):i.y<2.5?mix(vec3(.9,.3,
 c=M(c,k*(1.-.45*(1.-smoothstep(.03,.1,e))),(1.-gap)*.95);}
 c=M(c,vec3(.9,.3,.25),B(q,vec2(9.1,-3.45),vec2(.04,.035)));c=M(c,vec3(.45,.72,.95),B(q,vec2(9.2,-3.2),vec2(.04,.035)));c=M(c,vec3(.95,.8,.25),B(q,vec2(9.02,-3.),vec2(.04,.035)));}
 if(up&&p.y<.06&&p.z>8.4&&p.z<11.9&&abs(p.x)<1.4){
-c=M(c,vec3(.16,.3,.2),clamp(E(q,vec2(-.95,11.4),vec2(.16,.075),.25)+E(q,vec2(-.7,11.48),vec2(.16,.075),-.1)+D(q,vec2(-1.06,11.37),.06)+D(q,vec2(-.81,11.48),.06),0.,1.));
-for(int i=0;i<6;i++){float f=float(i),s=mod(f,2.)<.5?-1.:1.;vec2 e=vec2(.17*s+.05*sin(f),11.1-.42*f);c=M(c,vec3(.3,.19,.1),clamp(E(q,e,vec2(.055,.1),.15*s)+E(q,e-vec2(0.,.13),vec2(.045),0.),0.,1.)*.78*(1.-f/6.5));}}
+c=M(c,vec3(.16,.3,.2),clamp(E(q,vec2(-.95,11.4),vec2(.2,.095),.25)+E(q,vec2(-.7,11.48),vec2(.2,.095),-.1)+D(q,vec2(-1.06,11.37),.06)+D(q,vec2(-.81,11.48),.06),0.,1.));
+for(int i=0;i<6;i++){float f=float(i),s=mod(f,2.)<.5?-1.:1.;vec2 e=vec2(.17*s+.05*sin(f),11.1-.42*f);c=M(c,vec3(.3,.19,.1),clamp(E(q,e,vec2(.07,.125),.15*s)+E(q,e-vec2(0.,.16),vec2(.058),0.),0.,1.)*.95*(1.-f/6.5));}}
 if(n.x<-.7&&p.x>13.3&&p.x<13.5&&q.y>-2.15&&q.y<-1.05&&p.y>.95&&p.y<1.75){vec2 u=vec2(p.z,p.y);
 float a=B(u,vec2(-1.85,1.5),vec2(.115,.14)),b=B(u,vec2(-1.55,1.25),vec2(.13,.11)),d=B(u,vec2(-1.28,1.48),vec2(.1,.13));
 c=M(c,vec3(.97,.95,.88),a);c=M(c,vec3(.85,.3,.25),B(u,vec2(-1.85,1.47),vec2(.06,.045))*a);c=M(c,vec3(.98,.8,.2),D(u,vec2(-1.78,1.62),.03)*a);
@@ -173,7 +173,7 @@ k=M(k,mod(floor((y-5.72)/.045),2.)<.5?vec3(.9,.2,.18):vec3(.97,.96,.92),step(abs
 k=M(k,vec3(1.,.92,.5),L(u,vec2(-16.9,6.08),vec2(-16.5,6.12),.05)*.8);
 c=M(c,vec3(.96,.93,.84),step(-.035,m)*step(m,0.));c=M(c,k,step(m,-.035));}
 if(up&&abs(p.y-.62)<.04&&abs(p.x-10.5)<.26&&abs(p.z-7.)<.26){vec2 d=q-vec2(10.5,7.);
-c=M(c,vec3(.85,.65,.25),B(d,vec2(0.),vec2(.115,.08)));c=M(c,mix(vec3(.5,.22,.16),vec3(1.,.85,.5),bx*.85),B(d,vec2(0.),vec2(.1,.065)));
+c=M(c,vec3(.85,.65,.25),B(d,vec2(0.),vec2(.15,.105)));c=M(c,mix(vec3(.5,.22,.16),vec3(1.,.85,.5),bx*.95),B(d,vec2(0.),vec2(.13,.085)));
 c=M(c,vec3(.95,.5,.65),D(d,vec2(0.,.016),.012)*bx);}
 if(n.z>.7&&p.z<-7.5&&abs(p.x-9.)<.2&&p.y>2.5&&p.y<2.85){vec2 d=vec2(p.x-9.,p.y-2.62);
 c=M(c,vec3(.42,.26,.14),step(abs(d.x),.16-(d.y-.02)*.55)*step(.02,d.y)*step(d.y,.22));c=M(c,vec3(.62,.42,.22),B(d,vec2(0.,-.065),vec2(.15,.085)));
@@ -191,7 +191,7 @@ if(S<.5&&n.x<-.7&&abs(p.x-13.46)<.1&&q.y>6.05&&q.y<7.95&&p.y>1.&&p.y<1.31){float
 c=M(c,vec3(.14,.42,.18)*(.7+.3*sin(p.z*70.+p.y*40.)),bd*.97);c=M(c,vec3(.84,.12,.14),D(vec2(fract(p.z*7.)-.5,(p.y-sw)*7.),vec2(0.),.3)*step(.4,H(floor(p.z*7.)+5.))*bd);}
 return c;}
 vec3 storiesGlow(vec3 b,vec3 p,vec3 n,float S,float bx,float tm){vec3 a=vec3(0.);
-if(bx>0.){vec3 d=p-vec3(10.5,.7,7.);float f=clamp(1.-dot(d,d),0.,1.);a+=(b+vec3(.12,.08,.02))*vec3(1.,.82,.5)*f*f*bx*.9;vec2 s=floor((p.xz-vec2(10.5,7.))*14.);a+=vec3(1.,.9,.55)*step(.93,H(s.x*3.+s.y*7.+floor(tm*1.7+s.x)))*f*bx*step(.7,n.y);}
+if(bx>0.){vec3 d=p-vec3(10.5,.7,7.);float f=clamp(1.-dot(d,d),0.,1.);a+=(b+vec3(.12,.08,.02))*vec3(1.,.82,.5)*f*f*bx*1.6;vec2 s=floor((p.xz-vec2(10.5,7.))*14.);a+=vec3(1.,.9,.55)*step(.93,H(s.x*3.+s.y*7.+floor(tm*1.7+s.x)))*f*bx*step(.7,n.y);}
 if(S<.5&&n.x<-.7&&abs(p.x-13.46)<.1&&p.z>6.05&&p.z<7.95&&p.y>1.&&p.y<1.31){float sw=1.22-.05*(1.-cos(mod(p.z-6.05,.95)/.95*6.2832)),li=floor(p.z*7.);
 a+=mix(vec3(1.,.75,.3),vec3(1.,.45,.35),step(.5,H(li+2.)))*(1.-smoothstep(.12,.34,length(vec2(fract(p.z*7.)-.5,(p.y-sw)*7.+.2))))*step(.45,H(li*1.3))*(.55+.45*sin(tm*2.+li*1.7));}
 return a;}
