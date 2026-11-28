@@ -14,6 +14,7 @@ import { dotTexture } from './crystalparts.js';
 import { planBeauty2, ZONE_RGB } from './crystaldecor.js';
 import { crystalY } from './crystalplan.js';
 import { humNote } from './crystallife.js';
+import { calm } from './crystalcalm.js'; // pass 10: the referee of the event effects
 import { HUE_PITCH } from './crystalsound.js';
 import { createVista } from './crystalvista.js'; // beauty pass 8: photogenic vistas and the golden moment
 
@@ -36,7 +37,8 @@ export function createCrystalMood({ scene, decor = null, audio = null, tier = nu
   const U = decor?.uniforms; const heroes = heroSites();
   const door = scene.getObjectByName('crystal:glow')?.material; // the arch's door of light: it thins out as she comes through, so the camera behind never loses her (pass 7)
   if (door) { door.transparent = true; door.needsUpdate = true; }
-  const vista = createVista({ scene, tier, reducedMotion, chime: (v) => { try { [1, 1.25, 1.5].forEach((r, i) => humNote(audio, v.stone, 2 * r, i * 0.26, { level: 0.55 })); } catch { /* a chime is a nicety */ } } });
+  calm.reset();
+  const vista = createVista({ allow: () => calm.allow('gold'), scene, tier, reducedMotion, chime: (v) => { try { [1, 1.25, 1.5].forEach((r, i) => humNote(audio, v.stone, 2 * r, i * 0.26, { level: 0.55 })); } catch { /* a chime is a nicety */ } } });
   const uM = { value: new THREE.Vector4(0, 0, 0, 0) }; // the dome's: aurora, clock, dream, resonance
   const gm = scene.getObjectByName('crystal:ground')?.material; const dome = scene.getObjectByName('crystal:dome'); const dm = dome?.material;
   if (dm) {
@@ -97,14 +99,14 @@ export function createCrystalMood({ scene, decor = null, audio = null, tier = nu
       if (catPos) {
         if (last && dt > 0) { if (Math.hypot(catPos.x - last.x, catPos.z - last.z) / dt > SONG.speed) { still = 0; on = -1; } else still += dt; }
         last = { x: catPos.x, z: catPos.z };
-        if (still >= SONG.still && on < 0) {
+        if (still >= SONG.still && on < 0 && (calm.allow('song') || still > SONG.still + 4)) {
           let bi = -1; let bd = 1e9; heroes.forEach((h, i) => { const d = Math.hypot(catPos.x - h.x, catPos.z - h.z); if (d < h.s * 0.55 + 2.4 && d < bd) { bd = d; bi = i; } });
           if (bi >= 0) { on = bi; lingAt = heroes[bi]; sing(lingAt, bi); }
         }
       }
       if (door && catPos) door.opacity = Math.min(1, Math.max(0.28, (Math.hypot(catPos.x, catPos.z - 24.5) - 1.2) / 4));
       ling = reducedMotion ? (on >= 0 ? 1 : 0) : on >= 0 ? Math.min(1, ling + dt / 1.2) : Math.max(0, ling - dt / 2.5);
-      const w = reducedMotion ? [1, 0, 0, 0] : moodAt(t); const wd = reducedMotion ? { s: 0, ang: 0 } : windAt(t);
+      const w = reducedMotion ? [1, 0, 0, 0] : moodAt(t); if (!reducedMotion) { calm.report('mood', Math.max(w[1], w[2], w[3])); calm.report('song', ling); calm.report('gold', vista.gold); calm.tick(dt); const dm0 = calm.dim('mood'); w[1] *= dm0; w[2] *= dm0; w[3] *= dm0; w[0] = Math.max(0, 1 - w[1] - w[2] - w[3]); } const wd = reducedMotion ? { s: 0, ang: 0 } : windAt(t);
       state = { mood: w, wind: wd.s, ling };
       uM.value.set(w[2], t, w[3], w[1]);
       if (U) { U.mood.value.set(w[1], w[2], w[3], wd.s); U.ling.value.set(lingAt?.x ?? 0, lingAt?.z ?? 0, ling, wd.ang); }

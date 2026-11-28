@@ -153,6 +153,15 @@ function sparkles(n, size, color, opacity, map) {
   return p;
 }
 
+// beauty pass 10: one polyphony limit for every cave voice (humNote here: chimes, songs, echoes, the voice's answers; the singing pads' own paced tone() is left alone): a note's loud body is 0.7 s, and when VOICES notes are already inside theirs a fifth is skipped, so quick successions never clip (a phrase's own 0.2 to 0.5 s steps pass)
+export const VOICES = 4;
+let live = []; let liveAc = null;
+export function claimVoice(ac, start, len) { // true when the note may sound (and then it is counted until it ends)
+  if (liveAc !== ac) { liveAc = ac; live = []; } // (a new context starts with nothing sounding)
+  const now = ac.currentTime; for (let i = live.length - 1; i >= 0; i--) if (live[i][1] <= now) live.splice(i, 1);
+  if (live.filter((v) => v[0] <= start && v[1] > start).length >= VOICES) return false;
+  live.push([start, start + len]); return true;
+}
 // One soft note, quiet, on the walk's audio context. Asks for nothing when muted (no context is requested and no node made).
 export function humNote(audio, stone = 0, ratio = 1, delay = 0, { level = 1, tail = 1 } = {}) { // (beauty pass 5: level scales the loudness, tail > 1 lengthens the echo and the ring, for the farewell when she leaves a chamber)
   if (!audio || typeof audio.getContext !== 'function' || audio.isMuted?.()) return false;
@@ -160,6 +169,7 @@ export function humNote(audio, stone = 0, ratio = 1, delay = 0, { level = 1, tai
   if (!ac) return false;
   const dest = audio.getMaster?.() ?? ac.destination;
   const now = ac.currentTime + Math.max(0, delay); // (beauty round 4: a note may start a moment later, for a rising chord)
+  if (!claimVoice(ac, now, 0.7)) return false;
   const g = ac.createGain();
   g.gain.setValueAtTime(0.0001, now);
   g.gain.exponentialRampToValueAtTime(0.03 * level, now + 0.25);

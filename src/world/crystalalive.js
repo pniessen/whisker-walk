@@ -8,6 +8,7 @@
 // Draws no Math.random (hash of the counters only). Nothing here is solid, a find or a rule.
 // =============================================================================
 
+import { calm } from './crystalcalm.js'; // pass 10
 import * as THREE from 'three';
 import { dotTexture } from './crystalparts.js';
 import { planCreatures, hueNear, ZONE_RGB } from './crystaldecor.js';
@@ -156,11 +157,11 @@ export function createCrystalAlive({ scene, decor, tier = null, reducedMotion = 
       if (reducedMotion) { points.visible = false; meteor.visible = false; beings.visible = false; return; }
       // the prismatic bloom: the front and the rainbow into the decor shader, the flare onto the crystal meshes, the chord's cue
       const bl = bloomAt(t);
-      if (U) U.bloom.value.set(bl.x, bl.env, bl.rainbow, U.bloom.value.w);
+      calm.report('bloom', bl.env); const dB = calm.dim('bloom'); if (U) U.bloom.value.set(bl.x, bl.env * dB, bl.rainbow * dB, U.bloom.value.w);
       if (bl.cyc !== lastBloom) { lastBloom = bl.cyc; if (bl.cyc >= 0) cues.bloom++; }
       if (bl.env > 0.001 || flared) {
         flared = bl.env > 0.001;
-        for (const m of pulsing) { if (low) m.color.setScalar(1 + 0.4 * bl.env); else m.color.multiplyScalar(1 + 0.4 * bl.env); }
+        for (const m of pulsing) { if (low) m.color.setScalar(1 + 0.4 * bl.env * dB); else m.color.multiplyScalar(1 + 0.4 * bl.env * dB); }
       }
       points.visible = true; beings.visible = true;
       // footsteps: a spark every ALIVE.step metres of walking; rings in the Blue Pool
@@ -191,7 +192,7 @@ export function createCrystalAlive({ scene, decor, tier = null, reducedMotion = 
         put(nSp + j, x, y + Math.max(0, 0), z, (c.rgb[0] * 0.7 + 0.3) * f, (c.rgb[1] * 0.7 + 0.3) * f, (c.rgb[2] * 0.7 + 0.3) * f);
       });
       // the falling star: a bright crystal drops from the dome ahead of her, lands in a ring of sparkle and glows a while where it fell
-      const st = starAt(t); const E = EVENTS; const o0 = nSp + nCr;
+      const st = starAt(t); const E = EVENTS; const o0 = nSp + nCr; calm.report('star', st.s >= 0 && st.s < E.starFall + E.starRest * 0.7 ? 1 : 0); const dS = calm.dim('star'); meteor.material.opacity = dS;
       if (st.cyc !== spot.cyc && st.cyc >= 0) {
         spot.cyc = st.cyc;
         const base = camera ?? null; if (base) base.getWorldDirection(tmp); else tmp.set(0, 0, -1); tmp.y = 0; if (tmp.lengthSq() < 1e-4) tmp.set(0, 0, -1); tmp.normalize();
@@ -210,7 +211,7 @@ export function createCrystalAlive({ scene, decor, tier = null, reducedMotion = 
       } else if (st.s >= E.starFall && st.s < E.starFall + E.starRest) {
         const sl = st.s - E.starFall; const rk = sl / E.starRing;
         if (lastLanded !== st.cyc) { lastLanded = st.cyc; cues.star++; }
-        const pulse = 0.65 + 0.35 * Math.sin(t * 2.1); const fade = 1 - smooth(E.starRest * 0.55, E.starRest, sl);
+        const pulse = 0.65 + 0.35 * Math.sin(t * 2.1); const fade = (1 - smooth(E.starRest * 0.55, E.starRest, sl)) * dS;
         put(o0 + 1, spot.x, fy + 0.2, spot.z, 1.3 * fade * pulse, 1.2 * fade * pulse, 1.0 * fade * pulse);
         if (nTr) { starTrail = true; mPos.fill(-999); mCol.fill(0); mPos.set([spot.x, fy + 0.35, spot.z], 0); const g = 1.3 * fade * pulse; mCol.set([1.0 * g, 0.92 * g, 0.75 * g], 0); }
         if (rk < 1) { const nr = low ? 8 : 12; for (let i = 0; i < nr; i++) { const a = (i / nr) * 6.2832; const r = 0.2 + rk * 3.4; const f = (1 - rk) * (1 - rk) * 2.0; put(o0 + 2 + i, spot.x + Math.cos(a) * r, fy + 0.12 + 0.3 * rk, spot.z + Math.sin(a) * r, 0.9 * f, 0.95 * f, 1.0 * f); } }
