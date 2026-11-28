@@ -41,42 +41,50 @@ function tri1(S, a, b, c, hex, n = [0, 0, 1], both = false) {
 
 // ---- the harbour post ---------------------------------------------------------------------------------
 const HX = 11.6; const HZ = 32.6;
+// the board's geometry 1.3 times as large about its middle (HX + 0.7, 1.35, HZ); the post and the cormorant's perch do not move
+const boardUp = (g) => { g.translate(-(HX + 0.7), -1.35, -HZ); g.scale(1.3, 1.3, 1.3); g.translate(HX + 0.7, 1.35, HZ); return g; };
 function harbourPost(kit, M) {
   kit.put('wood', M.wood, [
     bx(HX - 0.07, HX + 0.07, 0, 1.95, HZ - 0.07, HZ + 0.07, COL.post),
     bx(HX + 1.33, HX + 1.47, 0, 1.55, HZ - 0.07, HZ + 0.07, COL.post),
-    bx(HX + 0.07, HX + 1.33, 0.98, 1.72, HZ - 0.04, HZ + 0.04, 0xe9e0c4), // the board
-    bx(HX + 0.07, HX + 1.33, 1.72, 1.77, HZ - 0.05, HZ + 0.05, 0x3a6ea5), // its blue cap
+  ], { noCast: true });
+  // the board and its blue cap, bigger (pass 8: the arrival view's focal point; the same boxes, 1.3 times as large about the board's middle)
+  kit.put('wood', M.wood, [
+    boardUp(bx(HX + 0.07, HX + 1.33, 0.98, 1.72, HZ - 0.04, HZ + 0.04, 0xf4ecd2)), // the board
+    boardUp(bx(HX + 0.07, HX + 1.33, 1.72, 1.77, HZ - 0.05, HZ + 0.05, 0x2f78c4)), // its blue cap
   ], { noCast: true });
   // the pictures, painted on the board's face (+z, toward the cove)
   const S = new Soup(); const z = HZ + 0.045; const n = [0, 0, 1];
-  for (let k = 0; k < 3; k++) tri1(S, [HX + 0.2 + k * 0.17, 1.08, z], [HX + 0.285 + k * 0.17, 1.3, z], [HX + 0.37 + k * 0.17, 1.08, z], 0x3a79b4, n);
-  face(S, [HX + 0.2, 1.0, z], [HX + 0.71, 1.0, z], [HX + 0.71, 1.07, z], [HX + 0.2, 1.07, z], 0x3a79b4, n);
+  for (let k = 0; k < 3; k++) tri1(S, [HX + 0.2 + k * 0.17, 1.08, z], [HX + 0.285 + k * 0.17, 1.3, z], [HX + 0.37 + k * 0.17, 1.08, z], 0x2f78c4, n);
+  face(S, [HX + 0.2, 1.0, z], [HX + 0.71, 1.0, z], [HX + 0.71, 1.07, z], [HX + 0.2, 1.07, z], 0x2f78c4, n);
   const fx = HX + 0.98; const fy = 1.44;
   face(S, [fx - 0.18, fy, z], [fx, fy + 0.11, z], [fx + 0.18, fy, z], [fx, fy - 0.11, z], 0xe0793c, n);
   tri1(S, [fx + 0.17, fy, z], [fx + 0.3, fy + 0.11, z], [fx + 0.3, fy - 0.11, z], 0xe0793c, n);
   face(S, [fx - 0.12, fy - 0.01, z + 0.002], [fx - 0.09, fy - 0.01, z + 0.002], [fx - 0.09, fy + 0.02, z + 0.002], [fx - 0.12, fy + 0.02, z + 0.002], 0x2a211b, n);
+  kit.put('paint', M.paint, boardUp(S.geometry()), { noCast: true }); // (the pictures grow with the board; the carved initials below do not)
+  const S2 = new Soup();
   // initials carved in the post's face: two strokes and a little heart between them
   const cz = HZ + 0.072; const hx = HX; const cc = 0x3a2a1c;
-  face(S, [hx - 0.04, 1.25, cz], [hx - 0.025, 1.25, cz], [hx - 0.025, 1.42, cz], [hx - 0.04, 1.42, cz], cc, n);
-  face(S, [hx + 0.025, 1.25, cz], [hx + 0.04, 1.25, cz], [hx + 0.04, 1.42, cz], [hx + 0.025, 1.42, cz], cc, n);
-  face(S, [hx, 1.3, cz], [hx + 0.016, 1.34, cz], [hx, 1.38, cz], [hx - 0.016, 1.34, cz], 0xa23a2c, n);
-  kit.put('paint', M.paint, S.geometry(), { noCast: true });
-  // the lifebuoy on its rope: red and white by the quarter
+  face(S2, [hx - 0.04, 1.25, cz], [hx - 0.025, 1.25, cz], [hx - 0.025, 1.42, cz], [hx - 0.04, 1.42, cz], cc, n);
+  face(S2, [hx + 0.025, 1.25, cz], [hx + 0.04, 1.25, cz], [hx + 0.04, 1.42, cz], [hx + 0.025, 1.42, cz], cc, n);
+  face(S2, [hx, 1.3, cz], [hx + 0.016, 1.34, cz], [hx, 1.38, cz], [hx - 0.016, 1.34, cz], 0xa23a2c, n);
+  kit.put('paint', M.paint, S2.geometry(), { noCast: true });
+  // the lifebuoy on its rope: red and white by the quarter (pass 8: a third bigger, so it reads from the arrival)
   const bxc = HX - 0.5; const byc = 1.2;
-  const ring = new THREE.TorusGeometry(0.27, 0.075, 4, 8).translate(bxc, byc, HZ + 0.1);
+  const ring = new THREE.TorusGeometry(0.36, 0.1, 4, 8).translate(bxc, byc, HZ + 0.1);
   kit.put('paint', M.paint, paintBy(ring, (x, y) => (Math.floor(((Math.atan2(y - byc, x - bxc) + Math.PI) / (Math.PI / 4)) % 8) % 2 ? 0xf2eee4 : COL.red)), { noCast: true });
-  kit.put('wood', M.wood, bm(HX - 0.05, 1.9, HZ + 0.09, bxc, byc + 0.3, HZ + 0.1, 0.025, 0.025, COL.rope), { noCast: true });
+  kit.put('wood', M.wood, bm(HX - 0.05, 1.9, HZ + 0.09, bxc, byc + 0.4, HZ + 0.1, 0.025, 0.025, COL.rope), { noCast: true });
 }
 
 // ---- the drying rack ----------------------------------------------------------------------------------
 const RX = 23.6; const RZ = 30.6;
+const rackUp = (g) => { g.translate(-RX, 0, -RZ); g.scale(1.25, 1.25, 1.25); g.translate(RX, 0, RZ); return g; }; // (pass 8: a quarter bigger, standing on the same ground)
 function dryingRack(kit, M) {
   kit.put('wood', M.wood, [
     bx(RX - 1.25, RX - 1.15, 0, 1.7, RZ - 0.05, RZ + 0.05, COL.post),
     bx(RX + 1.15, RX + 1.25, 0, 1.7, RZ - 0.05, RZ + 0.05, COL.post),
     bm(RX - 1.28, 1.66, RZ, RX + 1.28, 1.66, RZ, 0.05, 0.05, COL.post),
-  ], { noCast: true });
+  ].map(rackUp), { noCast: true });
   const S = new Soup();
   const tones = [0xaab6c0, 0xc4ced4, 0xaab6c0, 0xe0793c];
   tones.forEach((hex, i) => {
@@ -90,7 +98,7 @@ function dryingRack(kit, M) {
     for (let s = 0; s < 3; s++) face(S, [x - 0.06, 1.64 - s * 0.1, z], [x + 0.06, 1.64 - s * 0.1, z], [x + 0.06, 1.54 - s * 0.1, z], [x - 0.06, 1.54 - s * 0.1, z], (s + i) % 2 ? 0xf2eee4 : 0xc2402f, [0, 0, 1], true);
     face(S, [x - 0.06, 1.34, z], [x + 0.14, 1.34, z], [x + 0.14, 1.26, z], [x - 0.06, 1.26, z], 0xc2402f, [0, 0, 1], true); // the foot
   });
-  kit.put('paint', M.paint, S.geometry(), { noCast: true });
+  kit.put('paint', M.paint, rackUp(S.geometry()), { noCast: true });
 }
 const shade = (hex) => new THREE.Color(hex).multiplyScalar(0.8).getHex();
 

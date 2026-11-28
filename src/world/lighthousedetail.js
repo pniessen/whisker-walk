@@ -112,12 +112,12 @@ function drawSandMore(kit, M) {
   let logs = 0;
   for (let i = 0; i < 120 && logs < 9; i++) {
     const x = 2 + 30 * h01(i, 1, 711); const z = 18 + 26 * h01(i, 2, 711);
-    if (!sandOk(x, z) || Math.hypot(x - 14, z - 36) < 1.4) continue;
+    if (!sandOk(x, z) || Math.hypot(x - 14, z - 37) < 4) continue; // (pass 8: none under the arrival camera, where a log seen along its length read as a stray dark line)
     logs++;
     const a = h01(i, 3, 711) * 3.14; const len = 0.9 + 1.1 * h01(i, 4, 711);
     const dx = Math.cos(a) * len / 2; const dz = Math.sin(a) * len / 2;
-    const r = 0.07 + 0.04 * h01(i, 5, 711);
-    const tone = [0x9a8e7a, 0x8a7f6c, 0xaaa08c][i % 3];
+    const r = 0.1 + 0.05 * h01(i, 5, 711); // (fatter and paler, pass 8: the old ones were thin and dark from a low camera)
+    const tone = [0xaa9e8a, 0x9a8f7c, 0xbab09c][i % 3];
     // a three-sided log: two lit faces and one underside left out
     const A0 = [x - dx, r * 1.1, z - dz]; const A1 = [x + dx, r * 0.9, z + dz];
     const nx = -Math.sin(a) * r; const nz = Math.cos(a) * r;

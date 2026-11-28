@@ -6,6 +6,7 @@ import { bus } from '../events.js';
 import { createLighthouseAlive } from './lighthousealive.js';
 import { createLighthouseSound } from './lighthousesound.js';
 import { createLighthouseWeather } from './lighthouseweather.js';
+import { createLighthouseVistas } from './lighthousebeauty7.js';
 import './lighthousewords.js';
 import { TOWER, GALLERY_Y, LAMP_ROOM, LEVER, LEVER_KIND, BELL_KIND, BELL, GULL_ROCK, POOLS } from './lighthouseplan.js';
 import { findAt, noteLighthouseFind } from './lighthousefinds.js';
@@ -168,6 +169,8 @@ export function createLighthouseLife(ctx = {}) {
   const sound = createLighthouseSound(audio);
   // the weather as events (lighthouseweather.js, beauty pass 6): storm, fog, the golden sunset, a starry night; its state is read by the beam and the sea
   const wx = withLocalUuids('lighthouse-weather', () => createLighthouseWeather({ scene, sun: ctx.sun ?? null, fill: ctx.fill ?? null, waterFx: ctx.waterFx ?? [], weather: ctx.weather ?? null, hour: ctx.hour, night: ctx.night ?? 0, seed, reducedMotion: !!ctx.reducedMotion, lite: lowTier, force: ctx.wx ?? (ctx.hour === undefined ? 'off' : null), waters: ctx.waters ?? [] }));
+  // the five photogenic vistas (lighthousebeauty7.js, beauty pass 7): a grade, haze and a golden moment where she stands still
+  const vistas = withLocalUuids('lighthouse-vistas', () => createLighthouseVistas({ scene, ground, reducedMotion: !!ctx.reducedMotion, lite: lowTier }));
   const alive = withLocalUuids('lighthouse-alive', () => createLighthouseAlive({ scene, reducedMotion: !!ctx.reducedMotion, tier, sound, seed, wonder: ctx.wonder ?? null, tone: ctx.tone ?? null, night: ctx.night ?? 0, wx: wx.state }));
   const looks = createFindLooks({ scene, ground, reducedMotion: !!ctx.reducedMotion });
   const cats = createKeeperCats({ scene, ground, colliders: ctx.colliders, waters: ctx.waters, sound, log, progression, roomSeed: seed, visits: ctx.visits, reducedMotion: !!ctx.reducedMotion });
@@ -322,6 +325,7 @@ export function createLighthouseLife(ctx = {}) {
       if (arm) arm.rotation.z = -ARM_SWING * smooth(lit ? (t - litAt) / ARM_TIME : 0);
       const glowK = lit ? smooth((t - litAt) / LIGHT_UP) : 0;
       wx.update(dt, t, camera, catPos, sound, beamAngle(t, seed), lit);
+      vistas.update(dt, t, catPos, wx, sound);
       placeBeam(glowK, catPos, camera);
       alive.update(dt, t, camera, beamAngle(t, seed), glowK, catPos);
       sound.beds?.(dt, catPos);
@@ -356,6 +360,7 @@ export function createLighthouseLife(ctx = {}) {
       disposed = true;
       sound.dispose();
       alive.dispose();
+      vistas.dispose();
       wx.dispose();
       offMeow?.();
       looks.dispose();

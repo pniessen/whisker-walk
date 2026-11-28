@@ -82,7 +82,7 @@ function sprite(draw, w = 32, h = 32) {
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
-const dotTex = () => sprite((x) => { const g = x.createRadialGradient(16, 16, 0, 16, 16, 16); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.4, 'rgba(255,255,255,0.65)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 32, 32); });
+export const dotTex = () => sprite((x) => { const g = x.createRadialGradient(16, 16, 0, 16, 16, 16); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.4, 'rgba(255,255,255,0.65)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 32, 32); });
 const streakTex = () => sprite((x, w, h) => { const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.7, 'rgba(255,255,255,0.8)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(w / 2 - 1, 0, 2, h); }, 16, 64);
 
 // `scene`, the walk's `sun` and `fill` (found in the scene when not handed in), the `waterFx` handles of the two seas, the `weather` the walk
@@ -308,5 +308,5 @@ export function createLighthouseWeather({ scene, sun = null, fill = null, waterF
     for (const p of [rain, dots]) { scene?.remove(p); p.geometry.dispose(); p.material.map?.dispose(); p.material.dispose(); }
   }
 
-  return { update, dispose, state, rain, dots, get counts() { return { RAIN, SPRAY, SEAP, STARS, BIO, FLASH }; } };
+  return { update, dispose, state, rain, dots, get rig() { return B; }, get counts() { return { RAIN, SPRAY, SEAP, STARS, BIO, FLASH }; } };
 }
