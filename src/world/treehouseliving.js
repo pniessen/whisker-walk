@@ -2,6 +2,7 @@
 // all pooled Points (no mesh, no triangle); the real clock sets lamps, shafts, dapple, fireflies and chime pitch; sound beds cross-fade with her height. Reduced motion draws one still frame.
 import * as THREE from 'three';
 import * as P from './treehouseplan.js';
+import { createWeather } from './treehouseweather.js';
 
 export const WIND = Object.freeze({ x: 0.8, z: 0.6 }); // the one wind: leaves, canopy gusts (treehouseglow.js), mist and the pennants' lean all agree
 const bump = (h, c, w) => Math.max(0, 1 - Math.abs(h - c) / w);
@@ -53,6 +54,8 @@ export function createLiving(ctx, env) {
   const shafts = scene.getObjectByName('treehouse:shafts') ?? null; const shaftBase = shafts?.material?.opacity ?? 0.2;
   const dapple = scene.getObjectByName('treehouse:dapple') ?? null; const dapBase = dapple?.material?.opacity ?? 0.2;
   const out2 = { flyK: 1, pitch: 1 };
+  const wx = createWeather(ctx, { hash01, rung, reducedMotion: still, dotTexture: env.dotTexture, sky, wind: WIND, aud: () => aud(), blip: (...a) => blip(...a) }); // beauty pass 6: rain, misty dawn, golden hour and the storm wind (treehouseweather.js)
+  let lampBase = 1; let shaftNow = shaftBase;
 
   function draw(t) {
     n = 0; const day = dayOn();
@@ -94,18 +97,18 @@ export function createLiving(ctx, env) {
     for (let i = 0; i < d.length; i++) { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; d[i] = s / 2147483648 - 1; }
     const src = ac.createBufferSource(); src.buffer = buf; src.loop = true;
     const mk2 = (type, f, q) => { const b = ac.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = q; const g = ac.createGain(); g.gain.value = 0; src.connect(b); b.connect(g); g.connect(audio.getMaster?.() ?? ac.destination); return g; };
-    const up = mk2('bandpass', 480, 0.5); const low = mk2('lowpass', 260, 0.7);
+    const up = mk2('bandpass', 480, 0.5); const low = mk2('lowpass', 260, 0.7); const rain = mk2('bandpass', 2800, 0.5);
     const cr = ac.createOscillator(); cr.type = 'sine'; cr.frequency.value = 4300; const lfo = ac.createOscillator(); lfo.frequency.value = 11; const lg = ac.createGain(); lg.gain.value = 0.5; const am = ac.createGain(); am.gain.value = 0.5; const cg = ac.createGain(); cg.gain.value = 0;
     lfo.connect(lg); lg.connect(am.gain); cr.connect(am); am.connect(cg); cg.connect(audio.getMaster?.() ?? ac.destination);
     src.start(); cr.start(); lfo.start();
-    return { src, cr, lfo, up, low, cg };
+    return { src, cr, lfo, up, low, cg, rain };
   }
   function beds(t, y) { // winds in the canopy up high, the forest floor (rustle, crickets) below; her height decides, smoothly
     const ac = aud();
-    if (!ac) { if (bed) { for (const g of [bed.up, bed.low, bed.cg]) g.gain.setTargetAtTime(0, ac?.currentTime ?? 0, 0.3); } return; }
+    if (!ac) { if (bed) { for (const g of [bed.up, bed.low, bed.cg, bed.rain]) g.gain.setTargetAtTime(0, ac?.currentTime ?? 0, 0.3); } return; }
     bed ??= makeBed(ac);
     const hk = sm(((Number.isFinite(y) ? y : 0) - 1.2) / 6); const now = ac.currentTime; const gust = 0.65 + 0.35 * Math.sin(t * 0.31);
-    bed.up.gain.setTargetAtTime(0.011 * hk * gust, now, 0.8); bed.low.gain.setTargetAtTime(0.01 * (1 - hk) * (0.5 + 0.5 * rh.noon), now, 0.8); bed.cg.gain.setTargetAtTime(0.0035 * (1 - 0.6 * hk) * Math.min(1, rh.night + rh.gold * 0.5), now, 1.2);
+    const wo = wx.state; bed.rain.gain.setTargetAtTime(0.011 * wo.rain * (0.4 + 0.6 * hk), now, 0.6); bed.up.gain.setTargetAtTime(0.011 * (hk * gust * (1 + 2 * wo.storm) + 1.5 * wo.storm + 0.4 * wo.rain), now, 0.8); bed.low.gain.setTargetAtTime(0.01 * (1 - hk) * (0.5 + 0.5 * rh.noon), now, 0.8); bed.cg.gain.setTargetAtTime(0.0035 * (1 - 0.6 * hk) * Math.min(1, rh.night + rh.gold * 0.5), now, 1.2);
   }
   function blip(f, at, dur, gain) { const ac = aud(); if (!ac) return; const o = ac.createOscillator(); const g = ac.createGain(); const w = ac.currentTime + at; o.type = 'sine'; o.frequency.setValueAtTime(f, w); o.frequency.exponentialRampToValueAtTime(f * 1.35, w + dur); g.gain.setValueAtTime(0.0001, w); g.gain.exponentialRampToValueAtTime(gain, w + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, w + dur); o.connect(g); g.connect(audio.getMaster?.() ?? ac.destination); o.start(w); o.stop(w + dur + 0.02); }
 
@@ -113,8 +116,8 @@ export function createLiving(ctx, env) {
   function clock() {
     rhythm(hourOf(ctx), rh);
     out2.pitch = rh.pitch; out2.flyK = 0.12 + 0.88 * Math.min(1, rh.night + rh.gold * 0.5);
-    if (sky) sky.lampK = 0.5 + 0.4 * rh.gold + 0.95 * rh.night + 0.1 * rh.dawn;
-    if (shafts?.material) shafts.material.opacity = shaftBase * (0.15 + 0.85 * Math.min(1, rh.noon + 0.5 * rh.dawn + 0.7 * rh.gold)) * (1 - 0.7 * rh.night);
+    lampBase = 0.5 + 0.4 * rh.gold + 0.95 * rh.night + 0.1 * rh.dawn;
+    shaftNow = shaftBase * (0.15 + 0.85 * Math.min(1, rh.noon + 0.5 * rh.dawn + 0.7 * rh.gold)) * (1 - 0.7 * rh.night);
     if (dapple?.material) dapple.material.opacity = dapBase * (0.45 + 0.8 * rh.noon) * (1 - 0.6 * rh.night);
     mist.visible = !lite && rh.dawn > 0.03; mist.material.opacity = 0.32 * rh.dawn;
   }
@@ -122,18 +125,23 @@ export function createLiving(ctx, env) {
   return {
     get flyK() { return out2.flyK; },
     get pitch() { return out2.pitch; },
+    get stormK() { return wx.stormK; },
     update(dt, t, catPos) {
       if (t - lastClock > 5 || lastClock < 0) { lastClock = t; clock(); }
+      wx.update(t, catPos, rh, sm(((catPos && Number.isFinite(catPos.y) ? catPos.y : 0) - 1.2) / 6));
+      if (sky) sky.lampK = lampBase * wx.lampK;
+      if (shafts?.material) shafts.material.opacity = Math.min(0.34, shaftNow * wx.shaftK);
+      if (shafts?.material?.color) shafts.material.color.setRGB(1, 1 - 0.14 * wx.state.gold, 1 - 0.42 * wx.state.gold); // the golden hour's shafts run warm
       if (!still) draw(t);
       if (catPos) beds(t, catPos.y);
       if (still || !catPos) return;
       const near = Math.hypot(catPos.x - WOOD.x, catPos.z - WOOD.z) < 24;
       const c = fr(t / 9); if (near && rh.night < 0.5 && c < 0.18 && t - tapAt > 6) { tapAt = t; for (let i = 0; i < 6; i++) blip(1700, i * 0.11, 0.05, 0.01); }
-      if (t > chirpAt && rh.dawn > 0.3 && rh.night < 0.5) { chirpAt = t + 5 + 4 * hash01(Math.floor(t), 531); for (let i = 0; i < 3; i++) blip(2300 + 260 * ((i + Math.floor(t)) % 3), i * 0.13, 0.09, 0.008); }
+      if (t > chirpAt && rh.dawn > 0.3 && rh.night < 0.5 && wx.state.rain < 0.3) { const vs = 1 + Math.floor(wx.state.mist * 5); chirpAt = t + 2.4 + 2 * hash01(Math.floor(t), 531); const f = 1700 + 280 * Math.floor(hash01(Math.floor(t), 532) * vs); for (let i = 0; i < 3; i++) blip(f + 90 * i, i * 0.13, 0.09, 0.008); } // the dawn chorus: one more bird joins as the mist thickens
     },
     dispose() {
-      scene.remove(crit, mist); geo.dispose(); crit.material.dispose(); mist.geometry.dispose(); mist.material.dispose();
-      if (bed) { for (const o of [bed.src, bed.cr, bed.lfo]) { try { o.stop(); o.disconnect(); } catch { /* gone */ } } for (const g of [bed.up, bed.low, bed.cg]) { try { g.disconnect(); } catch { /* gone */ } } bed = null; }
+      wx.dispose(); scene.remove(crit, mist); geo.dispose(); crit.material.dispose(); mist.geometry.dispose(); mist.material.dispose();
+      if (bed) { for (const o of [bed.src, bed.cr, bed.lfo]) { try { o.stop(); o.disconnect(); } catch { /* gone */ } } for (const g of [bed.up, bed.low, bed.cg, bed.rain]) { try { g.disconnect(); } catch { /* gone */ } } bed = null; }
       if (sky) sky.lampK = 1; // (the shafts and the dapple go with the area)
     },
   };
