@@ -69,7 +69,7 @@ export function drawPolish(kit, M) {
     });
     d.grass.forEach((g, j) => { // a tuft: two thin blades leaning out
       for (let k = 0; k < 2; k++) {
-        const blade = new THREE.ConeGeometry(0.06 * g.s, 0.95 * g.s, 3).translate(0, 0.475 * g.s, 0).rotateZ(0.22).rotateY((k / 2) * 6.28 + j);
+        const blade = new THREE.ConeGeometry(0.06 * g.s, 0.95 * g.s, 3, 1, true).translate(0, 0.475 * g.s, 0).rotateZ(0.22).rotateY((k / 2) * 6.28 + j);
         put(stand(blade, d.x + g.dx, d.z + g.dz, -0.02), GREENS[(j + k) % 3], k);
       }
     });
@@ -91,7 +91,7 @@ export function drawPolish(kit, M) {
     const acc = ZONE_ACCENT[zoneNear(k.x, k.z)];
     for (let r = 0; r < 4; r++) {
       const a = (r / 4) * 6.28 + i;
-      const root = new THREE.ConeGeometry(0.16 * k.s, 1.3 * k.s, 4).scale(1, 1, 0.5).translate(0, 0.65 * k.s, 0).rotateZ(1.2).rotateY(a);
+      const root = new THREE.ConeGeometry(0.16 * k.s, 1.3 * k.s, 4, 1, true).scale(1, 1, 0.5).translate(0, 0.65 * k.s, 0).rotateZ(1.2).rotateY(a);
       put(stand(root, k.x, k.z, 0), COL.trunk, r);
     }
     const ay = i * 2.1;
