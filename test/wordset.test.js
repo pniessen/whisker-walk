@@ -63,7 +63,7 @@ describe('the word file has one door', () => {
   });
 
   it('wordset.js imports the word file and nothing else, and the word file imports nothing', () => {
-    expect(importsOf(read('src/wordset.js'))).toEqual(['./clanwords.js', './clanwords.js']);
+    expect(importsOf(read('src/wordset.js'))).toEqual(['./clanwords.js', './wordids.js', './wordids.js']);
     expect(importsOf(read('src/clanwords.js'))).toEqual([]);
   });
 
@@ -104,11 +104,10 @@ describe('the mode and the sets', () => {
     for (const name of TABLES) expect(words()[name], name).toBe(on[name]);
     expect(words().PHRASES).toBeUndefined();
     // every table of the word file is on the list, bar the ids, the spares and the optional drawings
-    expect([...TABLES, 'RANK_KEYS', 'HOMAGE_CHOICES', 'EMBLEMS'].sort()).toEqual(Object.keys(on).sort());
+    expect([...TABLES, 'HOMAGE_CHOICES', 'EMBLEMS'].sort()).toEqual(Object.keys(on).sort());
   });
 
   it('the ids are not words: they are the same in every set', () => {
-    expect(RANK_KEYS).toBe(on.RANK_KEYS);
     expect(GROUP_KEY).toBe(on.CLAN_SUFFIX.toLowerCase());
     withStandInWords(() => {
       expect(GROUP_KEY).toBe(on.CLAN_SUFFIX.toLowerCase());

@@ -6,7 +6,7 @@ import {
 } from '../src/clancats.js';
 import { castFor, clanCountFor, lonersFor, roamHomes, RANK_SCALE, CLAN_COATS, ROAM_SLOTS, ROAM_RADIUS } from '../src/clancast.js';
 import { campLayout } from '../src/world/camp.js';
-import { RANK_KEYS } from '../src/clanwords.js';
+import { RANK_KEYS } from '../src/wordids.js';
 import { createStrayCats, strayStream, CAT_NAMES } from '../src/straycats.js';
 import { buildCat } from '../src/cat/model.js';
 

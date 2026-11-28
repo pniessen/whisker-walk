@@ -42,24 +42,14 @@
 // A leaf like clanwords.js: it imports that file only, so anything may import
 // it without a cycle and without THREE.
 import * as on from './clanwords.js';
+import { SET_SHAPE, shapeProblem, SERIES_ON } from './wordids.js';
 
-// Ids for every rank and role: never shown, the same whatever the words are.
-export { RANK_KEYS } from './clanwords.js';
+// Ids for every rank and role, the group key and the set ids: never shown, the
+// same whatever the words are (wordids.js).
+export { RANK_KEYS, GROUP_KEY, SERIES_ON, SERIES_OFF } from './wordids.js';
 
-// The word the page's own names are built with (button attributes, the "have
-// you seen the question" storage key). Never shown to a player, and it does
-// NOT follow the mode: a storage key that changed with the words would forget
-// what a device has already seen.
-export const GROUP_KEY = on.CLAN_SUFFIX.toLowerCase();
-
-// The tables every set must have.
-export const TABLES = Object.freeze([
-  'PREFIXES', 'CAT_PREFIXES', 'RIVAL_PREFIXES', 'WARRIOR_SUFFIXES', 'RANK_SUFFIX', 'CLAN_SUFFIX',
-  'RANK_WORDS', 'OUTSIDE_WORDS', 'PLACE_WORDS', 'DENIED_NAMES', 'HOMAGE_PREFIXES', 'HOME_LINES',
-  'CLAN_CAT_PREFIXES',
-]);
-
-export const SERIES_ON = 'on';
+// The tables every set must have (the shape is wordids.js SET_SHAPE).
+export const TABLES = Object.freeze(Object.keys(SET_SHAPE));
 
 const SETS = new Map([[SERIES_ON, on]]);
 let mode = SERIES_ON;
@@ -98,29 +88,13 @@ export function rankWord(key) {
   return words().RANK_WORDS[rankShown(key)];
 }
 
-const keysOf = (v) => (v && typeof v === 'object' && !(v instanceof Set) ? Object.keys(v) : []);
-
 // Adds a set under `id`. It must be complete: every table, and inside each
-// keyed table every key the 'on' set has (a rank with no word would print
+// keyed table every key the shape lists (a rank with no word would print
 // "undefined" on a tag). Throws otherwise, so a half-written set never loads.
 export function addWordSet(id, set) {
   if (typeof id !== 'string' || id === '' || SETS.has(id)) throw new Error(`Whisker Walk: word set id "${id}" is empty or taken`);
-  if (!set || typeof set !== 'object') throw new Error(`Whisker Walk: word set "${id}" is not a table`);
-  for (const name of TABLES) {
-    const mine = set[name];
-    const theirs = on[name];
-    if (mine == null || typeof mine !== typeof theirs || Array.isArray(mine) !== Array.isArray(theirs)) {
-      throw new Error(`Whisker Walk: word set "${id}" has no ${name}`);
-    }
-    if (Array.isArray(theirs)) continue;
-    for (const k of keysOf(theirs)) {
-      if (!Object.hasOwn(mine, k)) throw new Error(`Whisker Walk: word set "${id}" has no ${name}.${k}`);
-      if (Array.isArray(theirs[k]) && !(Array.isArray(mine[k]) && mine[k].length === theirs[k].length)) {
-        throw new Error(`Whisker Walk: word set "${id}" has the wrong number of ${name}.${k}`);
-      }
-    }
-  }
-  if (set.PREFIXES.length !== on.PREFIXES.length) throw new Error(`Whisker Walk: word set "${id}" has the wrong number of PREFIXES`);
+  const problem = shapeProblem(set);
+  if (problem) throw new Error(`Whisker Walk: word set "${id}" has ${problem}`);
   SETS.set(id, set);
 }
 

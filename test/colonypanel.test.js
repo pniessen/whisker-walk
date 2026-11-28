@@ -9,7 +9,8 @@ import { emptyColony, TAME_FEEDS, COLONY_MAX, SOLO_MAX } from '../src/colony.js'
 import { CAT_NAMES, KIT_NAMES, strayBreed } from '../src/straynames.js';
 import { CATALOG } from '../src/progression.js';
 import { clanNameOf } from '../src/clannames.js';
-import { RANK_WORDS, RANK_KEYS, PLACE_WORDS, CLAN_SUFFIX } from '../src/clanwords.js';
+import { RANK_WORDS, PLACE_WORDS, CLAN_SUFFIX } from '../src/clanwords.js';
+import { RANK_KEYS } from '../src/wordids.js';
 import { roleFor } from '../src/clanroles.js';
 
 const ME = 'me-player-0001';

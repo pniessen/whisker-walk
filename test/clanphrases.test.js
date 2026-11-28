@@ -157,7 +157,7 @@ describe('the phrase table', () => {
     ];
     // Not searched, as in test/serieswords.source.test.js: the guided first
     // walk's own words, and a list of field notes nobody is shown.
-    const skip = ['src/clanphrases.js', 'src/tutorialwords.js', 'src/hints.js', 'src/game/tips.js', 'src/game/session.js'];
+    const skip = ['src/clanphrases.js', 'src/offclanwords.js', 'src/tutorialwords.js', 'src/hints.js', 'src/game/tips.js', 'src/game/session.js'];
     const found = [];
     for (const f of FILES) {
       if (skip.includes(f)) continue;

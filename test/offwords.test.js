@@ -588,7 +588,7 @@ describe('6. the list of names to keep away from is not consulted', () => {
     expect(on.DENIED_NAMES.size).toBeGreaterThan(100);
     // every use of the list in src/ reads the set in use, so an empty list IS "not consulted"
     for (const f of FILES) {
-      if (f.endsWith('clanwords.js') || f === 'src/wordset.js') continue;
+      if (f.endsWith('clanwords.js') || f === 'src/wordset.js' || f === 'src/wordids.js') continue;
       const code = read(f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
       for (const m of code.matchAll(/^.*\bDENIED_NAMES\b.*$/gm)) expect(m[0], f).toMatch(/words\(\)|DENIED_NAMES\.has\(/);
     }

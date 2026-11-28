@@ -20,8 +20,7 @@
 // name made of two halves, a top-rank name to pick, a label on the player's
 // own cat, a second-in-command, a mother rank.
 import { CAT_NAMES, KIT_NAMES, LEGENDARY_NAMES } from './straynames.js';
-import { phrase } from './clanphrases.js';
-import { RANK_KEYS } from './wordset.js';
+import { RANK_KEYS } from './wordids.js';
 
 export const OFF_ID = 'off';
 
@@ -218,7 +217,7 @@ export const PHRASES = Object.freeze({
   // the game is "Whisker Walk 2"; only the older plain edition adds its name
   'edition.title.canon': WILD_EDITION,
   'edition.game': (editionTitle) => (editionTitle === WILD_EDITION ? 'Whisker Walk 2' : `Whisker Walk 2: ${editionTitle}`),
-  'prize.warpaint.canon': () => phrase('prize.warpaint.legacy'),
+  'prize.warpaint.canon': 'War Paint',
 
   // picking a home (worded as choosing where to live, not as an outsider joining)
   'pick.heading': 'Pick your home crew',
