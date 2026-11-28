@@ -297,7 +297,7 @@ describe('the fair reacts to her (beauty pass 3)', () => {
     const sc = new THREE.Scene();
     const a = createFairAlive({ scene: sc });
     const pts = []; sc.traverse((o) => { if (o.isPoints) pts.push(o); });
-    expect(pts.length).toBe(12); // pass 3 and 4's five, the balloon's basket, pass 5's six
+    expect(pts.length).toBe(13); // pass 3 and 4's five, the balloon's basket, pass 5's six, pass 7's vista pool
     expect(sc.children.some((c) => c.isMesh)).toBe(false);
     let moved = 0;
     for (let i = 0; i < 90; i++) { a.update(1 / 30, 5000 + i / 30, { x: i * 0.06, z: 20 }, 1, 2); }

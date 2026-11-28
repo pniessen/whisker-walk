@@ -228,6 +228,13 @@
     'p6-bales': () => frameCat(-19.2, 36.2, [-20.4, 39.3]),
     'p6-sky': () => frameCat(0.5, 24, [0, -30]),
     'p6-plaza': () => frameCat(1.4, 17, [0, 0]),
+    // beauty pass 7: photogenic vistas at the play camera (?hold=seconds stands her still that long first: the golden moment is 3+ s)
+    'p7-at': () => { const q = (params.get('at') || '0,40,0,0').split(',').map(Number); frameCat(q[0], q[1], [q[2], q[3]]); },
+    'p7-gate': () => frameCat(0, 43, [0, -30]),
+    'p7-carousel': () => frameCat(1.5, 10.5, [0, 0]),
+    'p7-boat': () => frameCat(33, 46, [29, 38.5]),
+    'p7-booths': () => frameCat(-0.8, 31, [-5.7, 26]),
+    'p7-hay': () => frameCat(-18.2, 35.6, [-21.9, 40.1]),
     'run-midway': () => frameCat(1.5, 30, [0, 20]),
     'run-plaza': () => frameCat(-9, 12, [-3, 4]),
   };
@@ -273,6 +280,8 @@
     } else {
       s();
       for (let i = 0; i < 60; i++) { step(1 / 30); }
+      const hold = Number(params.get('hold') || 0);
+      if (hold) for (let i = 0; i < hold * 30; i++) { s(); step(1 / 30); }
       s();
     }
     render();
