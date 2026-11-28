@@ -88,6 +88,16 @@ export const CHATTER = Object.freeze({
 //   * THE CHIME: two quiet high tones when she comes within `near` of a stall's middle, at most once in `gap` s.
 export const DAYPART = Object.freeze({ every: Object.freeze([2.2, 5]), until: 0.45, ear: 11, murmur: 0.8, quick: 0.5 });
 export const CHIME = Object.freeze({ near: 2.3, gap: 7, gain: 0.014, f: Object.freeze([1760, 2637]), ring: 0.5 });
+// Beauty pass 5: the sound beds, one per zone, that cross-fade as she walks (the fountain's water, the flower stall's
+// bees, the fish stall's gulls, the bakery's bells), each a gain that eases toward her nearness to its spot
+// (ZONES.ease s), and the greeting chime the first time she comes up to a stall.
+export const ZONES = Object.freeze({
+  ease: 0.45, water: Object.freeze({ at: Object.freeze({ x: 0, z: 0 }), ear: 11, gain: 0.014 }),
+  bees: Object.freeze({ id: 'flowers', ear: 6, gain: 0.0045 }),
+  gulls: Object.freeze({ id: 'fish', ear: 13, gain: 0.02, every: Object.freeze([3.5, 7]) }),
+  bells: Object.freeze({ id: 'baker', ear: 11, gain: 0.014, every: Object.freeze([8, 15]) }),
+  greet: Object.freeze({ near: 2.6, f: Object.freeze([523.25, 659.25, 783.99]), gain: 0.02 }),
+});
 const BIRD_N = 40;
 const LOOKAHEAD = 0.1; // s: a note is made this far ahead of its time
 const LATE = 0.2; // s: a note this late (a long frame) is skipped, not played
@@ -109,7 +119,7 @@ const dist = (a, b) => Math.hypot(a.x - b.x, (a.y ?? 0) - (b.y ?? 0), a.z - b.z)
 // with `pos` or `group.position`, skipped while `flying` or `fleeing`;
 // `musician` their pitch ({ x, z }) or null; `stalls` the four treat stalls'
 // middles ({ x, z }). `t` (the walk's seconds) is not read: the clocks run on dt.
-export function createMarketSound(audio, { pigeons = [], musician = null, stalls = [], chimes = [] } = {}) {
+export function createMarketSound(audio, { pigeons = [], musician = null, stalls = [], chimes = [], zones = null } = {}) {
   let walk = 0;
   let ac = null;
   let master = null;
@@ -299,6 +309,54 @@ export function createMarketSound(audio, { pigeons = [], musician = null, stalls
     }
   }
 
+  // The beds: two always-on voices (the water's hush, the bees' hum) whose gains ease toward her nearness, and two that
+  // call now and then (a gull's cry, a bakery bell) at that loudness. All off while muted.
+  const bed = { made: false, water: null, bees: null, wGain: 0, bGain: 0, gullDue: 0, bellDue: 0, gullN: 0, bellN: 0, greeted: false };
+  function makeBeds(c) {
+    bed.made = true;
+    try {
+      const src = c.createBufferSource();
+      src.buffer = noiseBuffer(c);
+      src.loop = true;
+      const lp = c.createBiquadFilter();
+      lp.type = 'bandpass';
+      lp.frequency.value = 1900;
+      lp.Q.value = 0.45;
+      const g = c.createGain();
+      g.gain.value = 0;
+      src.connect(lp).connect(g).connect(master);
+      src.start();
+      bed.water = { src, g };
+      const o = c.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.value = 190;
+      const lfo = c.createOscillator();
+      lfo.frequency.value = 23;
+      const lg = c.createGain();
+      lg.gain.value = 9;
+      lfo.connect(lg).connect(o.frequency);
+      const bp = c.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = 380;
+      bp.Q.value = 3;
+      const g2 = c.createGain();
+      g2.gain.value = 0;
+      o.connect(bp).connect(g2).connect(master);
+      o.start();
+      lfo.start();
+      bed.bees = { o, lfo, g: g2 };
+    } catch {
+      bed.water = bed.bees = null; // no beds on a context that cannot make them; the rest plays on
+    }
+  }
+  const ease = (node, to, now) => {
+    try {
+      node.gain.setTargetAtTime(to, now, ZONES.ease);
+    } catch {
+      // an odd node: leave it
+    }
+  };
+
   return {
     update(dt, catPos) {
       if (gone) return;
@@ -382,9 +440,66 @@ export function createMarketSound(audio, { pigeons = [], musician = null, stalls
     setPart(p) {
       if (Number.isFinite(p)) part = Math.min(1, Math.max(0, p));
     },
+    // beauty pass 5: the zone beds' gains for her spot this frame (marketlife.js, every frame)
+    zones(dt, catPos) {
+      if (gone || !zones) return;
+      const quiet = muted() || !catPos;
+      const c = bus();
+      if (!c) return;
+      try {
+        if (!bed.made) makeBeds(c);
+        const now = c.currentTime;
+        const w = quiet ? 0 : ZONES.water.gain * loudness(Math.hypot(catPos.x - ZONES.water.at.x, catPos.z - ZONES.water.at.z), ZONES.water.ear);
+        const b = quiet ? 0 : ZONES.bees.gain * loudness(dist(catPos, zones.bees), ZONES.bees.ear);
+        if (bed.water) ease(bed.water.g, w, now);
+        if (bed.bees) ease(bed.bees.g, b, now);
+        if (quiet) return;
+        if (walk >= bed.gullDue) {
+          const l = loudness(dist(catPos, zones.gulls), ZONES.gulls.ear);
+          if (l > 0) chirp(CALLS.gull, l * ZONES.gulls.gain / CALLS.gull.gain);
+          bed.gullN++;
+          bed.gullDue = walk + gapOf(60 + bed.gullN % 7, bed.gullN, ZONES.gulls.every);
+        }
+        if (walk >= bed.bellDue) {
+          const l = loudness(dist(catPos, zones.bells), ZONES.bells.ear);
+          if (l > 0) {
+            withBus((cc, n0) => {
+              tone(cc, 'sine', 1318, 1318, n0, 1.1, 0.004, ZONES.bells.gain * l);
+              tone(cc, 'sine', 1760, 1760, n0 + 0.5, 1.0, 0.004, ZONES.bells.gain * l * 0.7);
+            });
+          }
+          bed.bellN++;
+          bed.bellDue = walk + gapOf(70 + bed.bellN % 7, bed.bellN, ZONES.bells.every);
+        }
+      } catch {
+        bed.water = bed.bees = null;
+      }
+    },
+    // the arrival: a soft flutter of wings (bright quick sines) as the pigeons go up
+    arrive() {
+      if (gone || muted()) return;
+      withBus((c, now) => {
+        for (let i = 0; i < 6; i++) tone(c, 'triangle', 300 + i * 40, 520 + i * 30, now + i * 0.06, 0.16, 0.01, 0.006);
+      });
+    },
+    // the first stall she comes up to says hello with three rising notes; true once it has played
+    greetNear(catPos) {
+      if (gone || muted() || !catPos || !zones) return false;
+      const hit = chimes.some((q) => dist(catPos, q) < ZONES.greet.near);
+      if (!hit) return false;
+      withBus((c, now) => {
+        ZONES.greet.f.forEach((f, i) => tone(c, 'sine', f, f, now + i * 0.11, 0.7, 0.006, ZONES.greet.gain));
+      });
+      return true;
+    },
     dispose() {
       hush();
       gone = true;
+      for (const v of [bed.water, bed.bees]) {
+        if (!v) continue;
+        for (const n of [v.src, v.o, v.lfo]) { try { n?.stop(); n?.disconnect(); } catch { /* done */ } }
+        try { v.g.disconnect(); } catch { /* done */ }
+      }
     },
     // How many sounds are sounding (or queued) now.
     get playing() {

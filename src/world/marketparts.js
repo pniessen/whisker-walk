@@ -731,7 +731,7 @@ export function addFlutter(material, kind, react = null) {
 }`;
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
-    if (react) { shader.uniforms.uMkCat = react.uMkCat; shader.uniforms.uMkSway = react.uMkSway; }
+    if (react) { shader.uniforms.uMkCat = react.uMkCat; shader.uniforms.uMkSway = react.uMkSway; shader.uniforms.uMkDay = react.uMkDay; shader.uniforms.uMkSt = react.uMkSt; shader.uniforms.uMkStC = react.uMkStC; }
     // beauty pass 4: the bunting's pictures (a paw, a fish, a mouse: the map's alpha is the flag's ground, 0 where the
     // picture is, inked cream on a dark flag and brown on a pale one) and the winter frost on the awnings' upper faces
     if (kind === 'flags') {
@@ -745,13 +745,30 @@ export function addFlutter(material, kind, react = null) {
     diffuseColor.a = 1.0;
   }
 #endif`);
+      if (react) {
+        // beauty pass 5: near a stall the bunting takes its hue (the stall's colour identity runs up from its awning), and the
+        // evening dims it with the rest
+        shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vMkWf;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvMkWf = (modelMatrix * vec4(position, 1.0)).xyz;');
+        shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vMkWf;\nuniform vec2 uMkDay;\nuniform vec4 uMkSt[10];\nuniform vec3 uMkStC[10];')
+          .replace('#include <color_fragment>', `#include <color_fragment>
+  {
+    vec3 c = diffuseColor.rgb;
+    float lum = dot(c, vec3(0.3, 0.59, 0.11));
+    for (int i = 0; i < 10; i++) {
+      float k = (1.0 - smoothstep(2.0, 6.5, length(vMkWf.xz - uMkSt[i].xy))) * 0.62 * smoothstep(0.08, 0.2, lum);
+      c = mix(c, uMkStC[i] * (0.55 + 0.7 * lum), k);
+    }
+    diffuseColor.rgb = c * mix(vec3(1.0), vec3(0.78, 0.76, 0.9), uMkDay.y);
+  }`);
+      }
     } else if (react && react.uMkSea) {
+      shader.uniforms.uMkDay = react.uMkDay;
       shader.uniforms.uMkSea = react.uMkSea;
       shader.vertexShader = shader.vertexShader
         .replace('#include <common>', '#include <common>\nvarying vec3 vMkN2;\nvarying vec3 vMkW2;')
         .replace('#include <begin_vertex>', '#include <begin_vertex>\nvMkN2 = normalize(mat3(modelMatrix) * objectNormal);\nvMkW2 = (modelMatrix * vec4(position, 1.0)).xyz;');
       shader.fragmentShader = shader.fragmentShader
-        .replace('#include <common>', '#include <common>\nvarying vec3 vMkN2;\nvarying vec3 vMkW2;\nuniform vec4 uMkSea;')
+        .replace('#include <common>', '#include <common>\nvarying vec3 vMkN2;\nvarying vec3 vMkW2;\nuniform vec4 uMkSea;\nuniform vec2 uMkDay;')
         .replace('#include <map_fragment>', `#include <map_fragment>
   {
     vec3 c = diffuseColor.rgb;
@@ -759,6 +776,8 @@ export function addFlutter(material, kind, react = null) {
     float up = smoothstep(0.35, 0.75, abs(vMkN2.y));
     float grain = 0.5 + 0.5 * sin(vMkW2.x * 9.0 + sin(vMkW2.z * 7.0) * 2.0) * sin(vMkW2.z * 11.0);
     c = mix(c, vec3(0.9, 0.95, 1.0), uMkSea.y * up * smoothstep(0.15, 0.55, grain) * 0.75);
+    // beauty pass 5: the awnings are lifted open in the morning, and dim and cool as the stalls close at dusk
+    c *= (1.0 + 0.12 * uMkDay.x) * mix(vec3(1.0), vec3(0.62, 0.6, 0.8), uMkDay.y);
     diffuseColor.rgb = c;
   }`);
     }
@@ -772,7 +791,7 @@ float mkNear() { return 1.0 + uMkSway * 2.4 * (1.0 - smoothstep(0.8, 4.5, length
       .replace('#include <begin_vertex>', `#include <begin_vertex>
 ${body}`);
   };
-  material.customProgramCacheKey = () => `market-flutter-${kind}-v2${react ? 'r' : ''}`;
+  material.customProgramCacheKey = () => `market-flutter-${kind}-v3${react ? 'r' : ''}`;
   material.userData.flutter = uniforms;
   return uniforms;
 }
