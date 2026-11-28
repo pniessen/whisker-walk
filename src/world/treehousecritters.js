@@ -171,7 +171,7 @@ export function chimeNote(audio, k = 0, pitch = 1) {
   return true;
 }
 // The creak of a plank: a low triangle wave sliding down a little through a lowpass, a touch lower on every other step.
-export function creakNote(audio, k = 0) {
+export function creakNote(audio, k = 0, loud = 1) {
   const ac = soundCtx(audio);
   if (!ac) return false;
   const now = ac.currentTime;
@@ -179,7 +179,7 @@ export function creakNote(audio, k = 0) {
   const f = k % 2 ? 118 : 142;
   o.type = 'triangle'; o.frequency.setValueAtTime(f, now); o.frequency.exponentialRampToValueAtTime(f * 0.7, now + 0.26);
   flt.type = 'lowpass'; flt.frequency.value = 520; flt.Q.value = 2.5;
-  g.gain.setValueAtTime(0.0001, now); g.gain.exponentialRampToValueAtTime(0.012, now + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, now + 0.3);
+  g.gain.setValueAtTime(0.0001, now); g.gain.exponentialRampToValueAtTime(0.012 * loud, now + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, now + 0.3);
   o.connect(flt); flt.connect(g); g.connect(audio.getMaster?.() ?? ac.destination);
   o.start(now); o.stop(now + 0.32);
   return true;
@@ -397,7 +397,7 @@ export function createTreehouseCritters(ctx) {
     }
     F.g.attributes.position.needsUpdate = true; F.g.attributes.color.needsUpdate = true; L.g.attributes.position.needsUpdate = true; L.g.attributes.color.needsUpdate = true;
   }
-  let arrived = false; let arriveAt = -99; let nextChime = CHIME_GAP.first; let nearUntil = 0; let wasNear = false; let chimes = 0; let steps = 0; let walked = 0; let lx = 0; let lz = 0; let have = false;
+  let arrived = false; let arriveAt = -99; let stormChime = 0; let nextChime = CHIME_GAP.first; let nearUntil = 0; let wasNear = false; let chimes = 0; let steps = 0; let walked = 0; let lx = 0; let lz = 0; let have = false;
   return {
     rung,
     spottable,
@@ -415,6 +415,7 @@ export function createTreehouseCritters(ctx) {
       living.update(dt, t, catPos);
       if (t - arriveAt < 2.7) L.o.material.size = 0.46 + (reducedMotion ? 0 : 0.6 * Math.max(0, 1 - (t - arriveAt) / 2.6)); // the leaves swell for a breath
       if (!arrived && catPos && catPos.y > WOOD_Y) { arrived = true; if (burst) { showerAt = t; sx = catPos.x; sy = catPos.y; sz = catPos.z; } chimeNote(audio, 3, living.pitch); arriveAt = t; } // her first step onto a platform: leaves swirl and a chime
+      if (living.stormK > 0.3 && t >= stormChime) { stormChime = t + 1.7 + 1.2 * hash01(chimes, 33); chimeNote(audio, chimes + 3, living.pitch); chimeNote(audio, chimes + 5, living.pitch * 1.0595); chimes++; } // the storm sets the chimes clashing (a note and its neighbour a semitone up)
       if (t >= nextChime) { chimeNote(audio, chimes, living.pitch); chimes++; nextChime = t + CHIME_GAP.min + CHIME_GAP.span * hash01(chimes, 32); } // (the schedule runs on while muted: no catching up)
       if (catPos && Number.isFinite(catPos.y)) { // a brush past a wind chime sets it ringing (once on coming near, then not again for a few seconds)
         const near = nearChime(catPos.x, catPos.y, catPos.z);
@@ -428,7 +429,7 @@ export function createTreehouseCritters(ctx) {
           walked += moved;
           if (walked >= STEP_METRES) {
             walked -= STEP_METRES;
-            if (Number.isFinite(catPos.y) ? catPos.y > WOOD_Y : nearBridge(catPos.x, catPos.z)) creakNote(audio, steps++); // only on the wood
+            if (Number.isFinite(catPos.y) ? catPos.y > WOOD_Y : nearBridge(catPos.x, catPos.z)) creakNote(audio, steps++, 1 + 2.2 * living.stormK); // only on the wood (louder in the storm wind)
           }
         } else walked = 0;
       }

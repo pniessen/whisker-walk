@@ -53,6 +53,7 @@ uniform float uTime;
 uniform float uSway;
 uniform vec4 uCat;
 uniform vec3 uReact;
+uniform vec4 uWx;
 varying vec3 vTw;
 varying vec3 vNw;
 varying float vGf;`;
@@ -66,7 +67,7 @@ const BEGIN_VERT = (leaves) => `#include <begin_vertex>
   float ring = smoothstep(${FLEX.near.toFixed(1)}, ${(FLEX.near + 0.7).toFixed(1)}, fd) * (1.0 - smoothstep(${(FLEX.far - 1.4).toFixed(1)}, ${FLEX.far.toFixed(1)}, fd));
   float lvl = 1.0 - smoothstep(0.25, ${FLEX.band.toFixed(2)}, abs(w0.y - uCat.y));
   transformed.y -= ${FLEX.dip.toFixed(3)} * uReact.x * ring * lvl * (0.55 + 0.45 * sin(uTime * 11.0 - fd * 5.0));`}
-  ${leaves ? `float h = smoothstep(${GUST.from.toFixed(1)}, ${GUST.to.toFixed(1)}, w0.y) * uSway;
+  ${leaves ? `float h = smoothstep(${GUST.from.toFixed(1)}, ${GUST.to.toFixed(1)}, w0.y) * uSway * (1.0 + 0.6 * uWx.x + 2.4 * uWx.w);
   float front = pow(0.5 + 0.5 * sin(dot(w0.xz, vec2(0.8, 0.6)) * 0.09 - uTime * 0.7), 3.0) * uSway;
   vGf = front;
   float gust = (0.55 + 0.45 * sin(uTime * 0.31 + w0.x * 0.045 + w0.z * 0.03)) * (1.0 + 1.6 * front);
@@ -74,7 +75,8 @@ const BEGIN_VERT = (leaves) => `#include <begin_vertex>
   float b = sin(uTime * 1.13 + w0.z * 0.7 - w0.x * 0.3);
   transformed.x += a * ${GUST.amp.toFixed(2)} * h * gust;
   transformed.z += b * ${GUST.amp.toFixed(2)} * h * gust;
-  transformed.y += a * 0.03 * h * gust;
+  transformed.y += a * 0.03 * h * gust - 0.07 * uWx.x * h - 0.05 * uWx.w * h; // WEATHER: the rain bows the boughs, the storm leans them down the wind
+  transformed.xz += vec2(0.8, 0.6) * 0.1 * uWx.w * h * (0.7 + 0.3 * sin(uTime * 2.3 + w0.x * 0.4));
   // SHIVER: leaves near her shake as she brushes them (uReact.y), the harder after a landing
   float sd = length(w0 - uCat.xyz - vec3(0.0, 1.6, 0.0));
   float sh = (1.0 - smoothstep(1.0, ${SHIVER.reach.toFixed(1)}, sd)) * uReact.y * h;
@@ -207,6 +209,8 @@ uniform float uTime;
 uniform vec4 uSeason;
 uniform float uRain;
 uniform vec3 uRainDir;
+uniform vec4 uWx;
+uniform vec2 uWx2;
 varying vec3 vTw;
 varying vec3 vNw;
 varying float vGf;
@@ -221,12 +225,19 @@ const EMISSIVE_FRAG = (leaves) => `#include <emissivemap_fragment>
     float f = clamp(dot(normalize(vNw), -normalize(d + vec3(0.0, 0.001, 0.0))) * 0.6 + 0.45, 0.0, 1.0);
     pool += a * a * f * uLamp[i].w;
   }
-  totalEmissiveRadiance += (base * 1.1 + vec3(0.05, 0.025, 0.0)) * vec3(1.0, 0.62, 0.26) * pool * 1.5;
+  totalEmissiveRadiance += (base * 1.1 + vec3(0.05, 0.025, 0.0)) * vec3(1.0, 0.62, 0.26) * pool * (1.5 + 1.1 * uWx.x + 0.5 * uWx.z + 0.4 * uWx.y);
   totalEmissiveRadiance += base * talGlow * 0.9; // the lantern-lit board lights itself
   // WINTER GLINTS: tiny frost sparkles on what faces up
   vec2 gp = vTw.xz * 6.0; vec2 gc = floor(gp); float gh = fract(sin(dot(gc, vec2(12.9898, 78.233))) * 43758.5453);
   float gl = step(0.88, gh) * smoothstep(0.3, 0.0, length(fract(gp) - 0.5)) * pow(0.5 + 0.5 * sin(uTime * 2.3 + gh * 80.0), 6.0); // a few round specks at a time, each on its own beat
   totalEmissiveRadiance += vec3(0.8, 0.92, 1.0) * gl * uSeason.w * smoothstep(0.6, 1.0, vNw.y) * 2.2;
+  // WEATHER (treehouseweather.js): puddle rings on what faces up, a far flash of lightning
+  if (uWx.x > 0.001 && vNw.y > 0.8) {
+    vec2 pc = vTw.xz * 3.0; vec2 cc = floor(pc); float ph0 = fract(sin(dot(cc, vec2(12.9898, 78.233))) * 43758.5453);
+    float ph = fract(uTime * 0.6 + ph0 * 7.0); float rd = length(fract(pc) - 0.5 + (vec2(fract(ph0 * 13.0), fract(ph0 * 29.0)) - 0.5) * 0.3);
+    totalEmissiveRadiance += vec3(0.62, 0.74, 0.86) * smoothstep(0.045, 0.0, abs(rd - ph * 0.5)) * (1.0 - ph) * step(0.6, ph0) * uWx.x * 0.6;
+  }
+  totalEmissiveRadiance += base * vec3(0.55, 0.6, 0.9) * uWx2.y * 0.9;
   // RAINBOW: a band of colour round a point low in the north (red outside, violet inside), laid over the leaves and walls it crosses
   if (uRain > 0.001) {
     vec3 vdir = normalize(vTw - cameraPosition);
@@ -246,6 +257,11 @@ float talGlow = 0.0;
   diffuseColor.rgb *= 1.0 - 0.3 * smoothstep(0.05, 0.85, cl) * up;
   diffuseColor.rgb *= 1.0 + 0.16 * smoothstep(-0.3, -0.9, cl) * up;
   ${leaves ? 'diffuseColor.rgb *= 1.0 + 0.22 * vGf;' : ''}
+  // WEATHER: rain darkens and cools, steam after it lifts off the leaves, the golden hour leans warm, the dawn greys the far side
+  diffuseColor.rgb *= 1.0 - 0.2 * uWx.x;
+  diffuseColor.rgb *= mix(vec3(1.0), vec3(1.3, 1.03, 0.66), 0.7 * uWx.z);
+  { float fdist = length(vTw - cameraPosition); float fb = uWx.y * smoothstep(7.0, 30.0, fdist) * (0.55 + 0.45 * sin(vTw.x * 0.19 + vTw.y * 0.7 + uTime * 0.12) * sin(vTw.z * 0.16 - vTw.y * 0.5)) * (1.0 - smoothstep(4.0, 11.0, vTw.y) * 0.6);
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.86, 0.85, 0.84), 0.55 * fb); }
   float sp = uSeason.x; float su = uSeason.y; float au = uSeason.z; float wi = uSeason.w;
   // THE YEAR: summer deepens the greens, spring freshens them, autumn warms them, winter frosts what faces up
   diffuseColor.rgb *= mix(vec3(1.0), ${leaves ? 'vec3(0.9, 1.1, 0.86)' : 'vec3(1.02, 1.03, 0.96)'}, su * 0.7);
@@ -276,7 +292,7 @@ function patch(material, uniforms, leaves) {
     shader.vertexShader = shader.vertexShader.replace('#include <common>', COMMON_VERT).replace('#include <begin_vertex>', BEGIN_VERT(leaves));
     shader.fragmentShader = shader.fragmentShader.replace('#include <common>', COMMON_FRAG).replace('#include <color_fragment>', COLOR_FRAG(leaves)).replace('#include <emissivemap_fragment>', EMISSIVE_FRAG(leaves));
   };
-  material.customProgramCacheKey = () => (leaves ? 'treehouse-sky-leaves-v3' : 'treehouse-sky-paint-v3');
+  material.customProgramCacheKey = () => (leaves ? 'treehouse-sky-leaves-v4' : 'treehouse-sky-paint-v4');
 }
 // The lit windows (the glow material, unlit): only the tales are painted on them.
 function patchGlow(material, uniforms) {
@@ -295,7 +311,7 @@ export function skyPatch(M) {
   const decA = Array.from({ length: TALE_SLOTS }, (_, i) => { const d = decals[i]; return d ? new THREE.Vector4(d.x, d.y, d.z, d.yaw) : new THREE.Vector4(0, -100, 0, 0); });
   const decB = Array.from({ length: TALE_SLOTS }, (_, i) => { const d = decals[i]; return d ? new THREE.Vector4(d.hw, d.hh, d.kind, d.tol) : new THREE.Vector4(0, 0, 0, 0); });
   const rd = new THREE.Vector3(RAIN_DIR.x, RAIN_DIR.y, RAIN_DIR.z).normalize();
-  const uniforms = { uSeason: { value: new THREE.Vector4(0, 0, 1, 0) }, uRain: { value: 0 }, uRainDir: { value: rd }, uTale: { value: 1 }, uDecA: { value: decA }, uDecB: { value: decB }, uTime: { value: 0 }, uSway: { value: 1 }, uCat: { value: new THREE.Vector4(0, -100, 0, 0) }, uReact: { value: new THREE.Vector3() }, uLamp: { value: Array.from({ length: LAMP_SLOTS }, () => new THREE.Vector4(0, -100, 0, 0)) } };
+  const uniforms = { uSeason: { value: new THREE.Vector4(0, 0, 1, 0) }, uRain: { value: 0 }, uRainDir: { value: rd }, uWx: { value: new THREE.Vector4() }, uWx2: { value: new THREE.Vector2() }, uTale: { value: 1 }, uDecA: { value: decA }, uDecB: { value: decB }, uTime: { value: 0 }, uSway: { value: 1 }, uCat: { value: new THREE.Vector4(0, -100, 0, 0) }, uReact: { value: new THREE.Vector3() }, uLamp: { value: Array.from({ length: LAMP_SLOTS }, () => new THREE.Vector4(0, -100, 0, 0)) } };
   patch(M.paint, uniforms, false);
   patch(M.leaves, uniforms, true);
   if (M.glow) patchGlow(M.glow, uniforms);
@@ -311,7 +327,10 @@ export function skyPatch(M) {
     reaction,
     // the year's four weights [spring, summer, autumn, winter] (treehouseseason.js), and the rainbow's strength 0..1 (rare, raised by the life)
     setSeason(w) { uniforms.uSeason.value.set(w[0], w[1], w[2], w[3]); sky.season = w; },
-    setRain(k) { uniforms.uRain.value = k; },
+    setRain(k) { sky.rk = k; uniforms.uRain.value = Math.max(k, sky.bow); },
+    // the weather's own state (treehouseweather.js): rain, mist, golden hour, storm wind, steam, a flash, and the rainbow it leaves behind
+    setWx(rain, mist, gold, storm, steam, flash, bow) { uniforms.uWx.value.set(rain, mist, gold, storm); uniforms.uWx2.value.set(steam, flash); sky.storm = storm; sky.bow = bow; uniforms.uRain.value = Math.max(sky.rk, bow); },
+    rk: 0, bow: 0, storm: 0,
     season: [0, 0, 1, 0],
     // Watches her speed and her falls: a drop of LAND.minFall m/s or more that ends is a landing (the strength grows to LAND.fullFall). Never allocates.
     react(t, cat, still, rung) {
@@ -354,8 +373,8 @@ export function skyPatch(M) {
         taken[best] = 1;
         const l = lamps[best];
         const near = cat ? Math.max(0, 1 - Math.hypot(l.x - cat.x, l.z - cat.z) / 3.2) : 0; // a lantern she passes close to swings, and its pool with it
-        swing[best] = still || rung === 'lite' ? 0 : Math.max(swing[best] * 0.985, near * (0.5 + reaction.moving * 0.5));
-        const sw = swing[best] * 0.55 * Math.sin(t * 2.6 + best * 1.7);
+        swing[best] = still || rung === 'lite' ? 0 : Math.max(swing[best] * 0.985, near * (0.5 + reaction.moving * 0.5), sky.storm * 0.85);
+        const sw = swing[best] * 0.55 * (1 + sky.storm * 1.5) * Math.sin(t * 2.6 + best * 1.7);
         slot.set(l.x + sw, l.y - Math.abs(sw) * 0.1, l.z + sw * 0.6, l.w * (sky.lampK ?? 1) * (still ? 1 : 0.9 + 0.1 * Math.sin(t * 3.1 + best * 2.3) * Math.sin(t * 1.3 + best)));
       }
     },
