@@ -138,7 +138,7 @@ import { createGrass, groundFinds } from '../render/grass.js';
 import { birthdayPartyOn } from '../ui/party.js';
 import { createAmbient } from '../render/ambient.js';
 import { createFishJumps } from '../render/fishjump.js';
-import { note, noteMemory } from '../diagnostics.js';
+import { note, noteMemory, crumb } from '../diagnostics.js';
 // Grass keep-out radii (plus grass.js's own 0.15 collider margin): a doormat
 // is 0.8 x 0.5m (half-diagonal 0.47), so 0.6 + 0.15 clears it; a carryable is a
 // 6-10cm toy, so 0.3 leaves it a small bare patch to sit on.
@@ -1912,6 +1912,7 @@ export function createWalkLifecycle({
     const lifeViewYaw = { get: () => player.viewYaw(), set: (v) => player.setViewYaw(v) };
     const areaLife = areaData.life?.({ scene, sun, fill, ground, reducedMotion, audio, weather, dusk: eveningLook, critters, visits: state.walks[areaId] ?? 0, player, log, toy, progression, tier, roomSeed, viewYaw: lifeViewYaw, sendEvent: areaLifeSender(getSession, areaId), people: createPeopleKit, lodNear: () => lodNearFor?.(qualityAdapter.status?.rung) }) ?? NO_AREA_LIFE;
     if (areaLife.musician) decals.follow(areaLife.musician.group); // the Market's street musician, a contact shadow like the stallholders'
+    crumb(`walk:${areaId}`);
     const session = createSession({
       scene, areaData, ground, cat, critters, strayCats, remotes, collectibleMeshes, duskMode,
       farm,
@@ -3179,6 +3180,7 @@ export function createWalkLifecycle({
   function endWalk({ crossTo = null, ledBy = null, together = null } = {}) {
     const session = getSession();
     if (!session) return;
+    crumb('walk-end');
     onWalkEnded();
     const banked = bankWalk(session, { together, crossTo, ledBy });
     const { earned, isRecord, goalsDone, discoveries, friendsGreeted, walkedWith, guideLines, firstLesson, crossLines, stampName } = banked;

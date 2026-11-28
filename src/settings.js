@@ -39,6 +39,8 @@ const DEFAULTS = {
   holidayDecor: 'auto',
   // "Two-player couch mode" (src/coop/): two pads, two cats, one screen. Off unless a grown-up turns it on; ?coop=1 / ?coop=0 override for one page load. Per device.
   couchMode: false,
+  // "Send crash reports to the game maker" (src/crashlog.js): off unless a grown-up turns it on. Per device; never in the save.
+  crashUpload: false,
 };
 
 const PROFILE_OVERRIDE = ['auto', 'phone', 'tablet', 'laptop', 'tv'];
@@ -93,6 +95,7 @@ function sanitize(raw) {
     profileOverride: clampEnum(raw.profileOverride, PROFILE_OVERRIDE, DEFAULTS.profileOverride),
     holidayDecor: clampEnum(raw.holidayDecor, HOLIDAY_DECOR, DEFAULTS.holidayDecor),
     couchMode: raw.couchMode === true,
+    crashUpload: raw.crashUpload === true,
   };
 }
 
