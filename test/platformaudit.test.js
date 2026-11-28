@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
+import { unmatchedPerches } from './helpers/platformaudit.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { stubCanvasDocument } from './helpers/canvas.js';
 
@@ -11,47 +12,17 @@ import { stubCanvasDocument } from './helpers/canvas.js';
 // point (within a tolerance). Perches with no such mesh are listed per place,
 // and must be in test/fixtures/platformaudit-allow.json (each with a reason), so
 // a NEW invisible platform fails the test. Meshes bigger than BIG across are
-// ground, water or sky and do not count as "a drawn object".
+// ground, water or sky and do not count as "a drawn object", unless they are
+// props merged into one mesh (then their triangles are tested). The rules are in
+// test/helpers/platformaudit.js; test/platformaudit.fixture.test.js proves that a
+// deliberately invisible perch still fails.
 
 stubCanvasDocument();
 
 const { AREA_LOADERS } = await import('../src/world/areas.js');
 
-const TOL_XZ = 0.6;
-const TOL_Y = 0.45;
-const BIG = 40;
-
 const allow = JSON.parse(readFileSync(new URL('./fixtures/platformaudit-allow.json', import.meta.url), 'utf8'));
 const key = (p) => `${p.x.toFixed(2)},${p.z.toFixed(2)},${p.y.toFixed(2)}`;
-
-function boxes(scene) {
-  scene.updateMatrixWorld(true);
-  const out = [];
-  const tmp = new THREE.Box3();
-  scene.traverseVisible((o) => {
-    if (!o.isMesh || !o.geometry) return;
-    if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
-    const gb = o.geometry.boundingBox;
-    if (!gb) return;
-    if (o.isInstancedMesh) {
-      const m = new THREE.Matrix4();
-      for (let i = 0; i < o.count; i++) {
-        o.getMatrixAt(i, m);
-        tmp.copy(gb).applyMatrix4(m).applyMatrix4(o.matrixWorld);
-        out.push(tmp.clone());
-      }
-    } else {
-      out.push(tmp.copy(gb).applyMatrix4(o.matrixWorld).clone());
-    }
-  });
-  return out.filter((b) => b.max.x - b.min.x < BIG && b.max.z - b.min.z < BIG);
-}
-
-function covered(p, bs) {
-  return bs.some((b) => p.x >= b.min.x - TOL_XZ && p.x <= b.max.x + TOL_XZ
-    && p.z >= b.min.z - TOL_XZ && p.z <= b.max.z + TOL_XZ
-    && p.y >= b.min.y - TOL_Y && p.y <= b.max.y + TOL_Y);
-}
 
 describe('invisible platforms', () => {
   it('every perch has something drawn at it, or is on the allow list', async () => {
@@ -66,9 +37,7 @@ describe('invisible platforms', () => {
         scene = new THREE.Scene();
         area = pack.world.build(scene);
       } catch (e) { skipped.push(`${id}: ${String(e.message).slice(0, 60)}`); continue; }
-      const perches = (area?.perches ?? []).filter((p) => Number.isFinite(p.x) && Number.isFinite(p.z) && Number.isFinite(p.y));
-      const bs = boxes(scene);
-      const un = perches.filter((p) => !covered(p, bs));
+      const { perches, unmatched: un } = unmatchedPerches(area, scene);
       report[id] = { perches: perches.length, gated: perches.filter((p) => p.requires).length, unmatched: un };
       const allowed = new Map((allow[id] ?? []).map((a) => [a.at, a]));
       for (const p of un) if (!allowed.has(key(p))) fresh.push(`${id} ${key(p)} kind=${p.kind ?? 'prop'}${p.requires ? ' gated=' + p.requires : ''}`);
