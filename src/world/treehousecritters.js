@@ -16,6 +16,7 @@ import { isLowTier } from './treehouselight.js';
 import './treehousecritterwords.js';
 import { seasonWeights } from './treehouseseason.js';
 import * as SU from './treehousesurprise.js';
+import { createLiving } from './treehouseliving.js';
 
 export const TAU = Math.PI * 2;
 export const hash01 = (n, s) => { let h = (Math.imul(n | 0, 0x9e3779b1) ^ Math.imul((s | 0) + 0x7f4a7c15, 0x85ebca6b)) | 0; h ^= h >>> 15; h = Math.imul(h, 0x2c1b3c6d); h ^= h >>> 12; return (h >>> 0) / 4294967296; };
@@ -40,6 +41,7 @@ export const BIRD_DECKS = Object.freeze(['bakery', 'books', 'crown']);
 export const BIRD_REST = 0.04; // a bird's feet stand this far over the rail's top
 export const birdPosts = (i) => { const k = P.deckOf(BIRD_DECKS[i % BIRD_DECKS.length]); const y = k.y + P.RAIL_H + BIRD_REST; return [{ x: k.x - k.w / 2 + 1.0, y, z: k.z - k.d / 2 }, { x: k.x + k.w / 2 - 1.0, y, z: k.z - k.d / 2 }]; };
 // The owl: on a little ledge on the Bell Tower's front, to one side of the lit window and the bell.
+const OWL_SCALE = 1.4; // (beauty pass 5: she read too small at the walk's distance)
 export const OWL = Object.freeze((() => { const k = P.deckOf('crown'); const h = k.hut; const y = k.y + h.h * 0.74; return { x: h.x + 1.05, y, z: h.z + h.r * 0.95 + 0.17, yaw: 0.35, ledgeY: y - 0.04 }; })());
 // The firefly places: where the evening gathers (each at its own level: the roots, the Bakery deck, the Bookshop deck, the Crown, the brook-side, the east edge).
 export const FIREFLY_PLACES = Object.freeze([[0, 17, 0.3], [-9, 8, 1.7], [9, 0, 3.1], [0, -12, 5.9], [-20, -9, 0.3], [18, 12, 0.3]].map(([x, z, y]) => Object.freeze({ x, z, y })));
@@ -79,7 +81,7 @@ export function leafAt(i, t, out = {}) {
   const u = fr(t / life + hash01(i, 72));
   out.u = u;
   out.x = (hash01(i, 73) - 0.5) * LEAF_FALL.spread + u * 3 + 1.4 * Math.sin(u * 9 + i) + GUST_PUSH * (0.5 + 0.5 * Math.sin(t * 0.31 + hash01(i, 75) * 2)) * (1 - u); // a gust leans the leaves still high up
-  out.z = (hash01(i, 74) - 0.5) * LEAF_FALL.spread + 1.2 * Math.cos(u * 7 + i * 1.3);
+  out.z = (hash01(i, 74) - 0.5) * LEAF_FALL.spread + 1.2 * Math.cos(u * 7 + i * 1.3) + 0.75 * GUST_PUSH * (0.5 + 0.5 * Math.sin(t * 0.31 + hash01(i, 75) * 2)) * (1 - u); // the same wind as the canopy's (treehouseliving.js WIND)
   out.y = 0.1 + (LEAF_FALL.top - 0.1) * (1 - u);
   return out;
 }
@@ -96,7 +98,7 @@ export function moteAt(k, t, out = {}) {
 
 // ---- drawing: each creature is one vertex-coloured mesh -------------------------------------------------------------------------------------
 const B = (r, x, y, z, sx, sy, sz, hex, seg = 7) => paint(new THREE.SphereGeometry(r, seg, seg - 2).scale(sx, sy, sz).translate(x, y, z), hex);
-const COL = Object.freeze({ bird: 0x6d8fb8, wing: 0x4f6f98, breast: 0xf0c27a, beak: 0xe8a23a, dark: 0x2c2a38, owl: 0x8a6a4a, owlLight: 0xd9c49a, tuft: 0x6e5238, ledge: 0x8a6240, leaf: 0xd8b25a, leaf2: 0x7cbc54, leaf3: 0xc9803a, fly: 0xf4f0a0 });
+const COL = Object.freeze({ bird: 0x6d8fb8, wing: 0x4f6f98, breast: 0xf0c27a, beak: 0xe8a23a, dark: 0x2c2a38, owl: 0xa88460, owlLight: 0xeadcb4, tuft: 0x6e5238, ledge: 0x8a6240, leaf: 0xd8b25a, leaf2: 0x7cbc54, leaf3: 0xc9803a, fly: 0xf4f0a0 });
 
 export function birdGeometry() {
   return mergeGeometries([
@@ -148,7 +150,7 @@ function soundCtx(audio) {
   return audio.getContext() ?? null;
 }
 // A wind chime: two soft glassy notes close together, each a sine and a bright partial, quick to start and a long, quiet fade.
-export function chimeNote(audio, k = 0) {
+export function chimeNote(audio, k = 0, pitch = 1) {
   const ac = soundCtx(audio);
   if (!ac) return false;
   const now = ac.currentTime;
@@ -162,7 +164,7 @@ export function chimeNote(audio, k = 0) {
     g.connect(audio.getMaster?.() ?? ac.destination);
     for (const [m, v] of [[1, 1], [3.01, 0.18]]) {
       const o = ac.createOscillator(); const og = ac.createGain();
-      o.type = 'sine'; o.frequency.value = CHIME_NOTES[first + n] * m; og.gain.value = v;
+      o.type = 'sine'; o.frequency.value = CHIME_NOTES[first + n] * m * pitch; og.gain.value = v;
       o.connect(og); og.connect(g); o.start(at); o.stop(at + 2.3);
     }
   }
@@ -280,7 +282,8 @@ export function createTreehouseCritters(ctx) {
     for (let i = 0; i < nFairy; i++) fairy.push(all[Math.min(all.length - 1, Math.floor(i * stride))]);
   } const cFloor = new THREE.Color(P.TREE_LOOK.floorLeaf); const cTmp = new THREE.Color();
 
-  owl.position.set(OWL.x, OWL.y, OWL.z); owl.rotation.y = OWL.yaw;
+  owl.position.set(OWL.x, OWL.y, OWL.z); owl.rotation.y = OWL.yaw; owl.scale.setScalar(OWL_SCALE);
+  const living = createLiving(ctx, { dotTexture, hash01, season, reducedMotion, rung }); // beauty pass 5: creatures, the day's rhythm and the sound beds (treehouseliving.js)
 
   function draw(t) {
     for (let i = 0; i < birds.length; i++) {
@@ -288,12 +291,12 @@ export function createTreehouseCritters(ctx) {
       birds[i].position.set(pose.x, pose.y + pose.bob, pose.z); birds[i].rotation.set(pose.flying ? -0.25 : 0, pose.yaw, 0);
     }
     spottable[0].pos.set(birds[0].position.x, birds[0].position.y, birds[0].position.z);
-    owl.scale.y = 1 + (reducedMotion ? 0 : 0.035 * Math.sin(t * 1.1)); // she breathes
+    owl.scale.y = OWL_SCALE * (1 + (reducedMotion ? 0 : 0.035 * Math.sin(t * 1.1))); // she breathes
     owl.rotation.y = OWL.yaw + (reducedMotion ? 0 : 0.18 * Math.sin(t * 0.13));
     for (let i = 0; i < N.flies; i++) {
       fireflyAt(i, t, fly);
       F.pos[i * 3] = fly.x; F.pos[i * 3 + 1] = fly.y; F.pos[i * 3 + 2] = fly.z;
-      const gl = reducedMotion ? 0.8 : fly.glow;
+      const gl = (reducedMotion ? 0.8 : fly.glow) * living.flyK;
       F.col[i * 3] = cFly.r * gl; F.col[i * 3 + 1] = cFly.g * gl; F.col[i * 3 + 2] = cFly.b * gl;
     }
     for (let k = 0; k < N.motes; k++) {
@@ -346,7 +349,7 @@ export function createTreehouseCritters(ctx) {
   function stopSurprise() {
     sur.active = false; sur.lifted = false; sur.hooted = 0; sur.have = false;
     sky?.setRain(0);
-    owl.position.set(OWL.x, OWL.y, OWL.z); owl.rotation.x = 0; owl.rotation.z = 0; owl.scale.x = 1; owl.scale.z = 1;
+    owl.position.set(OWL.x, OWL.y, OWL.z); owl.rotation.x = 0; owl.rotation.z = 0; owl.scale.x = OWL_SCALE; owl.scale.z = OWL_SCALE;
     LP.o.visible = false;
     for (let k = 0; k < nSur; k++) F.pos[(surOff + k) * 3 + 1] = -200;
     F.g.attributes.position.needsUpdate = true; L.g.attributes.position.needsUpdate = true;
@@ -389,12 +392,12 @@ export function createTreehouseCritters(ctx) {
       SU.owlAt(age, OWL, sp);
       owl.position.set(sp.x, sp.y, sp.z);
       owl.rotation.set(sp.pitch, sp.yaw, sp.bank);
-      owl.scale.set(1 + 0.9 * sp.spread, 1 - 0.25 * sp.spread + 0.08 * Math.sin(age * 6), 1 + 0.3 * sp.spread);
+      owl.scale.set(OWL_SCALE * (1 + 0.9 * sp.spread), OWL_SCALE * (1 - 0.25 * sp.spread + 0.08 * Math.sin(age * 6)), OWL_SCALE * (1 + 0.3 * sp.spread));
       while (sur.hooted < SU.OWL_HOOTS.length && age >= SU.OWL_HOOTS[sur.hooted]) { SU.hootNote(audio, sur.hooted); sur.hooted++; }
     }
     F.g.attributes.position.needsUpdate = true; F.g.attributes.color.needsUpdate = true; L.g.attributes.position.needsUpdate = true; L.g.attributes.color.needsUpdate = true;
   }
-  let nextChime = CHIME_GAP.first; let nearUntil = 0; let wasNear = false; let chimes = 0; let steps = 0; let walked = 0; let lx = 0; let lz = 0; let have = false;
+  let arrived = false; let arriveAt = -99; let nextChime = CHIME_GAP.first; let nearUntil = 0; let wasNear = false; let chimes = 0; let steps = 0; let walked = 0; let lx = 0; let lz = 0; let have = false;
   return {
     rung,
     spottable,
@@ -409,10 +412,13 @@ export function createTreehouseCritters(ctx) {
       }
       if (burst && t - showerAt <= BURST.life + 0.1) shower(t);
       runSurprise(t, catPos, camera);
-      if (t >= nextChime) { chimeNote(audio, chimes); chimes++; nextChime = t + CHIME_GAP.min + CHIME_GAP.span * hash01(chimes, 32); } // (the schedule runs on while muted: no catching up)
+      living.update(dt, t, catPos);
+      if (t - arriveAt < 2.7) L.o.material.size = 0.46 + (reducedMotion ? 0 : 0.6 * Math.max(0, 1 - (t - arriveAt) / 2.6)); // the leaves swell for a breath
+      if (!arrived && catPos && catPos.y > WOOD_Y) { arrived = true; if (burst) { showerAt = t; sx = catPos.x; sy = catPos.y; sz = catPos.z; } chimeNote(audio, 3, living.pitch); arriveAt = t; } // her first step onto a platform: leaves swirl and a chime
+      if (t >= nextChime) { chimeNote(audio, chimes, living.pitch); chimes++; nextChime = t + CHIME_GAP.min + CHIME_GAP.span * hash01(chimes, 32); } // (the schedule runs on while muted: no catching up)
       if (catPos && Number.isFinite(catPos.y)) { // a brush past a wind chime sets it ringing (once on coming near, then not again for a few seconds)
         const near = nearChime(catPos.x, catPos.y, catPos.z);
-        if (near && !wasNear && t >= nearUntil) { chimeNote(audio, chimes + 7); chimes++; nearUntil = t + CHIME_COOL; }
+        if (near && !wasNear && t >= nearUntil) { chimeNote(audio, chimes + 7, living.pitch); chimes++; nearUntil = t + CHIME_COOL; }
         wasNear = near;
       }
       if (catPos && d > 0) {
@@ -428,7 +434,7 @@ export function createTreehouseCritters(ctx) {
       }
     },
     dispose() {
-      sky?.setRain(0);
+      living.dispose(); sky?.setRain(0);
       scene.remove(...birds, owl, ledge, F.o, L.o, LP.o);
       for (const g of Object.values(geos)) g.dispose();
       ledge.geometry.dispose(); lit.dispose(); F.g.dispose(); F.o.material.dispose(); L.g.dispose(); L.o.material.dispose(); LP.g.dispose(); LP.o.material.dispose();
