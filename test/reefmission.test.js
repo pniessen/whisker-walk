@@ -21,7 +21,9 @@ import { LINES as WRECK_LINES } from '../src/world/reefwreckwords.js';
 import { LINES as RIDE_LINES } from '../src/world/reefridewords.js'; // R12: the two mounts
 import { LINES as HUNT_LINES } from '../src/world/reefhuntwords.js'; // R17: the galleon's hunt
 import { LINES as DIVER_LINES } from '../src/world/reefdiverswords.js'; // R18: the divers, the research ship and the big shark
-const LINES = { ...STORY_LINES, ...FIND_LINES, ...ERRAND_LINES, ...DEEP_LINES, ...LIFE_LINES, ...LAB_LINES, ...WRECK_LINES, ...RIDE_LINES, ...HUNT_LINES, ...DIVER_LINES };
+import { CHEST_LINES } from '../src/world/reefchestwords.js'; // the openable Treasure Chest
+import { LINES as SEALRIDE_LINES } from '../src/world/reefsealridewords.js'; // the seal ride
+const LINES = { ...STORY_LINES, ...FIND_LINES, ...ERRAND_LINES, ...DEEP_LINES, ...LIFE_LINES, ...LAB_LINES, ...WRECK_LINES, ...RIDE_LINES, ...HUNT_LINES, ...DIVER_LINES, ...CHEST_LINES, ...SEALRIDE_LINES };
 import { phrase } from '../src/clanphrases.js';
 import { withOffWords, bannedIn } from './helpers/offwords.js';
 import { readFileSync, globSync } from 'node:fs';

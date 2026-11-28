@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest';
 import { CLAN_TOTAL } from './helpers/goldtotals.js';
 import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { stubCanvasDocument } from './helpers/canvas.js';
 import { withOffWords, bannedIn } from './helpers/offwords.js';
 import { GOLD_MICE, GOLD_TOTAL } from '../src/goldmice.js';
@@ -217,7 +218,7 @@ describe('the flag and the drawing', () => {
   it('streams with the clock and freezes under reduced motion; fewer redraws on the lite rung; no light is added', () => {
     const run = (o) => {
       const scene = new THREE.Scene();
-      const l = createReefWreckLife({ scene, THREE, ...o });
+      const l = createReefWreckLife({ scene, THREE: { ...THREE, mergeGeometries }, ...o });
       const first = Array.from(l.flag.geometry.attributes.position.array.slice(0, 60));
       for (let i = 0; i < 20; i++) l.update(0.1, 0, null);
       const after = Array.from(l.flag.geometry.attributes.position.array.slice(0, 60));
@@ -244,9 +245,9 @@ describe('the flag and the drawing', () => {
 
 describe('the stage stands alone', () => {
   it('the wreck stage\'s files import nothing of the base chunk (reef.js hands in what they need), so no file is split out of it', () => {
-    for (const f of ['reefwreckplan', 'reefwreckparts', 'reefwrecklife', 'reefwreckwords', 'reefstagewreck', 'reefwreck', 'reefhuntlive', 'reefhuntwords']) {
+    for (const f of ['reefwreckplan', 'reefwreckparts', 'reefwrecklife', 'reefwreckwords', 'reefstagewreck', 'reefwreck', 'reefhuntlive', 'reefhuntwords', 'reefchestlive', 'reefchestwords']) {
       const text = readFileSync(`src/world/${f}.js`, 'utf8');
-      for (const [, spec] of text.matchAll(/^import .*?from '(.+?)';/gm)) expect(spec, `${f} imports ${spec}`).toMatch(/^(\.\/reefwreck\w*\.js|\.\/reefhunt\w+\.js|\.\/reefstages\.js|\.\.\/clanphrases\.js|\.\.\/wordset\.js)$/);
+      for (const [, spec] of text.matchAll(/^import .*?from '(.+?)';/gm)) expect(spec, `${f} imports ${spec}`).toMatch(/^(\.\/reefwreck\w*\.js|\.\/reefhunt\w+\.js|\.\/reefchest\w+\.js|\.\/reefstages\.js|\.\.\/clanphrases\.js|\.\.\/wordset\.js)$/);
     }
   });
 });

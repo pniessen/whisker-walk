@@ -16,7 +16,7 @@ export function placeSuite({ id, build, wire = null, ready = true, joinSpots = n
   const record = build(world);
   const ground = record.ground ?? FLAT_GROUND;
   const area = { ...record, ground };
-  const slack = { ...area, colliders: (record.colliders ?? []).map((c) => ({ ...c, r: c.r - 1e-6 })) }; // a cat pushed out of a collider stands on its rim to the last bit of a float
+  const slack = { ...area, colliders: (record.colliders ?? []).map((c) => ({ ...c, r: c.r - 1e-4 })) }; // a cat pushed out of a collider stands on its rim to the last bit of a float; wedged in the notch of two overlapping colliders (the Reef rocks at 33.8,-31) the one-pass push leaves her ~3e-5 inside one
   const levelAt = (p) => ground.y(p.x, p.z);
   const same = (a, b) => (ground.flat ? true : Math.abs(levelAt(a) - levelAt(b)) < 0.5 + dist(a, b) / 3); // the same floor: a slope of the place can carry the two cats a little apart in height (1 in 3 at most)
 
