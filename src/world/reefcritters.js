@@ -79,7 +79,7 @@ export function fishPose(fish, t, out = {}) {
   return out;
 }
 
-const FISH_COLOURS = Object.freeze([0xffb35c, 0xff8a7a, 0x8fe3ff, 0xffe27a, 0xb9a2ff, 0x9fe8b4]);
+const FISH_COLOURS = Object.freeze([0xffb35c, 0xff8a7a, 0x8fe3ff, 0xffe27a, 0xb9a2ff, 0x9fe8b4, 0xff6f91, 0x5fe0c8, 0xffd0f0, 0x7fb6ff]); // beauty pass 1: four more
 const BIG_COLOURS = Object.freeze([0x6fb7ff, 0xffa8c0, 0xffd47a]);
 
 function paint(g, hex) {
@@ -143,7 +143,7 @@ function createFish(scene, rung) {
         // the tail beat: the whole body swings a little side to side at its own phase and speed (bigger fish beat slower), with a small roll
         const beat = t * (table[i].big ? 3.2 : 6) + hash01(table[i].id + 41, SALTS.fish) * 6.28;
         dummy.rotation.set(0, pose.yaw + 0.16 * Math.sin(beat), 0.1 * Math.sin(beat + 1.2));
-        dummy.scale.setScalar(pose.size);
+        dummy.scale.set(pose.size, pose.size * (table[i].id % 5 === 3 ? 1.4 : 1), pose.size);
         dummy.updateMatrix();
         mesh.setMatrixAt(i, dummy.matrix);
       }

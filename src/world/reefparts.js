@@ -345,8 +345,9 @@ export function kelpMaterial(time = { value: 0 }) {
       float sw = position.y * position.y;
       vec2 ip = vec2(instanceMatrix[3].x, instanceMatrix[3].z);
       float ph = ip.x * 0.7 + ip.y * 0.5;
-      transformed.x += (sin(uReefT * ${SWAY.speed.toFixed(2)} + ph) + ${SWAY.rest.toFixed(2)}) * ${SWAY.amp.toFixed(2)} * sw;
-      transformed.z += cos(uReefT * ${(SWAY.speed * 0.8).toFixed(2)} + ph * 1.3) * ${(SWAY.amp * 0.55).toFixed(2)} * sw;`);
+      float vr = 0.8 + 0.4 * fract(sin(ip.x * 12.9898 + ip.y * 78.233) * 43758.5453); // beauty pass 1: each plant sways at its own pace and reach
+      transformed.x += (sin(uReefT * ${SWAY.speed.toFixed(2)} * vr + ph) + ${SWAY.rest.toFixed(2)}) * ${SWAY.amp.toFixed(2)} * vr * vr * sw;
+      transformed.z += cos(uReefT * ${(SWAY.speed * 0.8).toFixed(2)} / vr + ph * 1.3) * ${(SWAY.amp * 0.55).toFixed(2)} * vr * sw;`);
   };
   mat.customProgramCacheKey = () => 'reef-kelp';
   return mat;
