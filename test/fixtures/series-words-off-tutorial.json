@@ -369,6 +369,34 @@
    "touch": "Touch and keep the text, then choose Copy.",
    "keys": "Touch and keep the text, then choose Copy."
   },
+  "settings.perf-note": {
+   "touch": "How smooth the game runs. Kept here, never sent.",
+   "keys": "How smooth the game runs. Kept here, never sent."
+  },
+  "settings.perf-show": {
+   "touch": "Performance log",
+   "keys": "Performance log"
+  },
+  "settings.perf-copy": {
+   "touch": "Copy log",
+   "keys": "Copy log"
+  },
+  "settings.perf-clear": {
+   "touch": "Clear",
+   "keys": "Clear"
+  },
+  "settings.perf-copied": {
+   "touch": "Log copied 📋",
+   "keys": "Log copied 📋"
+  },
+  "settings.perf-cleared": {
+   "touch": "Log cleared",
+   "keys": "Log cleared"
+  },
+  "settings.perf-empty": {
+   "touch": "Nothing recorded yet. Play a walk and look again.",
+   "keys": "Nothing recorded yet. Play a walk and look again."
+  },
   "settings.save-failed": {
    "touch": "This device could not save. Free up space, then play again.",
    "keys": "This device could not save. Free up space, then play again."
@@ -751,6 +779,34 @@
   "settings.crash-copy-hint": {
    "touch": "Touch and keep the text, then choose Copy.",
    "keys": "Touch and keep the text, then choose Copy."
+  },
+  "settings.perf-note": {
+   "touch": "How smooth the game runs. Kept here, never sent.",
+   "keys": "How smooth the game runs. Kept here, never sent."
+  },
+  "settings.perf-show": {
+   "touch": "Performance log",
+   "keys": "Performance log"
+  },
+  "settings.perf-copy": {
+   "touch": "Copy log",
+   "keys": "Copy log"
+  },
+  "settings.perf-clear": {
+   "touch": "Clear",
+   "keys": "Clear"
+  },
+  "settings.perf-copied": {
+   "touch": "Log copied 📋",
+   "keys": "Log copied 📋"
+  },
+  "settings.perf-cleared": {
+   "touch": "Log cleared",
+   "keys": "Log cleared"
+  },
+  "settings.perf-empty": {
+   "touch": "Nothing recorded yet. Play a walk and look again.",
+   "keys": "Nothing recorded yet. Play a walk and look again."
   },
   "settings.save-failed": {
    "touch": "This device could not save. Free up space, then play again.",
