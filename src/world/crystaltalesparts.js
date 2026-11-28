@@ -6,7 +6,7 @@
 
 import * as THREE from 'three';
 import * as P from './crystalplan.js';
-import { CAMP, WHEEL, BENCH, MURAL, BED, RAINBOW, WAYMARKS, trailPrints, talesRung } from './crystaltalesplan.js';
+import { STATUE, CAMP, WHEEL, BENCH, MURAL, BED, RAINBOW, WAYMARKS, trailPrints, talesRung } from './crystaltalesplan.js';
 
 const TAU = Math.PI * 2;
 const col = (hex) => new THREE.Color(hex);
@@ -63,15 +63,25 @@ function camp(H, stone, glow, light) {
 // the fire ring's last ember: a small warm disc
 function ember(H) { return H.disc(CAMP.x, CAMP.z, 0.42, 2, (t) => { const k = 0.5 * (1 - t) ** 1.4; return [k, 0.34 * k, 0.1 * k]; }, 2, 8); }
 
+// ---- the sleeping stone cat (beauty pass 5): body, head on its paws, two ears and a tail curled round; about 220 triangles of the stone mesh -----------------------------
+function statue(H, stone) {
+  const F = frame(STATUE); const T = (g, lo, hi, top) => H.tone(g, lo, hi, top);
+  const lo = 0x9484b0; const hi = 0xe6dcf4;
+  stone.push(F(T(new THREE.SphereGeometry(0.34, 8, 5).scale(1.1, 0.72, 1.3).translate(0, 0.2, -0.12), lo, hi, 0.42), 0, 0, 0));
+  stone.push(F(T(new THREE.SphereGeometry(0.2, 7, 5).scale(1, 0.85, 1).translate(0, 0.22, 0.42), lo, hi, 0.4), 0, 0, 0));
+  for (const sd of [-1, 1]) stone.push(F(T(H.cone(0.11, 0.24, 4).rotateZ(-sd * 0.2).translate(sd * 0.12, 0.37, 0.4), lo, hi, 0.55), 0, 0, 0));
+  stone.push(F(T(new THREE.TorusGeometry(0.3, 0.055, 4, 9, Math.PI * 1.3).rotateX(Math.PI / 2).rotateY(2.4).translate(0, 0.07, -0.12), lo, hi, 0.2), 0, 0, 0));
+}
+
 // ---- the toppled wheel ------------------------------------------------------------------------------------------------------
 function wheel(H, stone, glow, light) {
   const F = frame(WHEEL);
-  const wood = (g) => H.tone(g, 0x4a3224, 0x8a6446, 1.2);
+  const wood = (g) => H.tone(g, 0x7a5a42, 0xd0a070, 1.2); // (lighter wood: the dark wheel was lost against the dark floor)
   const rim = wood(new THREE.TorusGeometry(0.5, 0.045, 4, 12).rotateX(0)); // a ring in the XY plane, its centre 0.5 m up
   rim.translate(0, 0.5, 0);
   const hub = wood(new THREE.CylinderGeometry(0.08, 0.08, 0.12, 6).rotateX(Math.PI / 2).translate(0, 0.5, 0));
   const spokes = [0, 1, 2].map((k) => wood(new THREE.BoxGeometry(0.95, 0.035, 0.035).rotateZ((k / 3) * Math.PI).translate(0, 0.5, 0)));
-  for (const g of [rim, hub, ...spokes]) { g.scale(1.45, 1.45, 1.45); g.rotateX(-0.95); stone.push(F(g, 0, 0, 0)); } // it lies tipped over, one edge on the floor, leaning on a rock
+  for (const g of [rim, hub, ...spokes]) { g.scale(2.1, 2.1, 2.1); g.rotateX(-0.95); stone.push(F(g, 0, 0, 0)); } // it lies tipped over, one edge on the floor, leaning on a rock
   stone.push(F(H.tone(new THREE.OctahedronGeometry(0.2, 0).scale(1, 0.8, 1.1), 0x6a5a70, 0x9a8a9c, 0.2), 0.1, -0.5, 0.04));
   stone.push(F(box(H, 0.7, 0.05, 0.14, 0x4a3224, 0x7a5a3c), -0.2, 0.95, 0).rotateY(0)); // a splintered plank
   // the ore it spilled: a few little glowing stones in a drift, and a spark
@@ -184,7 +194,7 @@ function rainbow(H, light) {
 // drawTales(H, rung, { stone, glow, light }): push every piece into the three lists
 export function drawTales(H, rung, { stone, glow, light }) {
   const R = talesRung(rung);
-  camp(H, stone, glow, light); wheel(H, stone, glow, light); bench(H, stone, glow, light); mural(H, stone, light); bed(H, stone, glow, light);
+  camp(H, stone, glow, light); statue(H, stone); wheel(H, stone, glow, light); bench(H, stone, glow, light); mural(H, stone, light); bed(H, stone, glow, light);
   waymarks(H, stone, light, R.marks); prints(H, light, R.prints);
   if (R.rainbow) rainbow(H, light);
 }

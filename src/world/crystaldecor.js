@@ -192,7 +192,7 @@ export const beautySites = (rung = 'high') => { const d = planBeauty(rung); retu
 // Things that read at a glance from the play camera: HERO crystals (tall, strongly graded spikes standing INSIDE the footprint of the biggest existing clusters, so nothing new is
 // solid or standable) with a glow halo each, a big colour WASH under every chamber (rose, cyan, amber, violet), light SHAFTS from the dome, MOTES that rise with trails and
 // water RIPPLES on the Blue Pool. Planned apart again (own salts), pure data; LOW keeps about half of each list, a prefix of HIGH. The drawing animates them in the shader.
-export const ZONE_RGB = Object.freeze({ rose: Object.freeze([1, 0.4, 0.68]), blue: Object.freeze([0.1, 0.56, 0.78]), gold: Object.freeze([1, 0.64, 0.18]), heart: Object.freeze([0.6, 0.36, 1]) });
+export const ZONE_RGB = Object.freeze({ rose: Object.freeze([1, 0.4, 0.68]), blue: Object.freeze([0.1, 0.56, 0.78]), gold: Object.freeze([1, 0.64, 0.18]), heart: Object.freeze([0.6, 0.36, 1]), amber: Object.freeze([1, 0.7, 0.28]) }); // (amber: the Entry Hall's lantern warmth, the start of the colour journey: amber, rose, blue, gold, violet)
 export const BEAUTY2_SALTS = Object.freeze({ hero: 0x6865726f, shaft: 0x73686674, mote: 0x6d6f7465, ripple: 0x72697070 });
 export const BEAUTY2_COUNT = Object.freeze({
   high: Object.freeze({ hero: 8, wash: 4, shafts: 8, motes: 56, ripples: 8 }),

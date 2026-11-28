@@ -42,7 +42,7 @@ describe('the cave reacts', () => {
   it('walking leaves footstep sparkles that fade; standing still leaves none', () => {
     const { alive } = make();
     alive.update(1 / 30, 0, { x: -10, y: 0, z: 10 }, null);
-    for (let i = 1; i < 20; i++) alive.update(1 / 30, i / 30, { x: -10, y: 0, z: 10 }, null);
+    for (let i = 1; i < 60; i++) alive.update(1 / 30, i / 30, { x: -10, y: 0, z: 10 }, null); // (the arrival sparks of the first step into the Rose Hall have faded by now)
     const still = live(alive);
     walk(alive, [-10, 10], [-4, 10], 40);
     expect(live(alive)).toBeGreaterThan(still);
