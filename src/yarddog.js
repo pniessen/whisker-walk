@@ -77,47 +77,134 @@ function box(w, h, d, mat, x = 0, y = 0, z = 0) {
   return m;
 }
 
-// A friendly, blocky dog, front at +z, its paws at y 0. userData.parts holds
-// what update() animates.
+// ---- the dog's shapes ----------------------------------------------------------
+// (beauty round) Rounder, tapered pieces — ellipsoids for the chest, the haunch, the
+// head and the muzzle, tapered legs with paws, floppy ears, a curved tail — folded
+// into ONE vertex-coloured mesh per moving part (torso, head, tail, each leg: seven
+// meshes and one shared material, where the blocky dog had sixteen meshes and eight
+// materials). Nothing is added to the draw count or the casters; hidden caps are not
+// built (legs are open tubes that end inside the body).
+const COAT = 0xc8a060;
+const DARK = 0x7a5230;
+const CREAM = 0xf0e2c8;
+const NOSE = 0x2a2220;
+const COLLAR = 0xd04848;
+
+const _m = new THREE.Matrix4();
+const _q = new THREE.Quaternion();
+const _e = new THREE.Euler();
+const _p = new THREE.Vector3();
+const _s = new THREE.Vector3();
+
+// One piece: a unit-ish geometry moved to (x, y, z), turned by (rx, ry, rz), scaled, tinted.
+function piece(geo, color, [x, y, z], [sx, sy, sz] = [1, 1, 1], [rx, ry, rz] = [0, 0, 0]) {
+  const g = geo.clone();
+  _m.compose(_p.set(x, y, z), _q.setFromEuler(_e.set(rx, ry, rz)), _s.set(sx, sy, sz));
+  g.applyMatrix4(_m);
+  const c = new THREE.Color(color); // linear, as a material colour would be
+  const n = g.attributes.position.count;
+  const col = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return g;
+}
+
+// Pieces to one geometry (position, normal, colour, index only).
+function fold(list) {
+  let verts = 0;
+  let idx = 0;
+  for (const g of list) { verts += g.attributes.position.count; idx += g.index.count; }
+  const pos = new Float32Array(verts * 3);
+  const nor = new Float32Array(verts * 3);
+  const col = new Float32Array(verts * 3);
+  const ind = new Uint16Array(idx);
+  let v = 0;
+  let i = 0;
+  for (const g of list) {
+    pos.set(g.attributes.position.array, v * 3);
+    nor.set(g.attributes.normal.array, v * 3);
+    col.set(g.attributes.color.array, v * 3);
+    for (let k = 0; k < g.index.count; k++) ind[i + k] = g.index.array[k] + v;
+    v += g.attributes.position.count;
+    i += g.index.count;
+    g.dispose();
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  out.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  out.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  out.setIndex(new THREE.BufferAttribute(ind, 1));
+  return out;
+}
+
+function skin(list, mat) {
+  const m = new THREE.Mesh(fold(list), mat);
+  m.castShadow = true;
+  m.receiveShadow = true;
+  return m;
+}
+
+// A friendly dog, front at +z, its paws at y 0. userData.parts holds what update() animates.
 function buildDog() {
-  const coat = litMaterial(0xc8a060);
-  const dark = litMaterial(0x7a5230);
-  const nose = litMaterial(0x2a2220);
-  const collar = litMaterial(0xd04848);
+  const mat = litMaterial(0xffffff, { vertexColors: true });
+  const ball = new THREE.SphereGeometry(1, 8, 6);
+  const bead = new THREE.SphereGeometry(1, 6, 4);
+  const tube = new THREE.CylinderGeometry(1, 0.66, 1, 7, 1, true); // open: no caps to hide
+  const ring = new THREE.TorusGeometry(1, 0.17, 5, 12);
   const g = new THREE.Group();
   // The body rides on its own group so lying down is one move.
   const torso = new THREE.Group();
-  torso.add(box(0.36, 0.3, 0.72, coat));
-  torso.add(box(0.28, 0.12, 0.3, litMaterial(0xf0e2c8), 0, -0.1, 0.18)); // pale chest
-  g.add(torso);
+  torso.add(skin([
+    piece(ball, COAT, [0, 0.0, 0.13], [0.19, 0.17, 0.27]),               // the deep ribcage
+    piece(ball, CREAM, [0, -0.07, 0.2], [0.14, 0.1, 0.19]),              // pale chest
+    piece(ball, COAT, [0, 0.0, -0.08], [0.15, 0.14, 0.2]),               // the waist
+    piece(ball, COAT, [-0.115, 0.0, -0.22], [0.1, 0.15, 0.17]),          // haunch
+    piece(ball, COAT, [0.115, 0.0, -0.22], [0.1, 0.15, 0.17]),
+    piece(ball, COAT, [0, 0.1, 0.3], [0.1, 0.12, 0.13], [-0.5, 0, 0]),   // the neck
+  ], mat));
   const head = new THREE.Group();
   head.position.set(0, 0.22, 0.38);
-  head.add(box(0.3, 0.28, 0.28, coat));
-  head.add(box(0.16, 0.12, 0.16, coat, 0, -0.05, 0.2));     // snout
-  head.add(box(0.07, 0.06, 0.04, nose, 0, -0.01, 0.29));    // nose
-  for (const s of [-1, 1]) {
-    const ear = box(0.08, 0.2, 0.12, dark, s * 0.17, 0.0, -0.02);
-    ear.rotation.z = s * 0.25;
-    head.add(ear);
-    head.add(box(0.04, 0.04, 0.02, nose, s * 0.07, 0.06, 0.145)); // eyes
-  }
-  head.add(box(0.32, 0.05, 0.3, collar, 0, -0.16, -0.06));
+  const earL = [-0.145, -0.07, -0.02];
+  head.add(skin([
+    piece(ball, COAT, [0, 0, 0], [0.135, 0.125, 0.135]),                 // skull
+    piece(ball, COAT, [0, -0.045, 0.16], [0.075, 0.06, 0.11]),           // muzzle, tapering
+    piece(ball, CREAM, [0, -0.085, 0.155], [0.06, 0.03, 0.09]),          // the pale chin
+    piece(bead, NOSE, [0, -0.02, 0.265], [0.036, 0.03, 0.03]),           // nose
+    piece(bead, NOSE, [-0.062, 0.04, 0.115], [0.02, 0.022, 0.015]),      // eyes
+    piece(bead, NOSE, [0.062, 0.04, 0.115], [0.02, 0.022, 0.015]),
+    piece(ball, DARK, earL, [0.03, 0.105, 0.07], [0, 0, 0.3]),           // floppy ears, hanging from the crown
+    piece(ball, DARK, [-earL[0], earL[1], earL[2]], [0.03, 0.105, 0.07], [0, 0, -0.3]),
+    piece(ring, COLLAR, [0, -0.11, -0.05], [0.125, 0.125, 0.125]),       // collar round the neck
+  ], mat));
   torso.add(head);
   const tail = new THREE.Group();
   tail.position.set(0, 0.1, -0.36);
-  const tailMesh = box(0.07, 0.07, 0.3, dark, 0, 0, -0.15);
-  tail.add(tailMesh);
+  tail.add(skin([
+    piece(ball, DARK, [0, 0, -0.07], [0.045, 0.045, 0.085]),             // a tail that curves up and tapers
+    piece(ball, DARK, [0, 0.02, -0.16], [0.04, 0.04, 0.08]),
+    piece(ball, DARK, [0, 0.065, -0.24], [0.033, 0.035, 0.07], [0.6, 0, 0]),
+    piece(bead, CREAM, [0, 0.125, -0.285], [0.03, 0.04, 0.04]),
+  ], mat));
   tail.rotation.x = -0.6; // up and out
   torso.add(tail);
+  g.add(torso);
   const legs = [];
   for (const [lx, lz] of [[-0.12, 0.25], [0.12, 0.25], [-0.12, -0.25], [0.12, -0.25]]) {
+    const hind = lz < 0;
     const leg = new THREE.Group();
     leg.position.set(lx, 0, lz);
-    leg.add(box(0.1, 0.3, 0.1, coat, 0, 0.15, 0));
+    leg.add(skin([
+      piece(tube, COAT, [0, 0.16, 0], [hind ? 0.07 : 0.058, 0.3, hind ? 0.07 : 0.058]), // tapering leg
+      piece(ball, CREAM, [0, 0.03, 0.02], [0.052, 0.035, 0.075]),                       // a round paw
+    ], mat));
     g.add(leg);
     legs.push(leg);
   }
   g.userData.parts = { torso, head, tail, legs };
+  ball.dispose();
+  bead.dispose();
+  tube.dispose();
+  ring.dispose();
   return g;
 }
 
