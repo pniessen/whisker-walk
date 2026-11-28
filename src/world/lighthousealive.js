@@ -12,6 +12,15 @@
 //   BOATS: the two moored fishing boats (built into 'lighthouse:boats' by lighthousebeauty2.js) rock at anchor: their
 //   vertices are rotated a little about the hull's own centre each frame.
 //
+// PASS THREE (2026-11-28), THE PLACE REACTS TO HER AND LIVES: she is now handed in (catPos). Where she wades a pool or the
+// sea's edge, rings of foam spread from her paws (RINGS, additive, in the sea fx mesh); the paws she brings out of the
+// water leave dark wet prints on the dry sand that fade (a small normal-blended mesh of their own, 'lighthouse:wetprints',
+// which also holds the tide's wet band along each beach); the circling gulls climb, spread and beat harder when she runs
+// under them, then settle; the moored boats bob more as she nears the quay. It lives by itself too: a slow tide (the foam
+// lines, the wet band and its edge rise and fall together), a few drifting banks of low mist, and a far ship's lights that
+// cross the east horizon now and then. Her rings, prints, the tide and the ship stand still in reduced motion; the LOW tier
+// has fewer rings and prints and no mist or ship. Every number is from hash01 or a constant; the only state is the walk's t.
+//
 // REDUCED MOTION freezes all of it (the gulls hang in their first positions, the foam lies still, the boats sit level, the
 // lanterns burn steady). The LOW tier draws fewer gulls and foam rows, and no twinkle. Nothing here is a collider, a
 // perch or a light, and it never touches the walk's save.
@@ -43,6 +52,26 @@ const FOAM_REACH = 22; // m the rows travel out from the shore
 const FOAM_PERIOD = 11; // s for a row to come in
 const FOAM_SEG = 14; // pieces a row
 const GLINTS = 26; // twinkling glints a sea (high tier)
+export const RINGS_HIGH = 4;
+export const RINGS_LOW = 2;
+const RING_SEG = 10;
+const RING_LIFE = 1.4; // s
+const RING_R = 1.7; // m the outer edge reaches
+const PRINTS_HIGH = 8;
+const PRINTS_LOW = 4;
+const PRINT_LIFE = 7; // s a wet print takes to dry
+const WET_TRAVEL = 7; // m she walks on dry sand before her paws are dry
+const TIDE_PERIOD = 96; // s
+const TIDE_RANGE = 1.1; // m the foam and the wet line move
+const MISTS = 3;
+const SHIP_PERIOD = 190; // s: the far ship is on the horizon for SHIP_SPAN of it
+const SHIP_SPAN = 110;
+const SHIP_Z = -44;
+export const SHIP_HORN_X = 74;
+const SCARE_R = 24; // m: gulls this near (over the ground) are put up by her running
+const RUN_SPEED = 2.6; // m/s
+const QUAY_R = 17; // m from a moored boat her nearness stirs it
+const clamp01 = (v) => Math.min(1, Math.max(0, v));
 const SEAS = Object.freeze([
   { id: 'east', shoreX: P.SEA_EAST.minX + 2.4, dir: 1, z0: -48, z1: 48 },
   { id: 'west', shoreX: P.SEA_WEST.maxX - 1.6, dir: -1, z0: -48, z1: 48 },
@@ -58,7 +87,7 @@ function makeGulls(count) {
     gulls.push({
       cx: o.x, cz: o.z, r, y: o.y[0] + (o.y[1] - o.y[0]) * h01(i, 2, 901),
       w: (0.1 + 0.07 * h01(i, 3, 901)) * (h01(i, 4, 901) < 0.5 ? -1 : 1) / (1 + 0.5 * k) * (14 / Math.max(r, 8)),
-      phase: h01(i, 5, 901) * TAU, flap: TAU * (1.3 + 0.5 * h01(i, 6, 901)), fphase: h01(i, 7, 901) * TAU, bob: 0.6 + 1.2 * h01(i, 8, 901),
+      phase: h01(i, 5, 901) * TAU, flap: TAU * (1.3 + 0.5 * h01(i, 6, 901)), fphase: h01(i, 7, 901) * TAU, bob: 0.6 + 1.2 * h01(i, 8, 901), scare: 0,
     });
   }
   return gulls;
@@ -67,13 +96,15 @@ function makeGulls(count) {
 // four triangles a gull: a diamond body (two triangles) and a wing each side (one triangle); 12 vertices
 function writeGull(pos, o, g, t, still) {
   const a = g.phase + g.w * (still ? 0 : t);
-  const x = g.cx + Math.cos(a) * g.r;
-  const z = g.cz + Math.sin(a) * g.r;
-  const y = g.y + (still ? 0 : Math.sin(t * 0.5 + g.fphase) * g.bob);
+  const sc = still ? 0 : g.scare;
+  const rr = g.r * (1 + 0.35 * sc);
+  const x = g.cx + Math.cos(a) * rr;
+  const z = g.cz + Math.sin(a) * rr;
+  const y = g.y + (still ? 0 : Math.sin(t * 0.5 + g.fphase) * g.bob) + 3.2 * sc;
   const dirx = -Math.sin(a) * Math.sign(g.w); const dirz = Math.cos(a) * Math.sign(g.w);
   // local frame: forward f, right s; a flap lifts and drops the tips; in a glide the wings sit a little up
   const f = [dirx, dirz]; const s = [-dirz, dirx];
-  const beat = still ? 0.15 : (Math.sin(t * g.flap + g.fphase) > -0.2 && Math.sin(t * 0.37 + g.fphase * 2) > -0.3 ? Math.sin(t * g.flap + g.fphase) : 0.25);
+  const beat = still ? 0.15 : sc > 0.15 ? Math.sin(t * g.flap * 1.7 + g.fphase) : (Math.sin(t * g.flap + g.fphase) > -0.2 && Math.sin(t * 0.37 + g.fphase * 2) > -0.3 ? Math.sin(t * g.flap + g.fphase) : 0.25);
   const tipY = beat * 0.5;
   const bank = still ? 0 : 0.18 * Math.sign(g.w);
   const P3 = (lf, lu, ls) => [x + f[0] * lf * 2 + s[0] * ls, y + lu * 2 + (ls > 0 ? bank : -bank) * Math.abs(ls) * 0.5, z + f[1] * lf * 2 + s[1] * ls];
@@ -106,12 +137,15 @@ class Verts {
 const GOLD = new THREE.Color(0xffc870);
 const FOAM = new THREE.Color(0xdfeaf0);
 const WARM = new THREE.Color(0xffa850);
+const MISTC = new THREE.Color(0xe8d8c8);
+const SHIPW = new THREE.Color(0xfff2c8);
+const SHIPR = new THREE.Color(0xff5a40);
 const NEAR_ROCKS = (x, z) => {
   const r = (R, k) => Math.hypot(x - R.x, z - R.z) < R.r * k;
   return r(P.GULL_ROCK, 2.2) || r(P.PINNACLE, 2.2);
 };
 
-export function createLighthouseAlive({ scene, reducedMotion = false, tier = null } = {}) {
+export function createLighthouseAlive({ scene, reducedMotion = false, tier = null, sound = null } = {}) {
   const low = tier?.name === 'low';
   const still = !!reducedMotion;
   const nGulls = low ? GULLS_LOW : GULLS_HIGH;
@@ -134,7 +168,9 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
   // the fx mesh
   const foamRows = low ? FOAM_LOW : FOAM_HIGH;
   const glintN = low ? 0 : GLINTS;
-  const maxV = SEAS.length * (foamRows * FOAM_SEG * 6 + glintN * 6 + 12) + 4 * HALO_FAN * 3 + 12 * 3 + 24 * 3;
+  const nRings = low ? RINGS_LOW : RINGS_HIGH;
+  const nMist = low ? 0 : MISTS;
+  const maxV = SEAS.length * (foamRows * FOAM_SEG * 6 + glintN * 6 + 12) + 4 * HALO_FAN * 3 + 12 * 3 + 24 * 3 + nRings * RING_SEG * 6 + nMist * 18 + 12;
   const V = new Verts(maxV);
   const foam = []; // { sea, row, seg, v, z0, z1 }
   for (const sea of SEAS) {
@@ -176,6 +212,17 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
   const SKYFAN = 8;
   const skyV = V.n;
   for (let i = 0; i < SKYFAN; i++) V.tri([0, 0, 0], [0, 0, 0], [0, 0, 0]);
+  // pass three: her rings in the shallows (RING_SEG quads each), the drifting mist (a 6-triangle fan each) and the far ship's two lights (4 triangles)
+  const rings = [];
+  for (let i = 0; i < nRings; i++) { const v = V.n; for (let q = 0; q < RING_SEG * 2; q++) V.tri([0, 0, 0], [0, 0, 0], [0, 0, 0]); rings.push({ v, age: RING_LIFE, x: 0, z: 0, y: 0.1 }); }
+  const mists = [];
+  for (let i = 0; i < nMist; i++) {
+    const v = V.n; for (let q = 0; q < 6; q++) V.tri([0, 0, 0], [0, 0, 0], [0, 0, 0]);
+    const east = i % 2 === 0;
+    mists.push({ v, east, x: east ? 46 + 22 * h01(i, 1, 951) : -48 - 22 * h01(i, 1, 951), z0: -34 + 70 * h01(i, 2, 951), speed: 0.35 + 0.3 * h01(i, 3, 951), w: 11 + 7 * h01(i, 4, 951), ph: TAU * h01(i, 5, 951) });
+  }
+  const shipV = nMist ? V.n : -1;
+  if (nMist) for (let q = 0; q < 4; q++) V.tri([0, 0, 0], [0, 0, 0], [0, 0, 0]);
   const fGeo = new THREE.BufferGeometry();
   fGeo.setAttribute('position', new THREE.BufferAttribute(V.pos, 3).setUsage(THREE.DynamicDrawUsage));
   fGeo.setAttribute('color', new THREE.BufferAttribute(V.col, 3).setUsage(THREE.DynamicDrawUsage));
@@ -187,6 +234,22 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
   fMesh.castShadow = false; fMesh.receiveShadow = false;
   fMesh.userData.noMerge = true; fMesh.userData.noCast = true;
   objs.push(fMesh);
+  // the wet mesh: dark, alpha-blended (an additive mesh can only lighten): her wet prints and each beach's wet band, which the tide moves
+  const nPrints = low ? PRINTS_LOW : PRINTS_HIGH;
+  const wetN = (nPrints * 4 + SEAS.length * 2) * 3;
+  const wPos = new Float32Array(wetN * 3); const wCol = new Float32Array(wetN * 4);
+  const wGeo = new THREE.BufferGeometry();
+  wGeo.setAttribute('position', new THREE.BufferAttribute(wPos, 3).setUsage(THREE.DynamicDrawUsage));
+  wGeo.setAttribute('color', new THREE.BufferAttribute(wCol, 4).setUsage(THREE.DynamicDrawUsage));
+  const wMesh = new THREE.Mesh(wGeo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+  wMesh.name = 'lighthouse:wetprints';
+  wMesh.frustumCulled = false;
+  wMesh.renderOrder = 3;
+  wMesh.castShadow = false; wMesh.receiveShadow = false;
+  wMesh.userData.noMerge = true; wMesh.userData.noCast = true;
+  objs.push(wMesh);
+  const prints = []; for (let i = 0; i < nPrints; i++) prints.push({ v: i * 12, born: -99, x: 0, z: 0, y: 0, yaw: 0, a: 0 });
+  const bandV = nPrints * 12;
   for (const o of objs) scene?.add(o);
 
   const pos = V.pos; const col = V.col;
@@ -197,6 +260,7 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
   const right = new THREE.Vector3(); const up = new THREE.Vector3();
   const base = boatsMesh ? boatsMesh.userData.base : null;
   const baseN = boatsMesh ? boatsMesh.userData.baseN : null;
+  let stir = 0; // 0..1: how near she is to the moored boats
   // sinusoidal rocking of each boat about its own centre
   function rockBoats(t) {
     if (!boatsMesh) return [];
@@ -204,9 +268,10 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
     const out = [];
     boatsMesh.userData.boats.forEach((b, bi) => {
       const ph = bi * 2.1;
-      const dy = still ? 0 : 0.05 * Math.sin(t * 1.05 + ph) + 0.02 * Math.sin(t * 1.9 + ph * 3);
-      const roll = still ? 0 : 0.05 * Math.sin(t * 0.9 + ph + 1);
-      const pitch = still ? 0 : 0.03 * Math.sin(t * 0.75 + ph * 2);
+      const k = 1 + 2.2 * stir; // she nears the quay: the boats ride livelier
+      const dy = still ? 0 : k * (0.05 * Math.sin(t * 1.05 + ph) + 0.02 * Math.sin(t * 1.9 + ph * 3));
+      const roll = still ? 0 : k * 0.05 * Math.sin(t * 0.9 + ph + 1);
+      const pitch = still ? 0 : k * 0.03 * Math.sin(t * 0.75 + ph * 2);
       // roll about the boat's long axis (its local x, turned by yaw), pitch about its local z
       const ca = Math.cos(b.yaw); const sa = Math.sin(b.yaw);
       const cr = Math.cos(roll); const sr = Math.sin(roll); const cp = Math.cos(pitch); const sp2 = Math.sin(pitch);
@@ -231,14 +296,71 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
   }
 
   let lastRock = -1;
-  function update(t, camera, beamA, glowK) {
+  // ---- pass three: what she sets off, and what goes on without her ----
+  const cat = { x: 0, z: 0, set: false, speed: 0 };
+  const st = { wet: 0, travel: 0, sinceRing: 0, sinceStamp: 0, side: 1, surfBeat: -1, gullCalled: -99, hornPass: -1 };
+  let tide = 0;
+  const flatRight = new THREE.Vector3();
+  const inWaterAt = (p) => Math.abs(p.y) < 0.8 && (P.POOLS.some((q) => Math.hypot(p.x - q.x, p.z - q.z) < q.r + 0.1) || p.x > P.SEA_EAST.minX - 0.4 || p.x < P.SEA_WEST.maxX + 0.4);
+  const oldest = (list, key) => list.reduce((b, q) => (q[key] < b[key] ? q : b), list[0]);
+  function react(dt, t, catPos) {
+    if (!catPos || still || !(dt > 0)) { if (!catPos) cat.set = false; return; }
+    const moved = cat.set ? Math.hypot(catPos.x - cat.x, catPos.z - cat.z) : 0;
+    const dx = catPos.x - cat.x; const dz = catPos.z - cat.z;
+    cat.speed += (moved / dt - cat.speed) * clamp01(dt * 8);
+    cat.x = catPos.x; cat.z = catPos.z; cat.set = true;
+    if (moved > 3) return; // a jump (a teleport, a respawn), not a step
+    const inWater = inWaterAt(catPos);
+    if (inWater) { st.wet = 1; st.travel = 0; } else if (st.wet > 0) { st.travel += moved; if (st.travel > WET_TRAVEL) st.wet = 0; }
+    // rings spread from her paws as she wades
+    if (inWater && moved > 0) {
+      st.sinceRing += moved;
+      if (st.sinceRing > 0.5) { st.sinceRing = 0; const r = oldest(rings, 'age'); r.age = 0; r.x = catPos.x; r.z = catPos.z; }
+    }
+    // wet prints on the dry sand
+    if (!inWater && st.wet > 0 && moved > 0 && Math.abs(catPos.y) < 0.8) {
+      st.sinceStamp += moved;
+      if (st.sinceStamp > 0.5) {
+        st.sinceStamp = 0; st.side = -st.side;
+        const p = oldest(prints, 'born');
+        const yaw = Math.atan2(dx, dz); const sx = Math.cos(yaw); const sz = -Math.sin(yaw);
+        p.born = t; p.yaw = yaw; p.x = catPos.x + sx * 0.12 * st.side; p.z = catPos.z + sz * 0.12 * st.side; p.y = Math.max(0.07, catPos.y + 0.04); p.a = 0.1 + 0.34 * (1 - st.travel / WET_TRAVEL);
+      }
+    }
+    // the gulls overhead are put up by her running
+    const was = gulls.some((g) => g.scare > 0.5);
+    const runs = cat.speed > RUN_SPEED;
+    for (const g of gulls) {
+      const a = g.phase + g.w * t;
+      const near = Math.hypot(g.cx + Math.cos(a) * g.r - catPos.x, g.cz + Math.sin(a) * g.r - catPos.z) < SCARE_R;
+      if (runs && near) g.scare = Math.min(1, g.scare + dt * 3); else g.scare = Math.max(0, g.scare - dt / 6);
+    }
+    if (!was && gulls.some((g) => g.scare > 0.5) && t - st.gullCalled > 9) { st.gullCalled = t; sound?.gull?.(); }
+    // the boats stir as she nears the quay
+    let near = 0;
+    if (boatsMesh) for (const b of boatsMesh.userData.boats) near = Math.max(near, clamp01(1 - Math.hypot(catPos.x - b.cx, catPos.z - b.cz) / QUAY_R));
+    stir += (near - stir) * clamp01(dt * 0.9);
+    // the surf's rhythm follows the foam's: a swell as the first row lands, soft when she is far from either shore
+    const beat = Math.floor(t / FOAM_PERIOD);
+    if (st.surfBeat < 0) st.surfBeat = beat;
+    else if (beat !== st.surfBeat) {
+      st.surfBeat = beat;
+      const d = Math.min(P.SEA_EAST.minX - catPos.x, catPos.x - P.SEA_WEST.maxX);
+      const k = clamp01(1 - Math.max(0, d) / 46);
+      if (k > 0.05) sound?.surf?.(k);
+    }
+  }
+
+  function update(t, dt, camera, beamA, glowK, catPos) {
+    react(dt, t, catPos);
+    tide = still ? 0 : Math.sin((t * TAU) / TIDE_PERIOD);
     // gulls
     placeGulls(t);
     // foam: rows slide to the shore, swell then thin out; broken by each piece's own length and wobble
     for (const f of foam) {
       const sea = f.sea;
       const s = (still ? f.row / foamRows : ((t / FOAM_PERIOD) + f.row / foamRows) % 1);
-      const x = sea.shoreX + sea.dir * (FOAM_REACH * (1 - s) ** 1.4 + 0.6);
+      const x = sea.shoreX - sea.dir * tide * TIDE_RANGE * 0.7 + sea.dir * (FOAM_REACH * (1 - s) ** 1.4 + 0.6);
       const fade = Math.sin(Math.PI * Math.min(1, s * 1.05)) ** 0.7;
       const w = 0.22 + 0.28 * s;
       const wob = Math.sin(t * 0.8 * (still ? 0 : 1) + f.wob * TAU) * 0.35;
@@ -290,14 +412,83 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
       put(v, 0, [cx, cyy, cz]); put(v, 1, rim(a0)); put(v, 2, rim(a1));
       tint(v, 1, GOLD, 0.34 * glowK); tint(v + 1, 2, GOLD, 0);
     }
+    // her rings: a flat annulus that widens and thins
+    for (const r of rings) {
+      if (!still) r.age = Math.min(RING_LIFE, r.age + (dt > 0 ? dt : 0));
+      const k = r.age / RING_LIFE; const live = k < 1;
+      const r1 = 0.25 + RING_R * Math.sqrt(k); const r0 = Math.max(0.05, r1 - 0.12 - 0.16 * k);
+      const br = live ? (1 - k) ** 1.3 * 0.75 : 0;
+      for (let q = 0; q < RING_SEG; q++) {
+        const a0 = (q / RING_SEG) * TAU; const a1 = ((q + 1) / RING_SEG) * TAU;
+        const pt = (a, rr) => [r.x + Math.cos(a) * rr, 0.1, r.z + Math.sin(a) * rr];
+        const v = r.v + q * 6;
+        quad(v, pt(a0, r0), pt(a0, r1), pt(a1, r0), pt(a1, r1));
+        tint(v, 6, FOAM, br);
+        for (const i of [0, 2, 3]) tint(v + i, 1, FOAM, br * 0.12); // (the inner edge feathers out)
+      }
+    }
+    // low mist banks drifting over the seas (horizontal billboards, lightening only)
+    if (nMist) {
+      if (camera) flatRight.set(1, 0, 0).applyQuaternion(camera.quaternion); else flatRight.set(1, 0, 0);
+      flatRight.y = 0; flatRight.normalize();
+      for (const m of mists) {
+        const zz = ((m.z0 + (still ? 0 : t) * m.speed + 50) % 100 + 100) % 100 - 50;
+        const fade = Math.sin(Math.PI * (zz + 50) / 100) ** 0.8;
+        const cx = m.x + 2.5 * Math.sin((still ? 0 : t) * 0.07 + m.ph); const cyy = 1.3 + 0.2 * Math.sin((still ? 0 : t) * 0.11 + m.ph);
+        const W = m.w;
+        const MIST = 0.8;
+        for (let q = 0; q < 6; q++) {
+          const a0 = (q / 6) * TAU; const a1 = ((q + 1) / 6) * TAU;
+          const rim = (a) => [cx + flatRight.x * Math.cos(a) * W, cyy + Math.sin(a) * 2.6, zz + flatRight.z * Math.cos(a) * W];
+          put(m.v + q * 3, 0, [cx, cyy, zz]); put(m.v + q * 3, 1, rim(a0)); put(m.v + q * 3, 2, rim(a1));
+          tint(m.v + q * 3, 1, MISTC, MIST * fade); tint(m.v + q * 3 + 1, 2, MISTC, 0);
+        }
+      }
+      // a far ship's lights crossing the east horizon now and then (a white masthead and a red side-light); it is quiet in stillness
+      const ph = (t + 20) % SHIP_PERIOD;
+      const on = !still && ph < SHIP_SPAN;
+      const k = ph / SHIP_SPAN;
+      const sx = 104 - 54 * k; const fade = on ? Math.sin(Math.PI * k) ** 0.5 : 0;
+      const dia = (v, cx0, cy0, cz0, r) => { put(v, 0, [cx0 - r * flatRight.x, cy0, cz0 - r * flatRight.z]); put(v, 1, [cx0, cy0 + r, cz0]); put(v, 2, [cx0 + r * flatRight.x, cy0, cz0 + r * flatRight.z]); };
+      dia(shipV, sx, 1.4, SHIP_Z, 0.7); tint(shipV, 3, SHIPW, 0.9 * fade);
+      put(shipV + 3, 0, [sx - 0.2 * flatRight.x, 0.8, SHIP_Z]); put(shipV + 3, 1, [sx + 1.6 * flatRight.x, 1.4, SHIP_Z]); put(shipV + 3, 2, [sx + 1.6 * flatRight.x, 0.5, SHIP_Z]);
+      tint(shipV + 3, 3, SHIPR, 0.8 * fade);
+      const pass = Math.floor((t + 20) / SHIP_PERIOD);
+      if (on && sx <= SHIP_HORN_X && st.hornPass !== pass) { st.hornPass = pass; if (t > 1) sound?.horn?.(); }
+    }
     fGeo.attributes.position.needsUpdate = true;
     fGeo.attributes.color.needsUpdate = true;
+    // the wet mesh: prints, and each beach's wet line that the tide moves
+    const wp = wPos; const wc = wCol;
+    const wput = (i, x, y, z, a) => { wp[i * 3] = x; wp[i * 3 + 1] = y; wp[i * 3 + 2] = z; wc[i * 4] = 0.12; wc[i * 4 + 1] = 0.08; wc[i * 4 + 2] = 0.05; wc[i * 4 + 3] = a; };
+    for (const pr of prints) {
+      const age = t - pr.born; const a = !still && age >= 0 && age < PRINT_LIFE ? Math.min(0.75, pr.a * 1.5) * (1 - age / PRINT_LIFE) ** 0.8 : 0;
+      const c = Math.cos(pr.yaw); const sn = Math.sin(pr.yaw);
+      const at = (u, w) => [pr.x + (w * c + u * sn), pr.y, pr.z + (-w * sn + u * c)]; // u forward, w right
+      const tri = (i, A, B, C) => { for (const [j, pt] of [A, B, C].entries()) wput(pr.v + i * 3 + j, pt[0], pt[1], pt[2], a); };
+      tri(0, at(-0.24, 0), at(0.05, -0.17), at(0.05, 0.17)); // the pad
+      tri(1, at(0.34, -0.17), at(0.1, -0.27), at(0.1, -0.07)); // three toes
+      tri(2, at(0.42, 0), at(0.17, -0.1), at(0.17, 0.1));
+      tri(3, at(0.34, 0.17), at(0.1, 0.07), at(0.1, 0.27));
+    }
+    SEAS.forEach((sea, i) => {
+      const edge = sea.dir > 0 ? P.SEA_EAST.minX : P.SEA_WEST.maxX;
+      const inland = edge - sea.dir * (3.6 + 1.5 * tide);
+      const out = edge + sea.dir * 1.2;
+      const base = bandV + i * 6;
+      const a0 = 0; const a1 = 0.5;
+      const Z0 = -60; const Z1 = 60;
+      wput(base, inland, 0.075, Z0, a0); wput(base + 1, out, 0.075, Z0, a1); wput(base + 2, inland, 0.075, Z1, a0);
+      wput(base + 3, inland, 0.075, Z1, a0); wput(base + 4, out, 0.075, Z0, a1); wput(base + 5, out, 0.075, Z1, a1);
+    });
+    wGeo.attributes.position.needsUpdate = true;
+    wGeo.attributes.color.needsUpdate = true;
     void lastRock;
   }
 
-  update(0, null, 0, 0);
+  update(0, 0, null, 0, 0, null);
   return {
-    update(dt, t, camera, beamA, glowK) { update(still ? 0 : t, camera, beamA, glowK); },
+    update(dt, t, camera, beamA, glowK, catPos = null) { update(still ? 0 : t, dt, camera, beamA, glowK, catPos); },
     dispose() {
       for (const o of objs) { scene?.remove(o); o.geometry.dispose(); o.material.dispose(); }
       if (boatsMesh && base) { boatsMesh.geometry.attributes.position.array.set(base); boatsMesh.geometry.attributes.normal.array.set(baseN); boatsMesh.geometry.attributes.position.needsUpdate = true; boatsMesh.geometry.attributes.normal.needsUpdate = true; }

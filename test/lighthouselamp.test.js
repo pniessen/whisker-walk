@@ -66,7 +66,7 @@ describe('the lamp job', () => {
     r = rig();
     r.step(3);
     expect(r.life.lit).toBe(false);
-    const meshes = r.scene.children.filter((o) => o.isMesh && o.userData.noMerge && !['lighthouse:glass', 'lighthouse:lamproof', 'lighthouse:gulls', 'lighthouse:seafx'].includes(o.name));
+    const meshes = r.scene.children.filter((o) => o.isMesh && o.userData.noMerge && !['lighthouse:glass', 'lighthouse:lamproof', 'lighthouse:gulls', 'lighthouse:seafx', 'lighthouse:wetprints'].includes(o.name));
     expect(meshes.length).toBeGreaterThanOrEqual(4);
     for (const m of meshes) expect(m.visible, 'a lamp piece is hidden').toBe(false);
     expect(r.points.n).toBe(0);

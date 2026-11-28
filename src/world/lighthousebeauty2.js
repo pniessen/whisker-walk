@@ -40,7 +40,7 @@ function gull(x, y, z, yaw, k = 1) {
 function fishingBoat(kit, M, x, z, yaw, hull, trim, id) {
   const parts = [];
   const sea = 0.05;
-  const hg = new THREE.SphereGeometry(1, 10, 5);
+  const hg = new THREE.SphereGeometry(1, 10, 3, 0, Math.PI * 2, 0, Math.PI * 0.6); // (pass 3: the underside, below the sea's surface, is not drawn)
   hg.scale(1.75, 0.5, 0.68);
   hg.translate(0, sea + 0.1, 0);
   parts.push(paintBy(hg, (px, py) => (py < sea + 0.06 ? shadeHex(hull, 0.55) : py < sea + 0.34 ? hull : trim)));
@@ -119,7 +119,7 @@ function drawBoatsAndSparkle(kit, M) {
   kit.addExtra(boatMesh);
   // low gold sun glitter: four-point glints scattered on both seas, more thickly near the shore, additive
   const S = new Soup();
-  const glint = (x, z, r, seed) => {
+  const glint = (x, z, r, seed, cross = true) => {
     const gold = mixHex(0xa08a4a, 0xe0c878, h01(seed, 1, 811));
     const hot = 0xfff0b8;
     const a = h01(seed, 2, 811) * 0.5;
@@ -127,18 +127,19 @@ function drawBoatsAndSparkle(kit, M) {
     const q = (u, w) => [x + u * ca - w * sa, 0.09, z + u * sa + w * ca];
     S.tri(q(-r, 0), q(r, 0), q(0, r * 0.18), 0x000000, 0x000000, hot);
     S.tri(q(-r, 0), q(r, 0), q(0, -r * 0.18), 0x000000, 0x000000, hot);
+    if (!cross) return; // (pass 3: the far glints are a few pixels wide, a flat diamond says all they can)
     S.tri(q(0, -r * 0.7), q(0, r * 0.7), q(r * 0.16, 0), 0x000000, 0x000000, gold);
     S.tri(q(0, -r * 0.7), q(0, r * 0.7), q(-r * 0.16, 0), 0x000000, 0x000000, gold);
   };
   for (let i = 0; i < 70; i++) {
     const x = 38.5 + 38 * h01(i, 1, 821) ** 1.4; const z = -62 + 124 * h01(i, 2, 821);
     if (Math.hypot(x - 43, z + 12) < 2.6 || Math.hypot(x - 46, z - 21) < 2.6) continue;
-    glint(x, z, 0.35 + 0.4 * h01(i, 3, 821), i);
+    glint(x, z, 0.35 + 0.4 * h01(i, 3, 821), i, x < 52);
   }
   for (let i = 0; i < 50; i++) {
     const x = -41.5 - 36 * h01(i, 1, 831) ** 1.4; const z = -62 + 124 * h01(i, 2, 831);
     if (Math.hypot(x - P.GULL_ROCK.x, z - P.GULL_ROCK.z) < P.GULL_ROCK.r * 1.8 || Math.hypot(x - P.PINNACLE.x, z - P.PINNACLE.z) < P.PINNACLE.r * 1.8) continue;
-    glint(x, z, 0.35 + 0.4 * h01(i, 3, 831), 200 + i);
+    glint(x, z, 0.35 + 0.4 * h01(i, 3, 831), 200 + i, x > -54);
   }
   kit.put('glowpatch', M.patch, S.geometry(), { noCast: true });
 }
