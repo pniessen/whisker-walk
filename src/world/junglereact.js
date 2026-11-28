@@ -22,8 +22,9 @@ const bump = (p, c, w) => { let d = Math.abs(p - c); d = Math.min(d, 1 - d); ret
 export function dayAt(t) {
   const p = ((t / DAY) + 0.12) % 1;
   const dawn = bump(p, 0.05, 0.2); const noon = bump(p, 0.42, 0.22); const dusk = bump(p, 0.78, 0.2);
+  const night = bump(p, 0.92, 0.16); // pass 9: the deep of the night, between the dusk and the next dawn (about fifty seconds of each 420 are properly dark)
   return {
-    p, dawn, noon, dusk,
+    p, dawn, noon, dusk, night,
     mist: Math.min(1, dawn * 1.05 + dusk * 0.3),
     shaft: 0.45 + 0.85 * noon + 0.35 * dawn + 0.25 * dusk,
     glow: 0.6 + 0.9 * dusk + 0.3 * dawn - 0.25 * noon,
