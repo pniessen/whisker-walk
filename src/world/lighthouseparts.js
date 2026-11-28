@@ -11,6 +11,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { litMaterial, tileMetres } from '../render/materials.js';
 import { hash01 } from './builder.js';
 import * as P from './lighthouseplan.js';
+import { seasonData } from './lighthouseseason.js';
 
 // A golden-hour palette. The colours are authored for the evening look (a warm low sun), so
 // they run a little cooler and greyer than they should read.
@@ -58,14 +59,38 @@ export function paintBy(geo, fn) {
   return g;
 }
 
+// A box or a cylinder standing on the sand (y0 at 0) or on the plateau's grass has its underside on the ground: never seen, so not drawn (pass 4).
+const onGround = (y0) => Math.abs(y0) < 1e-4 || Math.abs(y0 - P.PLATEAU_Y) < 1e-4;
+function dropBase(g) {
+  const src = g.index ? g.toNonIndexed() : g;
+  if (src !== g) g.dispose();
+  const pos = src.attributes.position; const keep = [];
+  for (let i = 0; i < pos.count; i += 3) {
+    const uy = pos.getY(i + 1) - pos.getY(i); const vy = pos.getY(i + 2) - pos.getY(i);
+    const ux = pos.getX(i + 1) - pos.getX(i); const vx = pos.getX(i + 2) - pos.getX(i); const uz = pos.getZ(i + 1) - pos.getZ(i); const vz = pos.getZ(i + 2) - pos.getZ(i);
+    const nx = uy * vz - uz * vy; const ny = uz * vx - ux * vz; const nz = ux * vy - uy * vx;
+    if (ny / (Math.hypot(nx, ny, nz) || 1) > -0.95) keep.push(i, i + 1, i + 2);
+  }
+  const out = new THREE.BufferGeometry();
+  for (const name of ['position', 'normal', 'uv']) {
+    const a = src.attributes[name]; if (!a) continue;
+    const arr = new Float32Array(keep.length * a.itemSize);
+    keep.forEach((k, j) => { for (let c = 0; c < a.itemSize; c++) arr[j * a.itemSize + c] = a.array[k * a.itemSize + c]; });
+    out.setAttribute(name, new THREE.BufferAttribute(arr, a.itemSize));
+  }
+  src.dispose();
+  return out;
+}
 export const bx = (x0, x1, y0, y1, z0, z1, hex) => {
-  const g = new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0);
+  let g = new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0);
   g.translate((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+  if (onGround(y0)) g = dropBase(g);
   return paint(g, hex);
 };
 export const cy = (x, z, y0, y1, r0, r1, hex, seg = 12) => {
-  const g = new THREE.CylinderGeometry(r1, r0, y1 - y0, seg);
+  let g = new THREE.CylinderGeometry(r1, r0, y1 - y0, seg);
   g.translate(x, (y0 + y1) / 2, z);
+  if (onGround(y0)) g = dropBase(g);
   return paint(g, hex);
 };
 export const sp = (x, y, z, r, hex, { sx = 1, sy = 1, sz = 1, seg = 8, rings = 6 } = {}) => {
@@ -189,7 +214,7 @@ export function cliffWall({ ax, az, bx: bx2, bz, y0, y1, nx, nz, salt = 1, cell 
     const band = Math.floor(v * rows + (hash01(salt, Math.round(u * 5), 3) - 0.5) * 0.9);
     const t = tones[(((Math.floor(hash01(band, salt, 5) * 97)) % tones.length) + tones.length) % tones.length];
     let hex = t;
-    if (lip && v > 1 - 1.25 / rows) hex = mix(t, COL.grass[Math.floor(hash01(Math.round(u * 6), salt, 7) * 4) % 4], smooth(1 - 1.25 / rows, 1, v));
+    if (lip && v > 1 - 1.25 / rows) hex = mix(t, seasonData().greens[Math.floor(hash01(Math.round(u * 6), salt, 7) * 4) % 4], smooth(1 - 1.25 / rows, 1, v));
     // a crack or ledge every few rows (a darker seam), lichen and gull streaks in patches, the tide's stain at the foot
     const seam = hash01(j, salt, 11) < 0.4 ? 0.82 : 1;
     const patch = hash01(Math.round(u * len / 2.2), band, salt + 17);
@@ -260,8 +285,8 @@ export function grassCap(x0, x1, z0, z1, y, { cell = 1.8, salt = 1, shade: k = 1
   const T = tileMetres('grass') ?? 3;
   const patch = (x, z) => {
     const swell = vnoise(x, z, 7, salt) * 0.7 + vnoise(x, z, 2.6, salt + 4) * 0.3;
-    const lush = COL.grass[Math.floor(hash01(Math.round(x * 0.5), Math.round(z * 0.5), salt + 2) * 3) % 3];
-    let hex = mix(mix(COL.grass[2], lush, 0.6), 0xa6ad60, smooth(0.45, 0.85, swell)); // sun-dry where the swell is high
+    const lush = seasonData().greens[Math.floor(hash01(Math.round(x * 0.5), Math.round(z * 0.5), salt + 2) * 3) % 3];
+    let hex = mix(mix(seasonData().greens[2], lush, 0.6), seasonData().dry, smooth(0.45, 0.85, swell)); // sun-dry where the swell is high
     hex = mix(hex, 0x5e8244, 0.5 * smooth(0.55, 0.15, swell)); // deep green in the hollows
     const b = hash01(Math.round(x * 2), Math.round(z * 2), salt + 1);
     return shade(hex, k * (0.94 + 0.12 * b));
@@ -568,7 +593,7 @@ export function drawGarden(kit, M) {
     kit.put('stone', M.stone, bx(G.minX + 1, G.maxX - 1, Y0, Y0 + 0.14, z - 0.3, z + 0.3, 0x5e4430), { noCast: true });
     for (let k = 0; k < 6; k++) {
       const x = G.minX + 1.6 + k * 1.1;
-      kit.put('paint', M.paint, sp(x, Y0 + 0.28, z, 0.22, COL.grass[(r + k) % 4], { sy: 0.8, seg: 6, rings: 4 }), { noCast: true });
+      kit.put('paint', M.paint, sp(x, Y0 + 0.28, z, 0.22, seasonData().greens[(r + k) % 4], { sy: 0.8, seg: 6, rings: 4 }), { noCast: true });
     }
   }
   const bx0 = G.maxX - 1.2; const bz0 = G.minZ + 4.0;
@@ -649,7 +674,7 @@ export function drawPools(kit, M) {
       const d = Math.abs(((a - gapA + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
       const d2 = Math.abs(((a - gapA - Math.PI + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
       if (Math.min(d, d2) < 0.42) continue;
-      kit.put('rocks', M.stone, boulder(p.x + (p.r + 0.15) * Math.cos(a), 0.03, p.z + (p.r + 0.15) * Math.sin(a), 0.26 + 0.14 * hash01(k, i, 73), 0.2 + 0.16 * hash01(k, i, 75), 80 + k + i * 11, [COL.rock[0], COL.rock[1], 0x6f7469], hash01(k, i, 73) < 0.4 ? 0 : 1), { noCast: true });
+      kit.put('rocks', M.stone, boulder(p.x + (p.r + 0.15) * Math.cos(a), 0.03, p.z + (p.r + 0.15) * Math.sin(a), 0.26 + 0.14 * hash01(k, i, 73), 0.2 + 0.16 * hash01(k, i, 75), 80 + k + i * 11, [COL.rock[0], COL.rock[1], 0x6f7469], hash01(k, i, 73) < 0.8 ? 0 : 1), { noCast: true });
     }
   });
 }
@@ -782,10 +807,10 @@ function drawStack(kit, M, R, salt) {
   kit.put('cliff', M.stone, paintBy(g, (x, y) => {
     const band = Math.floor(y * 1.3);
     const t = COL.rock[(Math.abs(band * 7 + 3)) % 4];
-    return y > Y0 - 0.6 ? mix(t, COL.grass[1], smooth(Y0 - 0.6, Y0, y)) : shade(t, 0.8 + 0.2 * smooth(0, Y0, y));
+    return y > Y0 - 0.6 ? mix(t, seasonData().greens[1], smooth(Y0 - 0.6, Y0, y)) : shade(t, 0.8 + 0.2 * smooth(0, Y0, y));
   }));
   // the top is the ground she lands on: its disc, a little inside the drawn rock's rim
-  kit.put('top', M.stone, cy(R.x, R.z, Y0 - 0.01, Y0, R.land + 0.05, R.land + 0.05, COL.grass[0], 14), { noCast: true });
+  kit.put('top', M.stone, cy(R.x, R.z, Y0 - 0.01, Y0, R.land + 0.05, R.land + 0.05, seasonData().greens[0], 14), { noCast: true });
   for (const [dx, dz, rr] of [[2.6, 1.2, 0.8], [-2.2, -1.9, 0.6], [1.0, 3.0, 0.5]]) kit.put('rocks', M.stone, boulder(R.x + dx * (R.r / 2.2), 0, R.z + dz * (R.r / 2.2), rr, rr * 1.3, salt + 9));
 }
 

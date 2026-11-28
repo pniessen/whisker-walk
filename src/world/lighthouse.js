@@ -22,6 +22,8 @@ import * as K from './lighthouseparts.js';
 import { drawBeauty } from './lighthousebeauty.js';
 import { drawDetail } from './lighthousedetail.js';
 import { drawBeauty2 } from './lighthousebeauty2.js';
+import { drawStory } from './lighthousestory.js';
+import { setSeason, seasonData, frostMeshes } from './lighthouseseason.js';
 import { createLighthouseLife } from './lighthouselife.js';
 import './lighthousewords.js';
 import { phrase } from '../clanphrases.js';
@@ -31,7 +33,6 @@ export { LIGHTHOUSE_BOUNDS, LIGHTHOUSE_SPAWN } from './lighthouseplan.js';
 // The day sky is never seen (the place is always evening) but applySky wants a pair; the evening's own is
 // areaData.skyDusk: amber at the horizon, blue overhead.
 const SKY_DAY = Object.freeze({ top: 0x6f8fc0, horizon: 0xf0cfa0 });
-const SKY_EVENING = Object.freeze({ top: 0x8499cc, horizon: 0xf5b472 });
 // A warm, low golden-hour sun over a softer dusk than the Rooftops' (render/dusk.js's keys).
 const DUSK_LIGHT = Object.freeze({
   sunColor: 0xffb066, sunIntensity: 1.2, hemiSky: 0xaab4dc, hemiIntensity: 0.62, groundDim: 0.8,
@@ -40,7 +41,9 @@ const DUSK_LIGHT = Object.freeze({
 });
 export const SAND_DUSK_TINT = Object.freeze({ desat: 0.12, dark: 0.88, cool: Object.freeze([1.0, 0.98, 0.94]) });
 
-export function build(scene, { water = {}, wind } = {}) {
+export function build(scene, { water = {}, wind, season } = {}) {
+  const SEASON = setSeason(season); // (the calendar's, from the date; only the picture page names one)
+  const SD = seasonData(SEASON);
   const plan = P.lighthouseArea();
   return withLocalUuids('lighthouse-build', () => {
     b.applySky(scene, SKY_DAY.top, SKY_DAY.horizon);
@@ -80,9 +83,12 @@ export function build(scene, { water = {}, wind } = {}) {
     drawBeauty(kit, M);
     drawDetail(kit, M);
     drawBeauty2(kit, M);
+    drawStory(kit, M);
     const place = new THREE.Group();
     place.name = 'lighthousePlace';
-    for (const m of kit.meshes()) place.add(m);
+    const placed = kit.meshes();
+    frostMeshes(placed, SD.frost);
+    for (const m of placed) place.add(m);
     place.add(lamp.glass, lamp.roof);
     scene.add(place);
     scene.add(K.createBell());
@@ -128,9 +134,10 @@ export function build(scene, { water = {}, wind } = {}) {
       moments: P.LIGHTHOUSE_MOMENTS.map((m) => ({ ...m, label: MOMENT_WORDS[m.id]() })),
       puddles: [],
       groundBounce: K.COL.sand,
-      skyDusk: { ...SKY_EVENING, warm: 0xff9a4a },
-      skySunset: { ...SKY_EVENING },
-      duskLight: { ...DUSK_LIGHT },
+      season: SEASON,
+      skyDusk: { top: SD.sky.top, horizon: SD.sky.horizon, warm: SD.sky.warm },
+      skySunset: { top: SD.sky.top, horizon: SD.sky.horizon },
+      duskLight: { ...DUSK_LIGHT, ...SD.light },
       evening: true,
       ground: plan.ground,
       traversal: plan.traversal,

@@ -89,7 +89,7 @@
   if (PLACE) {
     const { build } = await import('/src/world/lighthouse.js');
     const { applyDusk, duskEnv, tintDuskLawn } = await import('/src/render/dusk.js');
-    area = build(scene, {});
+    area = build(scene, { season: params.get('season') });
     const look = applyDusk({ scene, sun, fill, areaData: area });
     tintDuskLawn({ ground: scene.children.filter((c) => c.isMesh && (c.userData.ground || c.userData.duskTint)), grass: null, look });
     scene.environmentIntensity = duskEnv(scene.environmentIntensity, look);
@@ -114,7 +114,7 @@
   // the place's own life (the lamp), made after the caster sweep as the walk makes it; each shot makes a new one
   function remakeLife() {
     lamp?.dispose();
-    lamp = PLACE ? area.life({ scene, ground: area.ground, audio: null, log: null, progression: {}, reducedMotion: rm, tier: { name: 'high' }, roomSeed: undefined, visits: visitsNow, critters }) : null;
+    lamp = PLACE ? area.life({ scene, ground: area.ground, audio: null, log: null, progression: {}, reducedMotion: rm, tier: { name: 'high' }, roomSeed: undefined, visits: visitsNow, critters, wonder: params.get('wonder') }) : null;
     if (bellRope) { bellRope.tipped = false; bellRope.anim = 0; bellRope.group.rotation.z = 0; bellRope.group.position.y = bellRope.gy; }
     if (lever) { lever.tipped = false; lever.anim = 0; lever.group.rotation.z = 0; lever.group.position.y = lever.gy; lever.group.getObjectByName('lever-arm').rotation.z = 0; }
   }
@@ -354,6 +354,15 @@
     lb3_prints: { at: [16, 28], face: [0, -1], stick: [0, -1], secs: 3.3, lit: true, warm: 0.2 },
     lb3_run: { at: [22, 38], face: [0, -1], stick: [0, -1], secs: 2.4, lit: true, warm: 0.3 },
     lb3_coast: { at: [30, 24], face: [1, -0.3], secs: 0, lit: true, warm: 40, keepCat: true, cam: { pos: [30, 3.2, 26], look: [46, 1.0, 6], fov: 75 } },
+    // beauty pass 4 (2026-11-28): stories in the details, the seasons (?season=spring|summer|autumn|winter) and the rare surprise (?wonder=dolphins|rainbow|aurora|lightning)
+    lb4_arrival: { at: [14, 36], face: [0, -1], secs: 0, lit: true, warm: 6 },
+    lb4_w2: { at: [14, 36], face: [0, -1], secs: 0, lit: true, warm: 2.2 },
+    lb4_w5: { at: [14, 36], face: [0, -1], secs: 0, lit: true, warm: 5.2 },
+    lb4_w12: { at: [14, 36], face: [0, -1], secs: 0, lit: true, warm: 12 },
+    lb4_w20: { at: [14, 36], face: [0, -1], secs: 0, lit: true, warm: 20 },
+    lb4_cottage: { at: [-22, 2], face: [-0.5, -1], secs: 0, lit: true, warm: 6 },
+    lb4_bench: { at: [-14, -2], face: [0.1, -1], secs: 0, lit: true, warm: 6, keepCat: true, cam: { pos: [-9, 8.2, 2], look: [-12, 6.3, -6], fov: 55 } },
+    lb4_door: { at: [-22, 2], face: [-0.5, -1], secs: 0, lit: true, warm: 6, keepCat: true, cam: { pos: [-24.5, 8.2, -0.6], look: [-28.2, 6.2, -5.4], fov: 55 } },
     card1: { at: [-6, 14], face: [-1, 0], secs: 0, keepCat: true, cam: { pos: [6, 7, 20], look: [-22, 10, -14], fov: 55 } },
     card2: { at: [-14, 9], face: [-1, -0.3], secs: 0, keepCat: true, cam: { pos: [-2, 9, 14], look: [-24, 11, -20], fov: 50 } },
     card3: { at: [-12, -4], face: [-1, -0.4], secs: 0, keepCat: true, cam: { pos: [-1, 4.8, 3], look: [-23, 12, -20], fov: 56 } },

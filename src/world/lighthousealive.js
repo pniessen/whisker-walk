@@ -29,6 +29,8 @@
 import * as THREE from 'three';
 import { hash01 } from './builder.js';
 import * as P from './lighthouseplan.js';
+import { wonderFor, drawWonder, WONDER_TRIS, STRIKES, THUNDER_LAG } from './lighthousewonders.js';
+import { getSeason } from './lighthouseseason.js';
 
 const TAU = Math.PI * 2;
 const h01 = hash01;
@@ -144,7 +146,7 @@ const NEAR_ROCKS = (x, z) => {
   return r(P.GULL_ROCK, 2.2) || r(P.PINNACLE, 2.2);
 };
 
-export function createLighthouseAlive({ scene, reducedMotion = false, tier = null, sound = null } = {}) {
+export function createLighthouseAlive({ scene, reducedMotion = false, tier = null, sound = null, seed = null, wonder = null } = {}) {
   const low = tier?.name === 'low';
   const still = !!reducedMotion;
   const nGulls = low ? GULLS_LOW : GULLS_HIGH;
@@ -169,7 +171,8 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
   const glintN = low ? 0 : GLINTS;
   const nRings = low ? RINGS_LOW : RINGS_HIGH;
   const nMist = low ? 0 : MISTS;
-  const maxV = SEAS.length * (foamRows * FOAM_SEG * 6 + glintN * 6 + 12) + 4 * HALO_FAN * 3 + 12 * 3 + 24 * 3 + nRings * RING_SEG * 6 + nMist * 18 + 12;
+  const nWonder = low || still ? 0 : WONDER_TRIS;
+  const maxV = nWonder * 3 + SEAS.length * (foamRows * FOAM_SEG * 6 + glintN * 6 + 12) + 4 * HALO_FAN * 3 + 12 * 3 + 24 * 3 + nRings * RING_SEG * 6 + nMist * 18 + 12;
   const V = new Verts(maxV);
   const foam = []; // { sea, row, seg, v, z0, z1 }
   for (const sea of SEAS) {
@@ -222,10 +225,16 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
   }
   const shipV = nMist ? V.n : -1;
   if (nMist) for (let q = 0; q < 4; q++) V.tri([0, 0, 0], [0, 0, 0], [0, 0, 0]);
+  // pass four: the pool the rare surprise (lighthousewonders.js) draws in; it is at the tail, and out of the draw range while nothing plays
+  const wonderV = V.n;
+  for (let i = 0; i < nWonder; i++) V.tri([0, 0, 0], [0, 0, 0], [0, 0, 0]);
+  const moment = nWonder ? wonderFor({ seed, season: getSeason(), force: wonder }) : null;
+  const thundered = new Set();
+  let momentOn = false;
   const fGeo = new THREE.BufferGeometry();
   fGeo.setAttribute('position', new THREE.BufferAttribute(V.pos, 3).setUsage(THREE.DynamicDrawUsage));
   fGeo.setAttribute('color', new THREE.BufferAttribute(V.col, 3).setUsage(THREE.DynamicDrawUsage));
-  fGeo.setDrawRange(0, V.n);
+  fGeo.setDrawRange(0, wonderV);
   const fMesh = new THREE.Mesh(fGeo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.DoubleSide })); // (unfogged: an additive black would fog up to the sky's colour)
   fMesh.name = 'lighthouse:seafx';
   fMesh.frustumCulled = false;
@@ -453,6 +462,25 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
       put(shipV + 3, 0, [sx - 0.2 * flatRight.x, 0.8, SHIP_Z]); put(shipV + 3, 1, [sx + 1.6 * flatRight.x, 1.4, SHIP_Z]); put(shipV + 3, 2, [sx + 1.6 * flatRight.x, 0.5, SHIP_Z]);
       tint(shipV + 3, 3, SHIPR, 0.8 * fade);
     }
+    // the rare surprise, in the pool at the tail
+    const lt = moment && camera ? t - moment.at : -1;
+    const playing = lt >= 0 && lt < moment.dur;
+    if (playing) {
+      let wi = 0;
+      const wv = { cam: [camera.position.x, camera.position.y, camera.position.z], right: [right.x, right.y, right.z], up: [up.x, up.y, up.z], fwd: [0, 0, -1] };
+      const fw = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion); wv.fwd = [fw.x, fw.y, fw.z];
+      for (let i = wonderV; i < wonderV + nWonder * 3; i++) { col[i * 3] = 0; col[i * 3 + 1] = 0; col[i * 3 + 2] = 0; }
+      drawWonder(moment.kind, lt / moment.dur, lt, wv, (a, b, c, ca, cb, cc) => {
+        if (wi >= nWonder) return false;
+        const v = wonderV + wi * 3; wi++;
+        put(v, 0, a); put(v, 1, b); put(v, 2, c);
+        V.setCol(v, ca[0], ca[1], ca[2]); V.setCol(v + 1, cb[0], cb[1], cb[2]); V.setCol(v + 2, cc[0], cc[1], cc[2]);
+        return true;
+      });
+      for (let i = wi; i < nWonder; i++) { const v = wonderV + i * 3; for (let q = 0; q < 3; q++) put(v, q, [0, 0, 0]); }
+      if (moment.kind === 'lightning') STRIKES.forEach((s, k) => { if (lt >= s + THUNDER_LAG && !thundered.has(k)) { thundered.add(k); sound?.surf?.(0.5 + 0.2 * k); } });
+    }
+    if (playing !== momentOn) { momentOn = playing; fGeo.setDrawRange(0, playing ? V.n : wonderV); }
     fGeo.attributes.position.needsUpdate = true;
     fGeo.attributes.color.needsUpdate = true;
     // the wet mesh: prints, and each beach's wet line that the tide moves
