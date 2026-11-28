@@ -58,7 +58,7 @@ function roundTexture() {
 
 // createHouseCreatures({ scene, audio, reducedMotion, low, season, dayKey, lamps, rhythm, rain, wallUp }) -> { points, update(dt, cat, full), dispose }
 // `rhythm` is houseglow.js's live { day, lamp }; `wallUp()` is how far the hall's south wall stands (0..1; the robin's sill is on it); `lamps` is the plan's lamp list.
-export function createHouseCreatures({ scene, audio = null, reducedMotion = false, low = false, dayKey = 0, lamps = [], rhythm, rain = false, wallUp = () => 1 }) {
+export function createHouseCreatures({ scene, audio = null, reducedMotion = false, low = false, dayKey = 0, lamps = [], rhythm, rain = false, wallUp = () => 1, mood = null }) {
   const pos = [], col = [], siz = [];
   const lin = (c) => c * c * (0.35 + 0.65 * c); // an sRGB-looking colour (the way these are written) to the linear value the material wants
   const add = (r, g, b, s) => { pos.push(0, HIDE, 0); col.push(lin(r), lin(g), lin(b)); siz.push(s * K); return siz.length - 1; };
@@ -72,11 +72,11 @@ export function createHouseCreatures({ scene, audio = null, reducedMotion = fals
   const ease = (u) => { const c = Math.min(1, Math.max(0, u)); return c * c * (3 - 2 * c); };
   const still = reducedMotion;
   let from = 0;
-  const mk = (lvl, run) => { creatures.push({ lvl, run, a: from, b: siz.length, on: false }); from = siz.length; };
+  const mk = (lvl, run, g = 1) => { creatures.push({ lvl, run, a: from, b: siz.length, on: false, g }); from = siz.length; }; // g: beauty pass 6, a creature drawn bigger so it reads at the play camera
 
   // ---- the mouse: a hole low in the kitchen's west wall, then a dart along it and in under the dresser ----
   {
-    const hole = add(0.06, 0.04, 0.04, 0.17), body = add(0.62, 0.58, 0.55, 0.13), head = add(0.7, 0.66, 0.62, 0.1);
+    const hole = add(0.06, 0.04, 0.04, 0.17), body = add(0.78, 0.72, 0.68, 0.13), head = add(0.86, 0.8, 0.74, 0.1);
     const ear = adds(2, 1, 0.68, 0.74, 0.055), nose = add(1, 0.6, 0.68, 0.03), tail = adds(2, 0.95, 0.72, 0.75, 0.04);
     let st = 0, tm = 0, wait = 9 + 10 * seed(1), n = 0;
     const m = { x: 0, z: 0, dx: 1, dz: 0 };
@@ -103,7 +103,7 @@ export function createHouseCreatures({ scene, audio = null, reducedMotion = fals
         at(nose, m.x + m.dx * 0.17, 0.08, m.z + m.dz * 0.17); at(tail, m.x - m.dx * 0.12, 0.06, m.z - m.dz * 0.12); at(tail + 1, m.x - m.dx * 0.22 + m.dz * 0.04 * Math.sin(tm * 30), 0.05, m.z - m.dz * 0.22);
         if (u >= 1) { st = 0; wait = 20 + 14 * seed(2 + ++n); hide(body, 7); }
       }
-    });
+    }, 1.45);
   }
 
   // ---- dust bunnies: a grey puff with two dark eyes each, scooting off when she dashes by ----
@@ -118,13 +118,13 @@ export function createHouseCreatures({ scene, audio = null, reducedMotion = fals
         if (!still) bunnyStep(b, c.dt, c.x, c.z, c.fast && c.y > y - 0.5 && c.y < y + 1.5);
         const hop = Math.min(0.05, Math.hypot(b.vx, b.vz) * 0.03) * Math.abs(Math.sin(b.roll * 3));
         at(body, b.x, y + 0.1 + hop, b.z); at(eye, b.x - 0.05, y + 0.14 + hop, b.z - 0.14); at(eye + 1, b.x + 0.05, y + 0.14 + hop, b.z - 0.14);
-      });
+      }, 1.2);
     });
   }
 
   // ---- the attic's spider on a thread, down the round window's top and back up ----
   {
-    const thread = adds(9, 0.92, 0.92, 0.96, 0.025), body = add(0.1, 0.07, 0.07, 0.085), leg = adds(4, 0.14, 0.1, 0.1, 0.04), eye = adds(2, 1, 1, 0.9, 0.03);
+    const thread = adds(9, 1, 1, 1, 0.025), body = add(0.24, 0.17, 0.15, 0.085), leg = adds(4, 0.32, 0.24, 0.2, 0.04), eye = adds(2, 1, 1, 0.9, 0.03);
     const TOP = 6.35, X = -23.86, Z = -10.7;
     mk('attic', (c) => {
       const cyc = (still ? 6 : T) % 26;
@@ -135,7 +135,7 @@ export function createHouseCreatures({ scene, audio = null, reducedMotion = fals
       for (let i = 0; i < 9; i++) at(thread + i, X + sway * (1 - i / 9), TOP - (TOP - y) * (i / 9) * 0.97, Z); // sway at the end of the thread
       at(body, X + sway, y - 0.05, Z); at(eye, X + sway - 0.025, y - 0.03, Z - 0.05); at(eye + 1, X + sway + 0.025, y - 0.03, Z - 0.05);
       for (let k = 0; k < 4; k++) at(leg + k, X + sway + (k % 2 ? 0.09 : -0.09), y - 0.05 + (k < 2 ? 0.035 : -0.05), Z - 0.01);
-    });
+    }, 1.6);
   }
 
   // ---- moths round the lamps (the house's rhythm: once the lamps come on) ----
@@ -154,7 +154,7 @@ export function createHouseCreatures({ scene, audio = null, reducedMotion = fals
           const t = still ? 0 : T, th = t * (0.9 + 0.2 * (q.p % 2)) + q.p, r = (0.26 + 0.1 * Math.sin(t * 1.3 + q.p)) * (0.5 + 0.5 * Math.abs(Math.sin(t * 0.37 + q.p)));
           const x = l.x + r * Math.cos(th), y = hy + 0.13 * Math.sin(t * 2.1 + q.p * 2) + 0.03 * Math.sin(t * 19 + q.p), z = l.z + r * Math.sin(th);
           at(q.b, x, y, z); at(q.w, x, y + 0.02, z);
-          SZ[q.w] = (0.05 + 0.08 * Math.abs(Math.sin(still ? 1 : t * 26 + q.p))) * K * a; SZ[q.b] = 0.085 * K * a; // wings beat
+          SZ[q.w] = (0.07 + 0.11 * Math.abs(Math.sin(still ? 1 : t * 26 + q.p))) * K * a; SZ[q.b] = 0.12 * K * a; // wings beat
         }
       });
     });
@@ -221,11 +221,21 @@ export function createHouseCreatures({ scene, audio = null, reducedMotion = fals
         const z = s ? DZ + 0.07 : DZ - 0.17, y = 0.2 + br * 0.5;
         if (s === 0 && o > 0) { at(white, DX + 0.56, y, z); at(pupil, DX + 0.58, y, z - 0.03); SZ[pupil] = 0.045 * K; } else { hide(white + s, 1); at(pupil + s, DX + 0.56, y, z); SZ[pupil + s] = (s === 1 || o <= 0 ? 0.022 : 0.04) * K; }
       }
-      if (zz >= 0) for (let k = 0; k < 3; k++) { const u = ((still ? 0.3 + k * 0.3 : T * 0.2 + k * 0.33) % 1); if (u < 0.1) hide(zz + k, 1); else { at(zz + k, DX + 0.62 + u * 0.35, 0.4 + u * 0.55, DZ - 0.15); SZ[zz + k] = 0.05 * K * (1 + u); } }
+      if (zz >= 0) for (let k = 0; k < 3; k++) { const u = ((still ? 0.3 + k * 0.3 : T * 0.2 + k * 0.33) % 1); if (u < 0.1) hide(zz + k, 1); else { at(zz + k, DX + 0.62 + u * 0.35, 0.4 + u * 0.55, DZ - 0.15); SZ[zz + k] = 0.07 * K * (1 + u); } }
+    }, 1.12);
+  }
+
+  // ---- beauty pass 6: steam curling up from the kettle on the kitchen range, on a sunny morning ----
+  {
+    const s = adds(5, 0.96, 0.97, 1, 0.14);
+    mk('ground', () => {
+      if (!mood || mood.steam <= 0) { hide(s, 5); return; }
+      for (let k = 0; k < 5; k++) { const u = (still ? 0.15 + k * 0.2 : T * 0.3 + k * 0.2) % 1; at(s + k, 9.0 + 0.1 * Math.sin(u * 5 + k) + 0.12 * u, 1.18 + u * 0.8, -7.4); SZ[s + k] = 0.16 * K * Math.sin(u * Math.PI); }
     });
   }
 
   // ---- the pooled Points ----
+  for (const k of creatures) if (k.g !== 1) for (let i = k.a; i < k.b; i++) siz[i] *= k.g;
   const N = siz.length;
   P = new Float32Array(pos); CL = new Float32Array(col); SZ = new Float32Array(siz);
   const base = SZ.slice();

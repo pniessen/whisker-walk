@@ -4,7 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Old House beauty round</title>
-<!-- Beauty pass 5 (2026-11-28): the creatures and the arrival; new param warp=S (seconds to run the house on before the picture); shots p5-arrival, p5-mouse, p5-dog, p5-spider, p5-robin, p5-moths, p5-dust.
+<!-- Beauty pass 6 (2026-11-28): weather and atmosphere as events. New param mood=storm|sunny|snow|candle (forces that mood; by default the clock, the date and rain pick it: rain=1&now=22 is a storm night, now=8 a sunny
+     morning, now=2026-12-10T15:00 a snowy afternoon, mood=candle&now=21&warp=17 the lamps out); warp=S runs the house on, so a flash (warp 2.7 on a storm night) is caught. Shots used: parlour, hall, kitchen, p4-mantel, p5-*.
+     Beauty pass 5 (2026-11-28): the creatures and the arrival; new param warp=S (seconds to run the house on before the picture); shots p5-arrival, p5-mouse, p5-dog, p5-spider, p5-robin, p5-moths, p5-dust.
      Beauty pass 4 (2026-11-28): stories, seasons and rare surprises. New params: surprise=box|cuckoo|ghost (that rare moment, 3 s in, so a shot catches it); now=2026-04-10T15:00 (a local date and hour) sets the season
      (Dec-Feb winter, Mar-May spring, Jun-Aug summer, Sep-Nov autumn). Shots used: hall, library, parlour, kitchen, attic (plus the nearer p4-* shots).
      Beauty pass 3 (2026-11-28): the house reacts to the cat and lives. New params: rain=1 (a rainy day: streaks on the panes, patter; rain=0 dry; default dry here), now=H sets the day-part
@@ -173,6 +175,7 @@
   const LABEL = params.get('label') !== '0';
   const WARP = Number(params.get('warp') || 0); // pass 5: seconds the house runs on before the picture (a creature's turn)
   const SURPRISE = params.get('surprise'); // pass 4: box | cuckoo | ghost starts that rare moment 3 s in, so a shot catches it
+  const MOOD = params.get('mood'); // pass 6: storm | sunny | snow | candle forces that mood
   const RAIN = params.get('rain') === '1'; // pass 3: a rainy day indoors (the page decides: dry unless asked)
   const SILENT = new Proxy({}, { get: (_, k) => (k === 'isMuted' ? () => true : () => {}) }); // pass 3: the house's sounds run (their pops brighten the fire), nothing is heard
   // Step 4: a partner on a co-walk, sitting at x, z (null: none)
@@ -487,7 +490,7 @@
   function reset(x, z, fx, fz, zoom, { perch = null, open = OPEN, wardrobe = false } = {}) {
     life?.dispose();
     freshThings();
-    life = area.life({ scene, sun, fill, ground, reducedMotion: rm, log, hud: hudStub, audio: SILENT, toy, dusk: DUSK, now, rain: RAIN });
+    life = area.life({ scene, sun, fill, ground, reducedMotion: rm, log, hud: hudStub, audio: SILENT, toy, dusk: DUSK, now, rain: RAIN, mood: MOOD });
     if (SURPRISE) life.surprise?.(SURPRISE, 3);
     if (open) openBookcase();
     if (wardrobe) openWardrobe();
@@ -699,7 +702,7 @@
     setCaption(null);
     life?.dispose();
     freshThings();
-    life = area.life({ scene, sun, fill, ground, reducedMotion: rm, log, hud: hudStub, audio: SILENT, toy, dusk: DUSK, now, rain: RAIN });
+    life = area.life({ scene, sun, fill, ground, reducedMotion: rm, log, hud: hudStub, audio: SILENT, toy, dusk: DUSK, now, rain: RAIN, mood: MOOD });
     if (SURPRISE) life.surprise?.(SURPRISE, 3);
     cat.position.set(x, ground.y(x, z), z);
     cat.rotation.set(0, yaw, 0); // she faces the way the note looked (walk.js, owner's fix C)
