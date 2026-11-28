@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import * as P from './treehouseplan.js';
 import { createWeather } from './treehouseweather.js';
+import { createNight } from './treehousenight.js';
 
 export const WIND = Object.freeze({ x: 0.8, z: 0.6 }); // the one wind: leaves, canopy gusts (treehouseglow.js), mist and the pennants' lean all agree
 const bump = (h, c, w) => Math.max(0, 1 - Math.abs(h - c) / w);
@@ -36,7 +37,8 @@ const WOOD = { x: -0.7, y: 3.4, z: P.OAK.z + P.OAK.r + 0.1 }; // the woodpecker'
 export function createLiving(ctx, env) {
   const { scene, audio = null } = ctx; const { hash01, rung, reducedMotion: still } = env; const lite = rung === 'lite'; const high = rung === 'high';
   const rh = rhythm(0); const out = {}; const ears = { hear: -1 }; // pass 8: the squirrels sit up and listen when she calls (set by treehousereact.js)
-  const NS = 4 + 2 + 2 + 1 + (lite ? 0 : 2) + (high ? 8 : 0); // squirrels, woodpecker, snail, bridge-rail gap, feeder, feeder birds, bats, dragonflies
+  const night = createNight(ctx, { rung, reducedMotion: still, dotTexture: env.dotTexture }); // beauty pass 9: night life (treehousenight.js), its big slots are the last of these
+  const NS = 4 + 2 + 2 + 1 + (lite ? 0 : 2) + (high ? 8 : 0) + night.big; // squirrels, woodpecker, snail, bridge-rail gap, feeder, feeder birds, bats, dragonflies, the night's
   const pos = new Float32Array(NS * 3); const col = new Float32Array(NS * 3);
   const mk = (arr) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(arr, 3)); return g; };
   const geo = mk(pos); geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
@@ -85,6 +87,7 @@ export function createLiving(ctx, env) {
         for (const d of [0.2, -0.2]) put(P.OAK.x + Math.cos(a) * (12 + 2 * i) - d * Math.sin(a), 8.5 + 1.4 * Math.sin(a * 1.9 + i) + w * d * 5, P.OAK.z + Math.sin(a) * (10 + 2 * i) + d * Math.cos(a), 0x15101c);
       }
     }
+    night.draw(t, rh.night, put, away);
     geo.attributes.position.needsUpdate = true; geo.attributes.color.needsUpdate = true;
     if (!lite) { for (let i = 0; i < 7; i++) { const a = t * 0.35 + i * 9.1; const u = fr(a / 40 + hash01(i, 521)); mp[i * 3] = -18 + 36 * u + 2 * Math.sin(a); mp[i * 3 + 1] = 1.2 + 0.4 * Math.sin(a * 0.7); mp[i * 3 + 2] = -4 + 30 * fr(u * 0.7 + hash01(i, 522)); } mist.geometry.attributes.position.needsUpdate = true; }
   }
@@ -110,8 +113,13 @@ export function createLiving(ctx, env) {
     const hk = sm(((Number.isFinite(y) ? y : 0) - 1.2) / 6); const now = ac.currentTime; const gust = 0.65 + 0.35 * Math.sin(t * 0.31);
     const wo = wx.state; bed.rain.gain.setTargetAtTime(0.011 * wo.rain * (0.4 + 0.6 * hk), now, 0.6); bed.up.gain.setTargetAtTime(0.011 * (hk * gust * (1 + 2 * wo.storm) + 1.5 * wo.storm + 0.4 * wo.rain), now, 0.8); bed.low.gain.setTargetAtTime(0.01 * (1 - hk) * (0.5 + 0.5 * rh.noon), now, 0.8); bed.cg.gain.setTargetAtTime(0.0035 * (1 - 0.6 * hk) * Math.min(1, rh.night + rh.gold * 0.5), now, 1.2);
   }
-  function blip(f, at, dur, gain) { const ac = aud(); if (!ac) return; const o = ac.createOscillator(); const g = ac.createGain(); const w = ac.currentTime + at; o.type = 'sine'; o.frequency.setValueAtTime(f, w); o.frequency.exponentialRampToValueAtTime(f * 1.35, w + dur); g.gain.setValueAtTime(0.0001, w); g.gain.exponentialRampToValueAtTime(gain, w + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, w + dur); o.connect(g); g.connect(audio.getMaster?.() ?? ac.destination); o.start(w); o.stop(w + dur + 0.02); }
+  function blip(f, at, dur, gain, glide = 1.35) { const ac = aud(); if (!ac) return; const o = ac.createOscillator(); const g = ac.createGain(); const w = ac.currentTime + at; o.type = 'sine'; o.frequency.setValueAtTime(f, w); o.frequency.exponentialRampToValueAtTime(f * glide, w + dur); g.gain.setValueAtTime(0.0001, w); g.gain.exponentialRampToValueAtTime(gain, w + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, w + dur); o.connect(g); g.connect(audio.getMaster?.() ?? ac.destination); o.start(w); o.stop(w + dur + 0.02); }
 
+  const sun0 = ctx.sun && !ctx.dusk ? { i: ctx.sun.intensity, c: ctx.sun.color.clone(), fi: ctx.fill?.intensity ?? 0, fc: ctx.fill?.color?.clone() ?? null } : null; const MOON = new THREE.Color(0x8fa6ea);
+  function moon(k) { // the sun is dimmed and turned to moonlight after dark (the lamps and the lit windows carry the village); the cat keeps enough light to read
+    if (!sun0) return; ctx.sun.intensity = sun0.i * (1 - 0.62 * k); ctx.sun.color.copy(sun0.c).lerp(MOON, 0.7 * k);
+    if (ctx.fill && sun0.fc) { ctx.fill.intensity = sun0.fi * (1 - 0.3 * k); ctx.fill.color.copy(sun0.fc).lerp(MOON, 0.5 * k); }
+  }
   let lastClock = -99;
   function clock() {
     rhythm(hourOf(ctx), rh);
@@ -119,6 +127,7 @@ export function createLiving(ctx, env) {
     lampBase = 0.5 + 0.4 * rh.gold + 0.95 * rh.night + 0.1 * rh.dawn;
     shaftNow = shaftBase * (0.15 + 0.85 * Math.min(1, rh.noon + 0.5 * rh.dawn + 0.7 * rh.gold)) * (1 - 0.7 * rh.night);
     if (dapple?.material) dapple.material.opacity = dapBase * (0.45 + 0.8 * rh.noon) * (1 - 0.6 * rh.night);
+    sky?.setNight?.(rh.night); moon(rh.night);
     mist.visible = !lite && rh.dawn > 0.03; mist.material.opacity = 0.32 * rh.dawn;
   }
   clock(); draw(0);
@@ -136,12 +145,13 @@ export function createLiving(ctx, env) {
       if (!still) draw(t);
       if (catPos) beds(t, catPos.y);
       if (still || !catPos) return;
+      night.sound(t, rh.night, catPos, (f, at, dur, gain, glide) => blip(f, at, dur, gain, glide));
       const near = Math.hypot(catPos.x - WOOD.x, catPos.z - WOOD.z) < 24;
       const c = fr(t / 9); if (near && rh.night < 0.5 && c < 0.18 && t - tapAt > 6) { tapAt = t; for (let i = 0; i < 6; i++) blip(1700, i * 0.11, 0.05, 0.01); }
       if (t > chirpAt && rh.dawn > 0.3 && rh.night < 0.5 && wx.state.rain < 0.3) { const vs = 1 + Math.floor(wx.state.mist * 5); chirpAt = t + 2.4 + 2 * hash01(Math.floor(t), 531); const f = 1700 + 280 * Math.floor(hash01(Math.floor(t), 532) * vs); for (let i = 0; i < 3; i++) blip(f + 90 * i, i * 0.13, 0.09, 0.008); } // the dawn chorus: one more bird joins as the mist thickens
     },
     dispose() {
-      wx.dispose(); scene.remove(crit, mist); geo.dispose(); crit.material.dispose(); mist.geometry.dispose(); mist.material.dispose();
+      wx.dispose(); night.dispose(); if (sun0) { ctx.sun.intensity = sun0.i; ctx.sun.color.copy(sun0.c); if (ctx.fill && sun0.fc) { ctx.fill.intensity = sun0.fi; ctx.fill.color.copy(sun0.fc); } } scene.remove(crit, mist); geo.dispose(); crit.material.dispose(); mist.geometry.dispose(); mist.material.dispose();
       if (bed) { for (const o of [bed.src, bed.cr, bed.lfo]) { try { o.stop(); o.disconnect(); } catch { /* gone */ } } for (const g of [bed.up, bed.low, bed.cg, bed.rain]) { try { g.disconnect(); } catch { /* gone */ } } bed = null; }
       if (sky) sky.lampK = 1; // (the shafts and the dapple go with the area)
     },
