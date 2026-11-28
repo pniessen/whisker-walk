@@ -20,7 +20,7 @@ export function lightRig({ restore = null, audio = null, roomSeed, visits = 0, p
   const log = createDiscoveryLog(progression);
   log.startWalk();
   if (restore) log.restore(restore);
-  const life = placed.life({ scene, ground: placed.ground, audio, log, progression, reducedMotion: false, tier: { name: 'high' }, roomSeed, visits, critters });
+  const life = placed.life({ scene, ground: placed.ground, audio, log, progression, reducedMotion: false, tier: { name: 'high' }, roomSeed, visits, critters, wx: 'off' }); // (the weather events off: these tests count sounds and clocks)
   const session = { tippables };
   const camera = new THREE.PerspectiveCamera();
   const events = [];

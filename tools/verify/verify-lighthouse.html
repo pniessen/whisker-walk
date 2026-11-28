@@ -47,6 +47,7 @@
   import { buildLighthouseSpike } from '/src/world/lighthousespikeview.js';
   import { LANDINGS, POOL, SPIKE_TRAVERSAL } from '/src/world/lighthousespike.js';
   import { LIGHTHOUSE_TRAVERSAL } from '/src/world/lighthouseplan.js';
+  import { flashAt } from '/src/world/lighthouseweather.js';
 
   const params = new URLSearchParams(location.search);
   const rm = params.get('rm') === '1';
@@ -114,7 +115,7 @@
   // the place's own life (the lamp), made after the caster sweep as the walk makes it; each shot makes a new one
   function remakeLife() {
     lamp?.dispose();
-    lamp = PLACE ? area.life({ scene, ground: area.ground, audio: null, log: null, progression: {}, reducedMotion: rm, tier: { name: 'high' }, roomSeed: undefined, visits: visitsNow, critters, wonder: params.get('wonder') }) : null;
+    lamp = PLACE ? area.life({ scene, sun, fill, wx: params.get('wx'), ground: area.ground, audio: null, log: null, progression: {}, reducedMotion: rm, tier: { name: 'high' }, roomSeed: undefined, visits: visitsNow, critters, wonder: params.get('wonder') }) : null;
     if (bellRope) { bellRope.tipped = false; bellRope.anim = 0; bellRope.group.rotation.z = 0; bellRope.group.position.y = bellRope.gy; }
     if (lever) { lever.tipped = false; lever.anim = 0; lever.group.rotation.z = 0; lever.group.position.y = lever.gy; lever.group.getObjectByName('lever-arm').rotation.z = 0; }
   }
@@ -368,6 +369,15 @@
     lb5_creature: { at: [14, 36], face: [0, -1], secs: 0, lit: true, warm: 6, keepCat: true, cam: { pos: [14.5, 1.5, 36.5], look: [19.5, 1.2, 30], fov: 62 } },
     lb5_bay: { at: [14, 36], face: [0, -1], secs: 0, lit: true, warm: 6, keepCat: true, cam: { pos: [29, 1.5, 40], look: [44, 0.6, 31], fov: 62 } },
     lb5_door: { at: [-14, -12], face: [-0.8, -0.7], secs: 0, lit: true, warm: 6 },
+    // beauty pass 6 (2026-11-28): weather as events; ?hour=18.5&wx=storm|fog|sunset|night (wx=off is pass 5's look); flash:true lands on a lightning flash
+    lb6_beach: { at: [14, 36], face: [1, -0.25], secs: 0, lit: true, warm: 9.6 },
+    lb6_flash: { at: [14, 36], face: [1, -0.25], secs: 0, lit: true, flash: true },
+    lb6_tower: { at: [-14, -12], face: [-0.8, -0.7], secs: 0, lit: true, warm: 9.6 },
+    lb6_quay: { at: [30, 18], face: [1, 0.2], secs: 0, lit: true, warm: 9.6 },
+    lb6_sun: { at: [-34, 30], face: [-0.83, -0.55], secs: 0, lit: true, warm: 20, keepCat: true, cam: { pos: [-33, 2.4, 30], look: [-84, 5, -4], fov: 62 } },
+    lb6_sails: { at: [14, 36], face: [1, -0.25], secs: 0, lit: true, warm: 40, keepCat: true, cam: { pos: [29, 1.6, 20], look: [70, 5, -14], fov: 62 } },
+    lb6_sky: { at: [14, 36], face: [1, -0.25], secs: 0, lit: true, warm: 12, keepCat: true, cam: { pos: [14, 1.7, 36], look: [40, 28, 20], fov: 70 } },
+    lb6_bio: { at: [33, 34], face: [1, 0], secs: 2.4, stick: [0, -1], lit: true },
     card1: { at: [-6, 14], face: [-1, 0], secs: 0, keepCat: true, cam: { pos: [6, 7, 20], look: [-22, 10, -14], fov: 55 } },
     card2: { at: [-14, 9], face: [-1, -0.3], secs: 0, keepCat: true, cam: { pos: [-2, 9, 14], look: [-24, 11, -20], fov: 50 } },
     card3: { at: [-12, -4], face: [-1, -0.4], secs: 0, keepCat: true, cam: { pos: [-1, 4.8, 3], look: [-23, 12, -20], fov: 56 } },
@@ -441,6 +451,7 @@
     for (let k = 0; k < s.secs / DT; k++) frame(DT);
     stick(0, 0);
     // run the lamp's own clock on to the walk second the picture wants (the cat stands still)
+    if (s.flash) { s.warm = 0; for (let n = 1; n < 1800; n++) if (flashAt(n * DT, 0, 0) === 1) { s.warm = n * DT; break; } }
     for (let k = 0; k < (s.warm ?? 0) / DT; k++) frame(DT);
     if (s.cam) {
       camera.fov = s.cam.fov ?? camera.fov;
