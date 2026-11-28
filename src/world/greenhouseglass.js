@@ -53,11 +53,13 @@ const _up = new THREE.Vector3(0, 1, 0);
 const _p = new THREE.Vector3();
 const _q = new THREE.Vector3();
 const _mid = new THREE.Vector3();
-function beam(ax, ay, az, bx, by, bz, w, h, hex) {
+function beam(ax, ay, az, bx, by, bz, w, h, hex, caps = true) {
   _p.set(ax, ay, az);
   _q.set(bx, by, bz);
   const len = _p.distanceTo(_q);
   const g = new THREE.BoxGeometry(w, h, len);
+  // beauty pass 2: a rib's two ends are never seen (each sits against the next rib segment, the plinth or the ridge): no end faces
+  if (!caps) g.setIndex(Array.from(g.index.array).slice(0, 24));
   const dir = _q.clone().sub(_p).normalize();
   const upv = Math.abs(dir.y) > 0.99 ? new THREE.Vector3(1, 0, 0) : _up;
   _m.lookAt(_p, _q, upv);
@@ -184,7 +186,7 @@ function frameGeometry(h, doors) {
     for (let s = 0; s + 1 < prof.length; s++) {
       const a = prof[s], b = prof[s + 1];
       // the ribs beside a door (x = +-1.5) stand to the ground; every other rib starts at the plinth
-      parts.push(beam(x, a.y, a.z, x, b.y, b.z, T, T, COL.frame));
+      parts.push(beam(x, a.y, a.z, x, b.y, b.z, T, T, COL.frame, false));
     }
   }
   // purlins: one long beam at every node of the profile (ridge, arch nodes, wall tops)
@@ -278,12 +280,16 @@ ${runnels ? `    vec2 col = vec2(floor(q.x / 0.7), 0.0);
       run = max(run, 1.0 - smoothstep(0.018, 0.03, hd));
     }` : ''}
     float cov = clamp(max(bead, run), 0.0, 1.0) * fade;
-    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.9, 1.0, 0.96), 0.55 * cov + 0.3 * lit * fade);
-    diffuseColor.a = min(1.0, diffuseColor.a + 0.34 * cov);
+    // beauty pass 2: the beads twinkle (each on its own beat) and a slow diagonal sheen of sky light crosses the panes
+    float tw = 0.65 + 0.35 * sin(uCondTime * 1.3 + h1 * 40.0);
+    float sheen = pow(max(0.0, sin(vCondW.x * 0.55 + vCondW.y * 0.42 + vCondW.z * 0.2 - uCondTime * 0.32)), 18.0) * fade;
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.9, 1.0, 0.96), 0.55 * cov + 0.3 * lit * tw * fade);
+    diffuseColor.rgb += vec3(0.5, 0.55, 0.42) * sheen * 0.35;
+    diffuseColor.a = min(1.0, diffuseColor.a + 0.34 * cov + 0.1 * sheen);
   }
 }`);
   };
-  material.customProgramCacheKey = () => `greenhouse-condensation-${runnels ? 'r' : 'b'}-v1`;
+  material.customProgramCacheKey = () => `greenhouse-condensation-${runnels ? 'r' : 'b'}-v2`;
   return material;
 }
 
@@ -400,12 +406,15 @@ export function dappleQuad(h, { size = 64, name = 'glassDapple' } = {}) {
 // Sun shafts: tall additive quads under the ridge, brighter at the top and fading to nothing at the floor.
 // One mesh whose origin is the ridge, so the sway (a few degrees over 20 s) is one rotation.
 export const SHAFT_SPOTS = Object.freeze([[-8, -12.5], [-2, -5.5], [5.5, -13], [10, -6]].map((p) => Object.freeze(p)));
-export const SHAFT_GAIN = 0.18; // the additive light's strength at a shaft's top, centre (M0's 0.22 blew out)
+export const SHAFT_GAIN = 0.26; // the additive light's strength at a shaft's top, centre (M0's 0.22 blew out; pass 1's 0.18 was faint at play distance)
+export const MOTES = 12; // pollen and dust motes drifting in each shaft (beauty pass 2): a camera-facing quad each, two triangles
 export const SHAFT_FADE = Object.freeze({ near: 2.5, far: 8 }); // m from the camera: none, then all
 export function sunShafts(h, spots = SHAFT_SPOTS, name = 'sunShafts') {
   const pos = [];
   const col = [];
   const idx = [];
+  const aA = []; // per vertex: kind (0 shaft, 1 mote), the corner (-1..1) and a phase
+  const aS = []; // per vertex: a mote's half size
   const ridge = h.ridge - 0.6;
   _col.set(COL.shaft);
   let spotNo = 0;
@@ -423,32 +432,67 @@ export function sunShafts(h, spots = SHAFT_SPOTS, name = 'sunShafts') {
         const pz = z + u * sn;
         pos.push(px, y, pz);
         col.push(_col.r * k * SHAFT_GAIN * gk, _col.g * k * SHAFT_GAIN * gk, _col.b * k * SHAFT_GAIN * gk * warmK ** 2);
+        aA.push(0, 0, 0, 0); aS.push(0);
       }
       idx.push(base, base + 1, base + 4, base, base + 4, base + 3, base + 1, base + 2, base + 5, base + 1, base + 5, base + 4);
+    }
+    // beauty pass 2: motes inside this shaft's column (centre in `position`, drifted and turned to the camera in the vertex shader)
+    for (let m = 0; m < MOTES; m++) {
+      const t = 0.1 + 0.85 * hash01(spotNo, m, 0x9f1);
+      const wide = 0.7 + 1.5 * t;
+      const mx = x + 1.6 * t + (hash01(spotNo, m, 0x9f2) - 0.5) * 2 * wide;
+      const mz = z + (hash01(spotNo, m, 0x9f3) - 0.5) * 2 * wide;
+      const base = pos.length / 3;
+      const size = 0.13 + 0.1 * hash01(spotNo, m, 0x9f4);
+      const ph = hash01(spotNo, m, 0x9f5) * Math.PI * 2;
+      const gold = 0.55 + 0.45 * hash01(spotNo, m, 0x9f6);
+      for (const [cx, cy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+        pos.push(mx, -t * ridge, mz);
+        col.push(1.0 * gold, 0.86 * gold, 0.5 * gold);
+        aA.push(1, cx, cy, ph); aS.push(size);
+      }
+      idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
     }
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setAttribute('aA', new THREE.Float32BufferAttribute(aA, 4));
+  g.setAttribute('aS', new THREE.Float32BufferAttribute(aS, 1));
   g.setIndex(idx);
   g.computeBoundingSphere();
+  const uniforms = { uTime: { value: 0 } }; // the walk's clock (greenhouselife.js; 0 under reduced motion: the motes hold still)
   const mat = new THREE.MeshBasicMaterial({
     vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false,
   });
   // The distance fade (M0's known bug: a camera among the shafts saw a screenful of stacked additive light, blown out
   // to white). A shaft's light fades to nothing within SHAFT_FADE.near of the camera and is whole beyond .far.
   mat.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, uniforms);
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vShaftW;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvShaftW = (modelMatrix * vec4(position, 1.0)).xyz;');
+      .replace('#include <common>', '#include <common>\nattribute vec4 aA;\nattribute float aS;\nuniform float uTime;\nvarying vec3 vShaftW;\nvarying vec4 vA;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+vA = aA;
+if (aA.x > 0.5) { transformed += vec3(sin(uTime * 0.23 + aA.w) * 0.4, cos(uTime * 0.17 + aA.w * 2.3) * 0.35, cos(uTime * 0.19 + aA.w * 1.7) * 0.4); }
+vShaftW = (modelMatrix * vec4(transformed, 1.0)).xyz;`)
+      .replace('#include <project_vertex>', `vec4 mvPosition = modelViewMatrix * vec4(transformed, 1.0);
+if (aA.x > 0.5) mvPosition.xy += aA.yz * aS;
+gl_Position = projectionMatrix * mvPosition;`);
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vShaftW;')
+      .replace('#include <common>', '#include <common>\nuniform float uTime;\nvarying vec3 vShaftW;\nvarying vec4 vA;')
       .replace('#include <color_fragment>', `#include <color_fragment>
-diffuseColor.rgb *= smoothstep(${SHAFT_FADE.near.toFixed(1)}, ${SHAFT_FADE.far.toFixed(1)}, distance(cameraPosition, vShaftW));`);
+diffuseColor.rgb *= smoothstep(${SHAFT_FADE.near.toFixed(1)}, ${SHAFT_FADE.far.toFixed(1)}, distance(cameraPosition, vShaftW));
+if (vA.x > 0.5) {
+  float disc = 1.0 - smoothstep(0.25, 1.0, length(vA.yz));
+  diffuseColor.rgb *= disc * (0.6 + 0.4 * sin(uTime * 1.7 + vA.w * 13.0)) * 3.2;
+} else {
+  diffuseColor.rgb *= 0.86 + 0.14 * sin(uTime * 0.55 + vShaftW.x * 0.7 + vShaftW.z * 0.5);
+}`);
   };
-  mat.customProgramCacheKey = () => 'greenhouse-shafts-v2';
+  mat.customProgramCacheKey = () => 'greenhouse-shafts-v3';
   const m = new THREE.Mesh(g, mat);
   m.name = name;
+  m.userData.shaft = uniforms;
   m.position.set(0, ridge, 0);
   m.userData.noCast = true;
   m.userData.noMerge = true;
@@ -470,21 +514,51 @@ export const MIST_SHEETS = Object.freeze([
   { x: -7, z: -8, w: 7, d: 4.5, y: 0.35 }, { x: 5, z: -12, w: 8, d: 4, y: 0.5 },
   { x: 0, z: -1.6, w: 4.5, d: 2.2, y: 0.6 }, { x: 8.5, z: -4, w: 6, d: 3.5, y: 0.8 },
 ].map((s) => Object.freeze(s)));
-export function mistSheets(sheets = MIST_SHEETS, name = 'glassMist') {
+// Beauty pass 2 rides on the same mesh and clock: DRIP RINGS (a wet patch and two rings widening from where a drip lands: a flat
+// quad on the floor, drawn in the fragment shader) and LAMP HALOS (a soft warm disc turned to the camera, flickering a little).
+// Both are extra quads with attribute aA = (kind, ...), the sheets stay kind 0; nothing is a new mesh or draw.
+export const DRIP_RINGS = Object.freeze([[-1.7, -6.4, 1.1], [2.0, -7.7, 1.0], [0.9, -3.9, 0.9], [-4.2, -13.2, 1.0], [30.3, 19.65, 1.2]].map((p) => Object.freeze(p))); // x, z, size (m)
+export const LAMP_HALOS = Object.freeze([[-5.5, 2.7, 26.5], [5.5, 2.7, 26.5]].map((p) => Object.freeze(p))); // x, y, z
+export function mistSheets(sheets = MIST_SHEETS, name = 'glassMist', { rings = [], halos = [] } = {}) {
   const pos = [];
   const uv = [];
   const idx = [];
+  const aA = [];
+  const aC = [];
   sheets.forEach((s, k) => {
     const base = k * 4;
     for (const [u, v] of [[0, 0], [1, 0], [1, 1], [0, 1]]) {
       pos.push(s.x + (u - 0.5) * s.w, s.y, s.z + (v - 0.5) * s.d);
       uv.push(u, v);
+      aA.push(0, 0, 0, 0); aC.push(1, 1, 1);
     }
     idx.push(base, base + 2, base + 1, base, base + 3, base + 2);
+  });
+  rings.forEach(([x, z, size], k) => {
+    const base = pos.length / 3;
+    for (const [u, v] of [[0, 0], [1, 0], [1, 1], [0, 1]]) {
+      pos.push(x + (u - 0.5) * size, 0.07, z + (v - 0.5) * size);
+      uv.push(u, v);
+      aA.push(1, 0, 0, hash01(k, 3, 0x9f7));
+      aC.push(0.78, 0.92, 1);
+    }
+    idx.push(base, base + 2, base + 1, base, base + 3, base + 2);
+  });
+  halos.forEach(([x, y, z], k) => {
+    const base = pos.length / 3;
+    for (const [u, v] of [[0, 0], [1, 0], [1, 1], [0, 1]]) {
+      pos.push(x, y, z);
+      uv.push(u, v);
+      aA.push(2, (u - 0.5) * 2, (v - 0.5) * 2, hash01(k, 5, 0x9f7) * 6);
+      aC.push(1, 0.78, 0.36);
+    }
+    idx.push(base, base + 1, base + 2, base, base + 2, base + 3); // (turned to the camera: the view's own winding)
   });
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setAttribute('aA', new THREE.Float32BufferAttribute(aA, 4));
+  g.setAttribute('aC', new THREE.Float32BufferAttribute(aC, 3));
   g.setIndex(idx);
   g.computeBoundingSphere();
   const uniforms = { uTime: { value: 0 }, uColor: { value: new THREE.Color(COL.mist) } };
@@ -492,31 +566,52 @@ export function mistSheets(sheets = MIST_SHEETS, name = 'glassMist') {
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vMistW;\nvarying vec2 vMistUv;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvMistW = (modelMatrix * vec4(position, 1.0)).xyz;\nvMistUv = uv;');
+      .replace('#include <common>', '#include <common>\nattribute vec4 aA;\nattribute vec3 aC;\nvarying vec3 vMistW;\nvarying vec2 vMistUv;\nvarying vec4 vMistA;\nvarying vec3 vMistC;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvMistW = (modelMatrix * vec4(position, 1.0)).xyz;\nvMistUv = uv;\nvMistA = aA;\nvMistC = aC;')
+      .replace('#include <project_vertex>', `vec4 mvPosition = modelViewMatrix * vec4(transformed, 1.0);
+if (aA.x > 1.5) mvPosition.xy += aA.yz * 1.5;
+gl_Position = projectionMatrix * mvPosition;`);
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
 uniform float uTime;
 uniform vec3 uColor;
 varying vec3 vMistW;
 varying vec2 vMistUv;
+varying vec4 vMistA;
+varying vec3 vMistC;
 float mH(vec2 q) { return fract(sin(dot(q, vec2(127.1, 311.7))) * 43758.5453); }
 float mN(vec2 q) { vec2 i = floor(q), f = fract(q); vec2 u = f * f * (3.0 - 2.0 * f);
   return mix(mix(mH(i), mH(i + vec2(1.0, 0.0)), u.x), mix(mH(i + vec2(0.0, 1.0)), mH(i + vec2(1.0, 1.0)), u.x), u.y); }`)
       .replace('#include <color_fragment>', `#include <color_fragment>
 {
-  vec2 p = vMistW.xz;
-  vec2 e = min(vMistUv, 1.0 - vMistUv);
-  float edge = smoothstep(0.0, 0.4, min(e.x, e.y));
-  float n = 0.6 * mN(p * 0.35 + vec2(uTime * 0.05, uTime * 0.03)) + 0.4 * mN(p * 0.9 + vec2(-uTime * 0.03, uTime * 0.06) + 17.0);
-  float a = smoothstep(0.3, 0.7, n) * edge * 0.8;
+  float a;
+  if (vMistA.x > 1.5) {
+    // a lamp's halo: a warm soft disc, a little unsteady
+    float r = length(vMistUv - 0.5) * 2.0;
+    a = (pow(max(0.0, 1.0 - r), 2.4) * 0.85 + 0.5 * pow(max(0.0, 1.0 - r * 3.2), 2.0)) * (0.92 + 0.08 * sin(uTime * 2.3 + vMistA.w));
+    diffuseColor.rgb = vMistC;
+  } else if (vMistA.x > 0.5) {
+    // a drip's wet patch and two rings widening and fading
+    float r = length(vMistUv - 0.5) * 2.0;
+    float p1 = fract(uTime * 0.42 + vMistA.w), p2 = fract(uTime * 0.42 + vMistA.w + 0.5);
+    float r1 = exp(-pow((r - p1 * 0.95) / 0.07, 2.0)) * (1.0 - p1);
+    float r2 = exp(-pow((r - p2 * 0.95) / 0.07, 2.0)) * (1.0 - p2);
+    a = (0.2 * (1.0 - smoothstep(0.55, 0.8, r)) + 0.75 * max(r1, r2)) * (1.0 - smoothstep(0.85, 1.0, r));
+    diffuseColor.rgb = vMistC;
+  } else {
+    vec2 p = vMistW.xz;
+    vec2 e = min(vMistUv, 1.0 - vMistUv);
+    float edge = smoothstep(0.0, 0.4, min(e.x, e.y));
+    float n = 0.6 * mN(p * 0.35 + vec2(uTime * 0.05, uTime * 0.03)) + 0.4 * mN(p * 0.9 + vec2(-uTime * 0.03, uTime * 0.06) + 17.0);
+    a = smoothstep(0.3, 0.7, n) * edge * 0.8;
+    diffuseColor.rgb = uColor;
+  }
   a *= smoothstep(1.0, 3.0, distance(cameraPosition, vMistW));
-  diffuseColor.rgb = uColor;
   diffuseColor.a *= a;
   if (diffuseColor.a < 0.004) discard;
 }`);
   };
-  material.customProgramCacheKey = () => 'greenhouse-mist-v2';
+  material.customProgramCacheKey = () => 'greenhouse-mist-v3';
   const m = new THREE.Mesh(g, material);
   m.name = name;
   m.userData.noCast = true;

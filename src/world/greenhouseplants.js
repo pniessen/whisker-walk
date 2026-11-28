@@ -16,7 +16,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { hash01 } from './warehouselook.js';
 import * as P from './greenhouseplan.js';
-import { lawnDetail } from './greenhousedetail.js';
+import { lawnDetail, hallBlooms } from './greenhousedetail.js';
 
 export const GH_LOOK_SALT = 0x61a3d; // the plants' own hashed look
 export const GH_KOI_SALT = 0x61a5b;
@@ -240,6 +240,27 @@ const UP = new THREE.Vector3(0, 1, 0);
 const h01 = (x, z, k) => hash01(x, z, GH_LOOK_SALT + k);
 const lerp = (a, b, t) => a + (b - a) * t;
 export const plantMat = () => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82, metalness: 0, side: THREE.DoubleSide });
+// Beauty pass 2: leaves sway. The palms' and the foliage's material moves a vertex sideways in proportion to its height (a few cm at a
+// palm's crown, none at the ground) on ONE shared clock, SWAY_TIME (set by greenhouselife.js; 0 under reduced motion, so they stand still).
+export const SWAY_TIME = { value: 0 };
+export const swayMat = () => {
+  const m = plantMat();
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uSwayTime = SWAY_TIME;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uSwayTime;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+{
+  float hgt = max(0.0, transformed.y - 0.35);
+  float ph = transformed.x * 0.31 + transformed.z * 0.23;
+  transformed.x += sin(uSwayTime * 0.9 + ph) * 0.016 * hgt;
+  transformed.z += cos(uSwayTime * 0.7 + ph * 1.3) * 0.012 * hgt;
+  transformed.y += sin(uSwayTime * 1.6 + ph * 2.0) * 0.004 * hgt;
+}`);
+  };
+  m.customProgramCacheKey = () => 'greenhouse-sway-v1';
+  return m;
+};
 export const finishMesh = (name, geometry, { cast = false, material = plantMat() } = {}) => {
   const mesh = new THREE.Mesh(geometry, material);
   mesh.name = name;
@@ -281,7 +302,7 @@ export function palms() {
     // a hanging bunch of dates under the crown
     col.add(tint(new THREE.IcosahedronGeometry(0.2, 0).scale(1, 1.4, 1), 0xb8742f), cx, cy - 0.35, cz, { yaw: a0(k) });
   });
-  return finishMesh('ghPalms', col.merged(), { cast: true });
+  return finishMesh('ghPalms', col.merged(), { cast: true, material: swayMat() });
 }
 const a0 = (k) => k * 1.3;
 
@@ -294,7 +315,8 @@ const BIRD_LEAF = memo(() => frondGeometry({ len: 1.35, width: 0.5, segs: 4, ris
 const MONSTERA_LEAF = memo(() => heartGeometry({ len: 1.0, width: 0.95, notches: 1, base: 0x2a6a34, tip: 0x4c9b48 }));
 const HIBISCUS_LEAF = memo(() => frondGeometry({ len: 0.34, width: 0.2, segs: 2, rise: 0.4, droop: 0.4, fold: 0.1, base: 0x2e7236, tip: 0x4f9a46, belly: 0.5 }));
 const REED_BLADE = memo(() => frondGeometry({ len: 1.3, width: 0.07, segs: 3, rise: 1.45, droop: 0.7, fold: 0.2, base: 0x6f9a4a, tip: 0xa8c26a, belly: 0.4 }));
-const HIBISCUS_FLOWER = memo(() => flowerGeometry({ r: 0.2, n: 5, petal: 0xe03a3a, centre: 0xf6d44a, lift: 0.3 }));
+// beauty pass 2: bigger, saturated hibiscus blooms in four colours (red, hot pink, orange, sun yellow), one on every branch
+const HIBISCUS_FLOWERS = memo(() => [0xe0102a, 0xff3f93, 0xff7412, 0xffc414].map((petal) => flowerGeometry({ r: 0.24, n: 5, petal, centre: 0xfff0a0, lift: 0.55 })));
 const BIRD_BOAT = memo(() => (() => { const g = new THREE.ConeGeometry(0.07, 0.5, 4); g.translate(0, 0.25, 0); g.rotateZ(-Math.PI / 2); return tint(g, 0x5a7a3a); })());
 const BIRD_ORANGE = memo(() => frondGeometry({ len: 0.42, width: 0.1, segs: 2, rise: 0.75, droop: 0.2, fold: 0.1, base: 0xf08a1c, tip: 0xffb23a, belly: 0.5 }));
 const BIRD_BLUE = memo(() => frondGeometry({ len: 0.34, width: 0.07, segs: 2, rise: 0.7, droop: 0.1, fold: 0.1, base: 0x3a58b8, tip: 0x5a82e0, belly: 0.5 }));
@@ -376,7 +398,7 @@ export function foliage() {
         const la = a + (l - 2) * 0.7;
         col.add(HIBISCUS_LEAF(), bx + Math.cos(la) * 0.08, bh - 0.12 * l * 0.3, bz + Math.sin(la) * 0.08, { yaw: -la, roll: 0.25, scale: 1.1 });
       }
-      if (b % 2 === 0) col.add(HIBISCUS_FLOWER(), bx, bh + 0.05, bz, { yaw: h01(x + b, z, 72) * TAU, tilt: 0.2, scale: 1 });
+      col.add(HIBISCUS_FLOWERS()[(b + (x > 0 ? 2 : 0)) % 4], bx, bh + 0.05, bz, { yaw: h01(x + b, z, 72) * TAU, tilt: 0.2, scale: 1 });
     }
   });
   // beauty round 3: lily pads on the pond (flat discs a hair over the water, under the koi) and two pink flowers
@@ -393,7 +415,8 @@ export function foliage() {
     radial(REED_BLADE(), x, 0, z, 5, { yaw0: h01(x, z, 80) * TAU, scale: lerp(0.8, 1.3, h01(x, z, 81)), seed: 82, tilt: 0 });
   }
   lawnDetail(col);
-  return finishMesh('ghFoliage', col.merged());
+  hallBlooms(col, fernClumps());
+  return finishMesh('ghFoliage', col.merged(), { material: swayMat() });
 }
 
 // Fern clumps: along the hall's walls (out of the doors' way and the benches') and at each palm's foot.
@@ -443,7 +466,7 @@ export function reedClumps() {
 
 // ---------------------------------------------------------------------------------------------
 // ORCHIDS: two long benches along the north wall, five potted orchids on each, a different colour per pot.
-const ORCHID_COLOURS = Object.freeze([0xf27ab8, 0xf6f0f4, 0xb07ae0, 0xf5b042, 0x7aa0f2, 0xe84a7a]);
+const ORCHID_COLOURS = Object.freeze([0xff4fa6, 0xfff6fa, 0x9a4cf0, 0xffa31a, 0x4f86ff, 0xf01e5c]); // beauty pass 2: more saturated
 const ORCHID_LEAF = memo(() => frondGeometry({ len: 0.5, width: 0.1, segs: 3, rise: 0.6, droop: 1.0, fold: 0.3, base: 0x2f7a3a, tip: 0x5aa84a, belly: 0.5 }));
 const BENCH_WOOD = 0xa07a52;
 // (`benches` and `name` are the stage-B Orchid Room's: its two benches.)
@@ -480,7 +503,7 @@ export function orchids({ benches = P.ORCHID_BENCHES, name = 'ghOrchids' } = {})
       }
       for (let f = 0; f < 5; f++) {
         const bx = x + Math.cos(sa) * (px[Math.min(4, f)] + 0.01), bz = z + Math.sin(sa) * (px[Math.min(4, f)] + 0.01);
-        col.add(flowerGeometry({ r: 0.11, n: 5, petal: colour, centre: 0xfff0a8, lift: 0.4 }), bx, y + 0.3 + f * 0.1, bz, { tilt: 0.7, yaw: sa + f });
+        col.add(flowerGeometry({ r: 0.15, n: 5, petal: colour, centre: 0xfff0a8, lift: 0.4 }), bx, y + 0.3 + f * 0.1, bz, { tilt: 0.7, yaw: sa + f });
       }
     }
   });

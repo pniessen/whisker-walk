@@ -10,6 +10,7 @@
 import * as THREE from 'three';
 import { hash01 } from './warehouselook.js';
 import { BUTTERFLY_ROOM, BUTTERFLY_ANCHORS, BUTTERFLY_HOME } from './greenhouserooms.js';
+import * as P from './greenhouseplan.js';
 
 export const GH_BUTTERFLY_SALT = 0x6e5d3;
 export const CHASERS = 4;
@@ -19,6 +20,37 @@ export const FLEE_FROM = 3.5; // m: where it settles is at least this far from h
 export const FLUTTER_SPEED = 3.2; // m/s: under her walk, so a chase is a game, never a catch
 export const LAND_MOVE = 0.4; // m: a butterfly on her head leaves when she has moved this far
 export const LAND_MAX = 10; // s
+// Beauty pass 2: THE POLLINATORS, three bees and three garden butterflies in the same instanced mesh (instances after the room's own;
+// the low tier draws none). Each drifts between three flowers (hibiscus, the catnip beds, the kitchen bed, the court's baskets,
+// the orchids): a short glide, then a long hover and a loop over the bloom, on the walk's clock alone (a pure function of it; reduced
+// motion holds each at its first flower, wings half open). They never notice her and nothing can touch one.
+export const POLLINATORS = 6;
+const POLL_COLOURS = Object.freeze([0xffc21a, 0xffb000, 0xf2a60c, 0xff7a1a, 0xfff2f6, 0x6aa6ff]);
+const POLL_SITES = (() => {
+  const hib = P.HIBISCUS_SPOTS.map(([x, z]) => [x, 1.5, z]);
+  const nip = P.CATNIP_BEDS.map((b) => [b.x, 0.6, b.z]);
+  const kit = [P.KITCHEN_BED.x, 0.6, P.KITCHEN_BED.z];
+  const bask = P.COURT_LAMPS.map((l) => [l.x + (l.x < 0 ? 0.66 : -0.66), 2.0, l.z]);
+  const orc = P.ORCHID_BENCHES.map((b) => [b.x, b.h + 0.55, b.z + 0.2]);
+  return [
+    [hib[0], orc[0], hib[1]], [nip[0], nip[1], kit], [bask[0], nip[0], bask[1]],
+    [hib[1], orc[1], hib[0]], [kit, nip[1], bask[1]], [nip[1], hib[1], bask[0]],
+  ];
+})();
+const pollinatorAt = (i, tt, out) => {
+  const bee = i < 3;
+  const S = POLL_SITES[i], T = bee ? 9 : 15, tr = bee ? 0.28 : 0.4;
+  const u = tt / T + hash01(i, 11, GH_BUTTERFLY_SALT) * 3;
+  const seg = Math.floor(u), f = u - seg;
+  const a = S[((seg % 3) + 3) % 3], b = S[(((seg + 1) % 3) + 3) % 3];
+  const k = f < tr ? (f / tr) * (f / tr) * (3 - 2 * (f / tr)) : 1;
+  const arch = f < tr ? Math.sin((f / tr) * Math.PI) * 0.5 : 0;
+  const r = bee ? 0.2 : 0.35, sp = bee ? 2.3 : 0.8;
+  out.x = a[0] + (b[0] - a[0]) * k + Math.sin(tt * sp + i * 2.1) * r;
+  out.z = a[2] + (b[2] - a[2]) * k + Math.cos(tt * sp * 0.8 + i * 1.3) * r;
+  out.y = a[1] + (b[1] - a[1]) * k + arch + Math.sin(tt * sp * 1.3 + i) * (bee ? 0.07 : 0.18);
+  return out;
+};
 const COLOURS = Object.freeze([0xf58a2a, 0xf6d23a, 0x4a8af0, 0xf27ab8, 0xb07ae0, 0xffffff]);
 
 const wing = (side) => {
@@ -34,8 +66,8 @@ const wing = (side) => {
 
 const inRoom = (x, z) => x > BUTTERFLY_ROOM.x0 && x < BUTTERFLY_ROOM.x1 && z > BUTTERFLY_ROOM.z0 && z < BUTTERFLY_ROOM.z1;
 
-export function createButterflies({ reducedMotion = false } = {}) {
-  const count = CHASERS + CLOUD;
+export function createButterflies({ reducedMotion = false, lite = false } = {}) {
+  const count = CHASERS + CLOUD + POLLINATORS;
   const L = wing(-1), Rg = wing(1);
   const merged = new THREE.BufferGeometry();
   const pa = L.attributes.position.array, pb = Rg.attributes.position.array;
@@ -51,6 +83,10 @@ export function createButterflies({ reducedMotion = false } = {}) {
   mesh.frustumCulled = false;
   const col = new THREE.Color();
   for (let i = 0; i < count; i++) mesh.setColorAt(i, col.set(i < CHASERS ? COLOURS[i] : COLOURS[Math.floor(hash01(i, 3, GH_BUTTERFLY_SALT) * COLOURS.length) % COLOURS.length]));
+
+  for (let i = 0; i < POLLINATORS; i++) mesh.setColorAt(CHASERS + CLOUD + i, col.set(POLL_COLOURS[i]));
+  if (lite) mesh.count = CHASERS + CLOUD; // (the low tier draws no pollinators)
+  const pa0 = { x: 0, y: 0, z: 0 }, pa1 = { x: 0, y: 0, z: 0 };
 
   const anchorPos = (k) => ({ x: BUTTERFLY_ANCHORS[k][0], y: BUTTERFLY_ANCHORS[k][2], z: BUTTERFLY_ANCHORS[k][1] });
   const chasers = Array.from({ length: CHASERS }, (_, i) => {
@@ -160,6 +196,15 @@ export function createButterflies({ reducedMotion = false } = {}) {
         k.y = k.y0 + (reducedMotion ? 0 : Math.sin(tt * 0.9 + k.ph) * 0.35);
         const open = reducedMotion ? 0.8 : 0.25 + 0.75 * Math.abs(Math.cos(clock * k.flap + k.ph));
         put(CHASERS + k.i, k.x, k.y, k.z, k.yaw, open, 0.9);
+      }
+      if (!lite) {
+        for (let i = 0; i < POLLINATORS; i++) {
+          pollinatorAt(i, tt, pa0); pollinatorAt(i, tt + 0.15, pa1);
+          const bee = i < 3;
+          const yaw = reducedMotion ? 0 : Math.atan2(pa1.x - pa0.x, pa1.z - pa0.z);
+          const open = reducedMotion ? 0.8 : 0.25 + 0.75 * Math.abs(Math.cos(clock * (bee ? 38 : 11) + i * 2));
+          put(CHASERS + CLOUD + i, pa0.x, pa0.y, pa0.z, yaw, open, bee ? 0.75 : 1.4);
+        }
       }
       mesh.instanceMatrix.needsUpdate = true;
     },

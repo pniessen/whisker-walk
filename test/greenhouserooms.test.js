@@ -97,13 +97,28 @@ describe('the high shelf is one hop', () => {
   });
 });
 
+describe('the pollinators (beauty pass 2): three bees and three garden butterflies drifting between flowers', () => {
+  const at = (b, i) => { const m = new THREE.Matrix4(); b.mesh.getMatrixAt(B.CHASERS + B.CLOUD + i, m); return new THREE.Vector3().setFromMatrixPosition(m); };
+  it('move on the walk\'s clock, never leave the grounds, and are the same twice', () => {
+    const run = () => { const b = B.createButterflies(); const out = []; for (let t = 0; t < 120; t += 0.5) { b.update(0.5, t, null); for (let i = 0; i < B.POLLINATORS; i++) { const v = at(b, i); out.push(v.x.toFixed(3), v.y.toFixed(3), v.z.toFixed(3)); expect(v.y).toBeGreaterThan(0.2); expect(v.y).toBeLessThan(3.2); expect(Math.abs(v.x)).toBeLessThan(40); } } return out.join(','); };
+    expect(run()).toBe(run());
+    const b = B.createButterflies(); b.update(0, 0, null); const p0 = at(b, 0).clone(); b.update(1, 30, null);
+    expect(at(b, 0).distanceTo(p0)).toBeGreaterThan(0.2);
+  });
+  it('hold still under reduced motion', () => {
+    const b = B.createButterflies({ reducedMotion: true }); b.update(0, 0, null); const p0 = at(b, 3).clone(); b.update(1, 40, null);
+    expect(at(b, 3).distanceTo(p0)).toBe(0);
+  });
+});
+
 describe('the butterflies flutter off and are never caught', () => {
   const rig = (o = {}) => { const b = B.createButterflies(o); b.update(0, 0, null); return b; };
   const catAt = (x, z, y = 0) => ({ x, y, z });
   it('four chasers and a cloud: ONE instanced mesh, none ever removed', () => {
     const b = rig();
     expect(b.mesh.isInstancedMesh).toBe(true);
-    expect(b.mesh.count).toBe(B.CHASERS + B.CLOUD);
+    expect(b.mesh.count).toBe(B.CHASERS + B.CLOUD + B.POLLINATORS); // (beauty pass 2: six pollinators after the room's own; the low tier draws none)
+    expect(rig({ lite: true }).mesh.count).toBe(B.CHASERS + B.CLOUD);
     expect(b.chasers).toHaveLength(4);
     expect(b.chasers.map((c) => c.mode)).toEqual(['rest', 'rest', 'rest', 'rest']);
   });
@@ -148,7 +163,7 @@ describe('the butterflies flutter off and are never caught', () => {
           expect(c.y).toBeGreaterThan(0.5);
         }
         expect(b.chasers).toHaveLength(4);
-        expect(b.mesh.count).toBe(14);
+        expect(b.mesh.count).toBe(14 + B.POLLINATORS);
         if (i % 300 === 0) log.push(b.chasers.map((c) => `${c.x.toFixed(3)},${c.z.toFixed(3)},${c.mode}`).join('|'));
       }
       return log;
@@ -309,7 +324,7 @@ describe('the life: the rooms\' finds, the butterfly on her head, the opening fl
     r.step(1, null);
     expect(r.progression.state.journal.ghbutterfly).toBe(1);
     const mesh = r.scene.getObjectByName('ghButterflies');
-    expect(mesh.count).toBe(14);
+    expect(mesh.count).toBe(14 + B.POLLINATORS);
     r.step(1, { x: 0, y: 0, z: -26 });
   });
 });

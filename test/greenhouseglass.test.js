@@ -257,8 +257,12 @@ describe('the record and the scaffold', () => {
     expect(TOWN_PLACES.some((p) => p.areaId === 'greenhouse')).toBe(false);
   });
   it('the whole build stays inside the place\'s numbers (milestone G6 measured 74 meshes and 54,904 triangles with the three rooms; the ceiling is 150 and 62,000)', () => {
+    // (beauty pass 2: counted on a fresh scene with ONE life, the whole frame; the shared `scene` above had two lives added by the tests
+    // before this one, which counted 2 x 1,288 life triangles twice over. 61,142 measured; the ceiling is unchanged)
+    const fresh = new THREE.Scene();
+    build(fresh).life({ scene: fresh });
     let meshes = 0, triangles = 0;
-    scene.traverse((o) => { if (o.isMesh) { meshes++; triangles += tris(o); } });
+    fresh.traverse((o) => { if (o.isMesh) { meshes++; triangles += tris(o); } });
     expect(meshes).toBeLessThan(150);
     expect(triangles).toBeLessThan(62000);
     expect(castsFromBox(new THREE.Box3().setFromObject(house))).toBe(true); // (it is big; its parts opt out)

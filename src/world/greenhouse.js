@@ -56,7 +56,7 @@ export function build(scene, { water = {}, wind } = {}) {
     scene.add(house.group);
     scene.add(G.dappleQuad(H));
     // the low tier drops the mist and the shafts and keeps the frame, the one glass layer and the dapple
-    const mist = quality === 'low' ? null : G.mistSheets();
+    const mist = quality === 'low' ? null : G.mistSheets(G.MIST_SHEETS, 'glassMist', { rings: G.DRIP_RINGS, halos: G.LAMP_HALOS });
     const shafts = quality === 'low' ? null : G.sunShafts(H);
     if (mist) scene.add(mist);
     if (shafts) scene.add(shafts);
@@ -82,7 +82,7 @@ export function build(scene, { water = {}, wind } = {}) {
     const shyOrchid = RoomParts.shyOrchidMesh();
     const cactusFlower = RoomParts.cactusFlowerMesh();
     scene.add(shyOrchid, cactusFlower);
-    const butterflies = createButterflies({ reducedMotion: water.reducedMotion ?? false });
+    const butterflies = createButterflies({ reducedMotion: water.reducedMotion ?? false, lite: quality === 'low' });
     butterflies.update(0, 0, null);
     scene.add(butterflies.mesh);
 
