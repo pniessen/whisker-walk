@@ -123,7 +123,7 @@ export function createGreenhouseSound(audio, { weather = null, dusk = false, red
     if (k === 'cricket') return dusk && !raining && !under ? 1 : 0;
     if (k === 'tin') { const l = loudness(dist(catPos, P.SHED), TIN_EAR); return raining ? l : hash01(count.tin, 9, GH_SOUND_SALT + STREAM.tin) < 0.2 ? l * 0.5 : 0; }
     if (k === 'hush') return loudness(dist(catPos, { x: (ORCHID.x0 + ORCHID.x1) / 2, z: (ORCHID.z0 + ORCHID.z1) / 2 }), HUSH_EAR);
-    if (k === 'trickle') return loudness(dist(catPos, P.FOUNTAIN), TRICKLE.ear + (under ? 7 : 0)) * (under ? 0.5 : 1); // under the glass it is heard through the panes
+    if (k === 'trickle') return loudness(dist(catPos, P.FOUNTAIN), TRICKLE.ear + (under ? 7 : 0) + (dusk ? 6 : 0)) * (under ? 0.5 : 1); // under the glass it is heard through the panes
     if (k === 'bee') {
       if (raining || dusk) return 0;
       if (under) return 1;
@@ -138,6 +138,14 @@ export function createGreenhouseSound(audio, { weather = null, dusk = false, red
   }
 
   return {
+    // pass 9: the owl's hoot (greenhousenight.js times it): two low falling notes, soft; none while muted
+    hoot(lv = 1) {
+      if (disposed || !audio || muted()) return false;
+      const c = bus();
+      if (!c) return false;
+      try { plink(c, 470, 400, 0, 0.34, 0.016 * lv, 0.08); plink(c, 430, 330, 0.5, 0.55, 0.016 * lv, 0.1); } catch { broken = true; return false; }
+      return true;
+    },
     update(dt, catPos, under = false, fx = null) {
       if (disposed || !audio || !catPos) return;
       walk += dt > 0 ? dt : 0;

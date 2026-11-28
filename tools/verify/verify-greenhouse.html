@@ -83,7 +83,7 @@
   sun.shadow.bias = SUN_BIAS;
   assignShadowCasters(scene);
   const fade = createTreeFade(findFadeOccluders(scene), { reducedMotion: rm });
-  const life = area.life({ reducedMotion: rm, dusk: DUSK, weather: RAIN ? { isRaining: () => true, setSheltered() {} } : null, ground: { y: () => 0 }, visits: Number(params.get('visits') || 0), season: params.get('season') || undefined, now: params.get('hour') ? new Date(2026, 5, 15, Number(params.get('hour')), 0) : undefined, fx: params.get('fx') ? Object.fromEntries(params.get('fx').split(',').map((kv) => kv.split(':')).map(([k, v]) => [k, Number(v)])) : undefined });
+  const life = area.life({ sun, fill, night: params.get('nonight') === '1' ? false : undefined, quality: LOW ? 'low' : 'high', reducedMotion: rm, dusk: DUSK, weather: RAIN ? { isRaining: () => true, setSheltered() {} } : null, ground: { y: () => 0 }, visits: Number(params.get('visits') || 0), season: params.get('season') || undefined, now: params.get('hour') ? new Date(2026, 5, 15, Number(params.get('hour')), 0) : undefined, fx: params.get('fx') ? Object.fromEntries(params.get('fx').split(',').map((kv) => kv.split(':')).map(([k, v]) => [k, Number(v)])) : undefined });
 
   if (params.get('nocreat') === '1') life.creatures.points.visible = false; // the 'before' pictures of pass 5
   const NOVOICE = params.get('voice') === '0'; // the 'before' pictures of pass 8: the voice does nothing
@@ -223,6 +223,14 @@
     p8_sniff: { at: [-8, 14], face: [-1, 0], act: 'sniff', secs: 1.4, moving: true },
     p8_still: { at: [20.6, 15.9], face: [0, -1], act: 'still', secs: 3.4, moving: true },
     p8_zoom: { at: [0, 26], face: [0, -1], act: 'zoom', secs: 1.2, moving: true },
+    // beauty pass 9: night life (play camera); use ?dusk=1&hour=23 (nonight=1 is the 'before')
+    n9_hall: { at: [0, -3], face: [0, -1], secs: 2 },
+    n9_orchid: { at: [-18, -9], face: [-1, 0], secs: 2 },
+    n9_court: { at: [0, 26], face: [0, -1], secs: 2 },
+    n9_owl: { at: [0, -3], face: [0, -1], cam: { pos: [0, 2, -3], look: [-6, 8, -14.5], fov: 55 }, hold: true },
+    n9_moth: { at: [0, 20], face: [0, -1], cam: { pos: [-2, 2, 12], look: [-2.3, 2.5, 0], fov: 50 }, hold: true },
+    n9_hog: { at: [-1, 25], face: [0, -1], cam: { pos: [-1.5, 1.2, 27], look: [-3.7, 0.2, 22.2], fov: 45 }, hold: true },
+    n9_shed: { at: [22, 20], face: [1, -0.3], secs: 2 },
     p7g_shed: { at: [22, 20], face: [1, -0.3], secs: 4.5 },
     p7hd_hall: { at: [0, -3], face: [0, -1] },
     palms: { at: [-6, -9], face: [-1, 0], cam: { pos: [12, 2.4, -2.2], look: [-6, 4, -12], fov: 60 }, hold: true },

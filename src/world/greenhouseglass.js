@@ -249,6 +249,7 @@ export const CAT_NEAR = { value: new THREE.Vector4(0, 0, 0, 0) };
 export const RAIN_ON = { value: 0 };
 // beauty pass 4: winter frost on the pane edges and low on the glass (0 in every other season; greenhouselife.js sets it once a walk)
 export const FROST = { value: 0 };
+export const NIGHT = { value: 0 }; // beauty pass 9: a dusk walk's night (greenhousenight.js): the shafts turn to silver moonbeams
 export const DAPPLE_FX = { sun: { value: 0 }, wet: { value: 0 } };
 export function condensation(material, quality = 'high') {
   if (quality === 'low') return material;
@@ -258,6 +259,7 @@ export function condensation(material, quality = 'high') {
     shader.uniforms.uCat = CAT_NEAR;
     shader.uniforms.uRain = RAIN_ON;
     shader.uniforms.uFrost = FROST;
+    shader.uniforms.uNight = NIGHT;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vCondW;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvCondW = (modelMatrix * vec4(position, 1.0)).xyz;');
@@ -267,6 +269,7 @@ uniform float uCondTime;
 uniform vec4 uCat;
 uniform float uRain;
 uniform float uFrost;
+uniform float uNight;
 varying vec3 vCondW;
 float cH(vec2 q) { return fract(sin(dot(q, vec2(91.7, 263.3)) + 17.31) * 24634.6345); }`)
       .replace('#include <color_fragment>', `#include <color_fragment>
@@ -315,6 +318,7 @@ ${runnels ? `    vec2 col = vec2(floor(q.x / 0.7), 0.0);
     // beauty pass 2: the beads twinkle (each on its own beat) and a slow diagonal sheen of sky light crosses the panes
     float tw = 0.65 + 0.35 * sin(uCondTime * 1.3 + h1 * 40.0);
     float sheen = pow(max(0.0, sin(vCondW.x * 0.55 + vCondW.y * 0.42 + vCondW.z * 0.2 - uCondTime * 0.32)), 18.0) * fade;
+    diffuseColor.rgb *= mix(vec3(1.0), vec3(0.3, 0.4, 0.66), uNight); // pass 9: night glass
     diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.9, 1.0, 0.96), 0.55 * cov + 0.3 * lit * tw * fade);
     diffuseColor.rgb += vec3(0.5, 0.55, 0.42) * sheen * 0.35;
     diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.9, 0.97, 0.94), 0.4 * fogNear * fade);
@@ -324,7 +328,7 @@ ${runnels ? `    vec2 col = vec2(floor(q.x / 0.7), 0.0);
   }
 }`);
   };
-  material.customProgramCacheKey = () => `greenhouse-condensation-${runnels ? 'r' : 'b'}-v6`;
+  material.customProgramCacheKey = () => `greenhouse-condensation-${runnels ? 'r' : 'b'}-v7`;
   return material;
 }
 
@@ -431,9 +435,9 @@ export function dappleQuad(h, { size = 64, name = 'glassDapple' } = {}) {
   // beauty pass 6: the floor's light follows the weather. A sun burst throws crisp window-pane squares of light, rain lets it through in
   // wobbly caustics (DAPPLE_FX, set by greenhouseweather.js; both 0 = the old lattice, untouched)
   mat.onBeforeCompile = (sh) => {
-    sh.uniforms.uSun = DAPPLE_FX.sun; sh.uniforms.uWet = DAPPLE_FX.wet; sh.uniforms.uT = COND_TIME;
+    sh.uniforms.uSun = DAPPLE_FX.sun; sh.uniforms.uWet = DAPPLE_FX.wet; sh.uniforms.uT = COND_TIME; sh.uniforms.uNight = NIGHT;
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vDW;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvDW = (modelMatrix * vec4(position, 1.0)).xz;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uSun;\nuniform float uWet;\nuniform float uT;\nvarying vec2 vDW;')
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uSun;\nuniform float uWet;\nuniform float uT;\nuniform float uNight;\nvarying vec2 vDW;')
       .replace('#include <map_fragment>', `#include <map_fragment>
 {
   vec2 f = fract(mat2(0.94, -0.34, 0.34, 0.94) * vDW / 1.35 + vec2(uT * 0.003, uT * 0.002));
@@ -443,9 +447,10 @@ export function dappleQuad(h, { size = 64, name = 'glassDapple' } = {}) {
   vec3 lit = mix(vec3(1.0, 0.9, 0.45), vec3(0.86, 0.96, 1.0), uWet);
   diffuseColor.rgb = mix(diffuseColor.rgb, mix(vec3(0.38, 0.3, 0.2), lit, max(sq, uWet)), clamp(uSun + uWet, 0.0, 1.0));
   diffuseColor.a = mix(mix(diffuseColor.a, 0.1 + sq * 0.72, uSun), cau * 0.85, uWet);
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.5, 0.72, 1.15) * dot(diffuseColor.rgb, vec3(0.45)), uNight); diffuseColor.a *= 1.0 + 0.8 * uNight; // moonlit squares
 }`);
   };
-  mat.customProgramCacheKey = () => 'greenhouse-dapple-v2';
+  mat.customProgramCacheKey = () => 'greenhouse-dapple-v3';
   const m = new THREE.Mesh(g, mat);
   m.position.set((h.x0 + h.x1) / 2, 0.05, (h.z0 + h.z1) / 2);
   m.name = name;
@@ -515,7 +520,7 @@ export function sunShafts(h, spots = SHAFT_SPOTS, name = 'sunShafts') {
   g.setAttribute('aS', new THREE.Float32BufferAttribute(aS, 1));
   g.setIndex(idx);
   g.computeBoundingSphere();
-  const uniforms = { uTime: { value: 0 }, uGain: { value: 1 }, uWarm: { value: 0 } }; // the walk's clock (greenhouselife.js; 0 under reduced motion: the motes hold still)
+  const uniforms = { uTime: { value: 0 }, uGain: { value: 1 }, uWarm: { value: 0 }, uNight: NIGHT }; // the walk's clock (greenhouselife.js; 0 under reduced motion: the motes hold still)
   const mat = new THREE.MeshBasicMaterial({
     vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false,
   });
@@ -533,9 +538,10 @@ vShaftW = (modelMatrix * vec4(transformed, 1.0)).xyz;`)
 if (aA.x > 0.5) mvPosition.xy += aA.yz * aS;
 gl_Position = projectionMatrix * mvPosition;`);
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform float uTime;\nuniform float uGain;\nuniform float uWarm;\nvarying vec3 vShaftW;\nvarying vec4 vA;')
+      .replace('#include <common>', '#include <common>\nuniform float uTime;\nuniform float uGain;\nuniform float uWarm;\nuniform float uNight;\nvarying vec3 vShaftW;\nvarying vec4 vA;')
       .replace('#include <color_fragment>', `#include <color_fragment>
 diffuseColor.rgb *= uGain * mix(vec3(1.0), vec3(1.0, 0.72, 0.42), uWarm);
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(dot(diffuseColor.rgb, vec3(0.4))) * vec3(0.6, 0.8, 1.25), uNight);
 diffuseColor.rgb *= smoothstep(${SHAFT_FADE.near.toFixed(1)}, ${SHAFT_FADE.far.toFixed(1)}, distance(cameraPosition, vShaftW));
 if (vA.x > 0.5) {
   float disc = 1.0 - smoothstep(0.25, 1.0, length(vA.yz));
@@ -544,7 +550,7 @@ if (vA.x > 0.5) {
   diffuseColor.rgb *= 0.86 + 0.14 * sin(uTime * 0.55 + vShaftW.x * 0.7 + vShaftW.z * 0.5);
 }`);
   };
-  mat.customProgramCacheKey = () => 'greenhouse-shafts-v4';
+  mat.customProgramCacheKey = () => 'greenhouse-shafts-v5';
   const m = new THREE.Mesh(g, mat);
   m.name = name;
   m.userData.shaft = uniforms;
