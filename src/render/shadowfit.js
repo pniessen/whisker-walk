@@ -82,6 +82,9 @@ const LEAD_FRACTION = 0.75;
 // Gorge part 1: how fast the fit's ground height follows the ground under the
 // cat, per second.
 const GROUND_EASE = 4;
+// (read by coop/splitsys.js, which refits the same light for two views)
+export const SHADOW_LEAD_FRACTION = LEAD_FRACTION;
+export const SHADOW_BACKOFF = BACKOFF;
 
 // Peter-panning offset, as a MULTIPLE OF ONE TEXEL rather than a constant.
 // three's normalBias pushes the shadow lookup along the surface normal in

@@ -559,7 +559,7 @@ export function createClouds(scene, {
   if (!(count > 0)) {
     if (!night) return NO_CLOUDS;
     // Clouds off, stars on.
-    return { mesh: null, clouds: [], night, update: (t = 0) => night.update(t), dispose: () => night.dispose() };
+    return { mesh: null, clouds: [], night, update: (t = 0) => night.update(t), view: (cam) => night.view(cam), dispose: () => night.dispose() };
   }
 
   // Lay out once at the floor to learn the reach, then raise the base if the
@@ -655,6 +655,7 @@ diffuseColor.rgb = mix(diffuseColor.rgb, uHaze, vHaze);`);
   // absolute elapsed seconds (the same t wind/grass take).
   function update(t = 0) {
     const time = reducedMotion ? 0 : t;
+    mesh.position.set(0, 0, 0); // (a split-screen view() may have slid it)
     const cx = camera.position.x;
     const cz = camera.position.z;
     let i = 0;
@@ -713,6 +714,15 @@ diffuseColor.rgb = mix(diffuseColor.rgb, uHaze, vHaze);`);
     night?.update(t);
   }
 
+  // view(cam) — split screen only (coop/splitsys.js), just before a view's render. The instances are laid
+  // round the main camera's xz, so sliding the whole mesh by the difference puts the same sky round `cam`
+  // (no per-instance work). update() lays them round the main camera again, so the offset goes back to 0.
+  function view(cam) {
+    mesh.position.set(cam.position.x - camera.position.x, 0, cam.position.z - camera.position.z);
+    mesh.updateMatrixWorld();
+    night?.view(cam);
+  }
+
   function dispose() {
     scene.remove(mesh);
     mesh.geometry.dispose();
@@ -722,5 +732,5 @@ diffuseColor.rgb = mix(diffuseColor.rgb, uHaze, vHaze);`);
   }
 
   update(0); // placed before the first frame
-  return { mesh, clouds, banks, palette, night, update, dispose };
+  return { mesh, clouds, banks, palette, night, update, view, dispose };
 }

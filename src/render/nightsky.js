@@ -225,6 +225,16 @@ export function createNightSky(scene, { areaId, camera, reducedMotion = false } 
     }
   }
 
+  // view(cam) — split screen only (coop/splitsys.js), just before a view's render: the sky sphere and the
+  // moon round that view's camera. update() puts cat one's back on the next frame.
+  function view(cam) {
+    stars.position.copy(cam.position);
+    if (moon) {
+      moon.position.copy(cam.position).addScaledVector(moonDir, MOON_RADIUS);
+      moon.quaternion.copy(cam.quaternion);
+    }
+  }
+
   function dispose() {
     scene.remove(stars);
     geometry.dispose();
@@ -238,5 +248,5 @@ export function createNightSky(scene, { areaId, camera, reducedMotion = false } 
   }
 
   update(0);
-  return { stars, moon, update, dispose };
+  return { stars, moon, update, view, dispose };
 }
