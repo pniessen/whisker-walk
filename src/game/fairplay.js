@@ -135,6 +135,15 @@ export function handleFairEvent(e, ctx) {
     case 'murmur': audio.crowdMurmur?.(e.volume); break;
     case 'bell': audio.rideBell?.(e.volume); break;
     case 'firework-pop': audio.firework?.(e.volume); break; // a soft far-off pop (the sound switch holds it)
+    case 'arrive': audio.rideBell?.(0.9); break; // the ticket-bell as she walks in under the gate (the confetti puff is the fair's own)
+    case 'bed': { // the sound beds of the places she walks through: the hawkers' murmur, a sizzle by the food stalls, birds, the farm beyond the hedge
+      const v = e.volume;
+      if (e.bed === 'hawkers') audio.crowdMurmur?.(v);
+      else if (e.bed === 'sizzle') audio.crowdMurmur?.(v * 0.6); // (no sizzle sound of its own yet: the same soft noise, a little quieter)
+      else if (e.bed === 'birds') audio.peep?.(v * 0.5);
+      else if (e.bed === 'farm') { if ((e.n ?? 0) % 2) audio.cluck?.(v * 0.5); else audio.moo?.(v * 0.45); }
+      break;
+    }
     case 'lucky': audio.findChime?.(); audio.chime?.(); break; // the lucky bulb turns gold
     case 'ride-whoosh': audio.crowdMurmur?.(e.volume * 0.7); break; // the air of a ride going by: the same soft noise swell
     case 'ride':
