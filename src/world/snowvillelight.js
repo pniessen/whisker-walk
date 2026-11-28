@@ -11,6 +11,7 @@
 import * as THREE from 'three';
 import * as P from './snowvilleplan.js';
 import { dotTexture, LIGHT } from './snowvilleparts.js';
+import { litSpots } from './snowvillebeauty.js';
 import { coldStep, cheekTint, lineStep, nearWarm } from './snowvillewarmth.js';
 import { phrase } from '../clanphrases.js';
 import { bus } from '../events.js';
@@ -40,6 +41,20 @@ export function flakeAt(i, t, cx, cz, out = { x: 0, y: 0, z: 0 }) {
   out.y = P.snowY(out.x, out.z) + y;
   return out;
 }
+
+// ---- BEAUTY PASS 2: the halos. Every lit thing (eave bulbs, fir lights, garland, lamp globes, windows, the star) gets a soft additive sprite in its own colour, twinkling on its own phase; one Points for the
+// small bulbs and one for the big glows (windows, lamps), and one more for the cocoa stall's steam. A pure function of the time: the low rungs keep every second bulb; reduced motion holds them lit and still. ---
+export const HALO = Object.freeze({ bulb: 0.55, big: 2.7, steam: 0.42, bulbRate: 1.6, flicker: 0.07 });
+export const twinkle = (ph, t) => 0.62 + 0.38 * Math.sin(t * (1.4 + ph * 1.9) + ph * 61); // 0.24 .. 1
+export const STEAM_MUGS = Object.freeze([0, 1, 2, 3].map((i) => { // the four mugs on the stall's counter (snowvilleparts.js drawSquare: local x -1 + 0.6 i, y 1.1, z d / 2 - 0.35), turned by its yaw
+  const S = P.STALL; const lx = -1 + i * 0.6; const lz = S.d / 2 - 0.35; const sn = Math.sin(S.yaw); const co = Math.cos(S.yaw);
+  return Object.freeze({ x: S.x + lx * co + lz * sn, z: S.z - lx * sn + lz * co });
+}));
+export const steamAt = (mug, j, t, out = { x: 0, y: 0, z: 0, u: 0 }) => { // puff j of a mug's three: up from the rim, thinning as it goes
+  const u = (t * 0.36 + j / 3 + mug * 0.23) % 1;
+  out.u = u; out.x = STEAM_MUGS[mug].x + 0.07 * Math.sin(u * 6 + mug * 2 + j); out.z = STEAM_MUGS[mug].z + 0.05 * Math.cos(u * 5 + j);
+  out.y = P.snowY(STEAM_MUGS[mug].x, STEAM_MUGS[mug].z) + 1.2 + u * 0.75; return out;
+};
 
 // The cat's cheeks: the face's own cheek pads (userData.cheek, src/cat/model.js), found on the session's cat and tinted toward pink by `k` (0 puts them back exactly).
 function createCheeks() {
@@ -94,6 +109,52 @@ export function createSnowvilleLight({ scene, tier = null, reducedMotion = false
   Object.assign(glints.userData, { noCast: true, noContactShadow: true, noMerge: true });
   scene.add(glints);
 
+  // the halos
+  const litAll = litSpots().filter((s, i) => !low || s.big || i % 2 === 0);
+  const smalls = litAll.filter((s) => !s.big); const bigs = litAll.filter((s) => s.big);
+  const haloLayer = (list, size, name) => {
+    const pos = new Float32Array(list.length * 3); const col = new Float32Array(list.length * 3);
+    list.forEach((s, i) => { pos[i * 3] = s.x; pos[i * 3 + 1] = s.y; pos[i * 3 + 2] = s.z; });
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    const pts = new THREE.Points(g, new THREE.PointsMaterial({ map: dotTexture(), alphaTest: 0.02, size, sizeAttenuation: true, vertexColors: true, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false, fog: true }));
+    pts.name = name; pts.frustumCulled = false;
+    Object.assign(pts.userData, { noCast: true, noContactShadow: true, noMerge: true });
+    scene.add(pts);
+    return { pts, g, col, list };
+  };
+  const _h = new THREE.Color();
+  const paintHalos = (L, t, level) => {
+    L.list.forEach((s, i) => {
+      const k = level * (reducedMotion ? 0.8 : (L === smallL ? twinkle(s.ph, t) : 1 + HALO.flicker * Math.sin(t * 1.1 + s.ph * 40)));
+      _h.setHex(s.hex);
+      L.col[i * 3] = _h.r * k; L.col[i * 3 + 1] = _h.g * k; L.col[i * 3 + 2] = _h.b * k;
+    });
+    L.g.attributes.color.needsUpdate = true;
+  };
+  const smallL = haloLayer(smalls, HALO.bulb, 'snowville:halos');
+  const bigL = haloLayer(bigs, HALO.big, 'snowville:glows');
+  paintHalos(smallL, 0, 0.9); paintHalos(bigL, 0, 0.5);
+  const nSteam = STEAM_MUGS.length * (low ? 2 : 3);
+  const stPos = new Float32Array(nSteam * 3); const stCol = new Float32Array(nSteam * 3);
+  const stGeo = new THREE.BufferGeometry();
+  stGeo.setAttribute('position', new THREE.BufferAttribute(stPos, 3)); stGeo.setAttribute('color', new THREE.BufferAttribute(stCol, 3));
+  const steam = new THREE.Points(stGeo, new THREE.PointsMaterial({ map: dotTexture(), alphaTest: 0.02, size: HALO.steam, sizeAttenuation: true, vertexColors: true, transparent: true, opacity: 0.8, depthWrite: false, fog: true }));
+  steam.name = 'snowville:steam'; steam.frustumCulled = false;
+  Object.assign(steam.userData, { noCast: true, noContactShadow: true, noMerge: true });
+  scene.add(steam);
+  const stA = new THREE.Color(0xfffaf0); const stB = new THREE.Color(P.SNOW_LOOK.horizon); const sTmp = { x: 0, y: 0, z: 0, u: 0 };
+  function placeSteam(t) {
+    let n = 0;
+    for (let m = 0; m < STEAM_MUGS.length; m++) for (let j = 0; j < nSteam / STEAM_MUGS.length; j++) {
+      steamAt(m, j, reducedMotion ? 0 : t, sTmp);
+      stPos[n * 3] = sTmp.x; stPos[n * 3 + 1] = sTmp.y; stPos[n * 3 + 2] = sTmp.z;
+      _h.copy(stA).lerp(stB, sTmp.u * sTmp.u); stCol[n * 3] = _h.r; stCol[n * 3 + 1] = _h.g; stCol[n * 3 + 2] = _h.b; n++;
+    }
+    stGeo.attributes.position.needsUpdate = true; stGeo.attributes.color.needsUpdate = true;
+  }
+  placeSteam(0);
+
   const light = scene.getObjectByName('snowville:light') ?? null;
   const cheeks = createCheeks();
   const talk = { said: false };
@@ -117,6 +178,7 @@ export function createSnowvilleLight({ scene, tier = null, reducedMotion = false
       const cx = catPos?.x ?? P.SNOWVILLE_SPAWN.x;
       const cz = catPos?.z ?? P.SNOWVILLE_SPAWN.z;
       place(t, cx, cz);
+      if (!reducedMotion) { paintHalos(smallL, t, 0.9); paintHalos(bigL, t, 0.5); placeSteam(t); }
       if (!reducedMotion) glints.material.opacity = GLINT_LOOK.opacity - GLINT_LOOK.wobble * (0.5 + 0.5 * Math.sin(t * GLINT_LOOK.rate));
       if (light) light.intensity = reducedMotion || low ? LIGHT.intensity : LIGHT.intensity * (1 + 0.1 * Math.sin(t * 7.3) + 0.06 * Math.sin(t * 13.1 + 1));
       const warm = nearWarm(cx, cz);
@@ -128,7 +190,9 @@ export function createSnowvilleLight({ scene, tier = null, reducedMotion = false
     },
     dispose() {
       cheeks.restore();
-      scene.remove(flakes, glints);
+      scene.remove(flakes, glints, smallL.pts, bigL.pts, steam);
+      for (const L of [smallL, bigL]) { L.g.dispose(); L.pts.material.dispose(); }
+      stGeo.dispose(); steam.material.dispose();
       fGeo.dispose(); flakes.material.dispose();
       gGeo.dispose(); glints.material.dispose();
     },

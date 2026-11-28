@@ -181,6 +181,13 @@ export function paint(geo, hex, jitter = 0) {
   return g;
 }
 
+// Beauty pass 2: push a painted geometry's colour past 1 (k times brighter) so it reads as a lit thing: the high tier's bloom (threshold 1.1) picks it up, the low tiers clip it to a bright warm.
+export function hot(geo, k = 1.8) {
+  const col = geo.attributes.color;
+  for (let i = 0; i < col.array.length; i++) col.array[i] *= k;
+  return geo;
+}
+
 // Place a built piece: turn it `ry` about the vertical at the origin, then stand it at (x, z), dy over the snow there.
 export const stand = (geo, x, z, dy = 0, ry = 0) => {
   if (ry) geo.rotateY(ry);
@@ -228,7 +235,7 @@ export function drawSpawn(kit, M) {
   kit.put('paint', M.paint, paint(stand(box(A.w + 0.9, 0.3, A.depth + 0.3), A.x, A.z, A.h + 0.46), COL.snowBright), { noCast: true });
   // a lantern on its hook at the middle of the lintel, and two small ones at the posts
   kit.put('paint', M.paint, paint(stand(cyl(0.02, 0.02, 0.5, 4), A.x, A.z, A.h - 0.25), COL.iron));
-  kit.put('glow', M.glow, paint(stand(ball(0.2, 7, 5), A.x, A.z, A.h - 0.62), COL.warm), { noCast: true });
+  kit.put('glow', M.glow, hot(paint(stand(ball(0.2, 7, 5), A.x, A.z, A.h - 0.62), COL.warm), 1.8), { noCast: true });
   // the door's soft light (the view through the arch): icy white-blue, deeper toward the edges, so it reads as light and not a flat card
   const dg = stand(new THREE.PlaneGeometry(A.w - 1.2, A.h - 0.7, 4, 4).toNonIndexed(), A.x, A.z + 0.02, (A.h - 0.7) / 2 + 0.15);
   const dp = dg.attributes.position; const dc = new Float32Array(dp.count * 3);
@@ -270,10 +277,10 @@ export function cottageParts(c) {
   add('paint', box(1.25, 0.18, 0.5).translate(0, 1.82, c.d / 2 + 0.16), COL.snowBright, 0, true); // snow on the lintel
   for (const sx of [-1, 1]) { // two windows, a sill with snow under each
     const wx = sx * c.w * 0.32;
-    parts.push(['glow', paint(box(0.7, 0.62, 0.06).translate(wx, c.h * 0.55, c.d / 2 + 0.02), COL.warm), true]);
+    parts.push(['glow', hot(paint(box(0.7, 0.62, 0.06).translate(wx, c.h * 0.55, c.d / 2 + 0.02), 0xffc878), 2.1), true]); // lit from inside: past 1, so it glows against the blue snow
     add('paint', box(0.95, 0.12, 0.3).translate(wx, c.h * 0.55 - 0.4, c.d / 2 + 0.12), COL.snowBright, 0, true);
   }
-  parts.push(['glow', paint(box(0.06, 0.62, 0.7).translate(c.w / 2 + 0.02, c.h * 0.55, 0), COL.warm), true]); // one on the side
+  parts.push(['glow', hot(paint(box(0.06, 0.62, 0.7).translate(c.w / 2 + 0.02, c.h * 0.55, 0), 0xffc878), 2.1), true]); // one on the side
   return parts;
 }
 export function drawCottages(kit, M) {
@@ -335,10 +342,10 @@ export function drawSquare(kit, M) {
       const f = (i * 4 + n) / 24;
       const a = (i * 4 + n) * 2.4;
       const r = (1.5 - 1.1 * (0.15 + 0.7 * f)) * (F.h / 4.5) * 0.8;
-      kit.put('glow', M.glow, paint(stand(ball(0.1, 5, 4), F.x + Math.cos(a) * r, F.z + Math.sin(a) * r, F.h * (0.22 + 0.62 * f)), hex), { noCast: true });
+      kit.put('glow', M.glow, hot(paint(stand(ball(0.1, 5, 4), F.x + Math.cos(a) * r, F.z + Math.sin(a) * r, F.h * (0.22 + 0.62 * f)), hex), 1.5), { noCast: true });
     }
   });
-  kit.put('glow', M.glow, paint(stand(new THREE.OctahedronGeometry(0.28, 0), F.x, F.z, F.h + 0.12), 0xffd45a), { noCast: true });
+  kit.put('glow', M.glow, hot(paint(stand(new THREE.OctahedronGeometry(0.28, 0), F.x, F.z, F.h + 0.12), 0xffd45a), 2), { noCast: true });
   // the cocoa stall: a counter, two posts, a striped awning with snow on it, and a few mugs
   const S = P.STALL;
   const sp = (geo, noCast = false) => kit.put('paint', M.paint, stand(geo, S.x, S.z, 0, S.yaw), { noCast });
@@ -361,10 +368,10 @@ export function drawSquare(kit, M) {
   nm(ball(0.6, 8, 6).translate(0, 0.5, 0), COL.snowBright); nm(ball(0.45, 8, 6).translate(0, 1.3, 0), COL.snowBright); nm(ball(0.32, 8, 6).translate(0, 1.95, 0), COL.snowBright);
   nm(new THREE.ConeGeometry(0.06, 0.34, 5).rotateX(Math.PI / 2).translate(0, 1.95, 0.4), 0xe8782a);
   for (const sx of [-1, 1]) { nm(ball(0.04, 4, 3).translate(sx * 0.11, 2.03, 0.28), 0x22252c); nm(cyl(0.02, 0.02, 0.8, 4).rotateZ(sx * 1.2).translate(sx * 0.7, 1.4, 0), COL.woodDark); }
-  // lamp posts, unlit by day: an iron post, a glass globe and a cap of snow
+  // lamp posts, lit at golden hour: an iron post, a glass globe and a cap of snow
   for (const l of P.LAMPS) {
     kit.put('paint', M.paint, paint(stand(cyl(0.05, 0.08, 2.6, 6), l.x, l.z, 1.3), COL.iron));
-    kit.put('paint', M.paint, paint(stand(ball(0.24, 7, 5), l.x, l.z, 2.75), 0xf4e6c8), { noCast: true });
+    kit.put('glow', M.glow, hot(paint(stand(ball(0.24, 7, 5), l.x, l.z, 2.75), 0xffe2a8), 1.9), { noCast: true }); // lit at golden hour
     kit.put('paint', M.paint, paint(stand(new THREE.ConeGeometry(0.34, 0.22, 7), l.x, l.z, 3.08), COL.snowBright), { noCast: true });
   }
 }

@@ -351,8 +351,8 @@ describe('each place\'s own budget row with the decor on it', () => {
     ['park', buildPark, [210, 170, 40000], [140, 110], 3000, 2],
     ['farm', buildFarm, [280, 210, 62000], [200, 135], 2500, 2],
     ['market', buildMarket, [280, 210, 62000], [156, 36], 4000, 2],
-    // Snowville's row is 6 / 3 / 47,400 with no decor; the lazy pair rides on top (8 draws here is the row's 6 plus the decor's 2)
-    ['snowville', buildSnowville, [8, 3, 47400], [8, 3], 3000, 2],
+    // Snowville's row is 6 / 3 / 48,300 with no decor; the lazy pair rides on top (8 draws here is the row's 6 plus the decor's 2). Beauty pass 2 (2026-11-28, raised on purpose): the build is 45,977 -> 46,817 (+840: strung-fir bulbs, garland, lit bulbs on the pennants, presents), build + decor 48,217; row 47,400 -> 48,300.
+    ['snowville', buildSnowville, [8, 3, 48300], [8, 3], 3000, 2],
   ];
   for (const [id, build, built, merged, maxTris, maxDraws] of ROWS) {
     it(`${id}: with both holidays at night 8, still under ${built.join(' / ')} built and ${merged.join(' / ')} merged; the decor is at most ${maxDraws} draws and ${maxTris} triangles`, () => {

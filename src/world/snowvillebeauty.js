@@ -9,7 +9,7 @@ import * as THREE from 'three';
 import * as P from './snowvilleplan.js';
 import * as BP from './snowvillebeautyplan.js';
 import { mulberry32 } from '../rng.js';
-import { COL, paint, stand, box, cyl, ball, laneDist } from './snowvilleparts.js';
+import { COL, paint, stand, box, cyl, ball, laneDist, hot } from './snowvilleparts.js';
 import { ST } from './snowvillestages.js';
 import { POND } from './snowvilleplan.js';
 
@@ -85,10 +85,13 @@ function segment(a, b, r, hex) {
   g.translate(m.x, m.y, m.z);
   return paint(g, hex);
 }
+const BUNT_Y = 2.62;
+function buntingAt(la, lb) {
+  const ya = P.snowY(la.x, la.z) + BUNT_Y; const yb = P.snowY(lb.x, lb.z) + BUNT_Y;
+  return (t) => new THREE.Vector3(la.x + (lb.x - la.x) * t, ya + (yb - ya) * t - 0.55 * 4 * t * (1 - t), la.z + (lb.z - la.z) * t);
+}
 function bunting(kit, M, la, lb, hues, n = 9) {
-  const y = 2.62;
-  const ya = P.snowY(la.x, la.z) + y; const yb = P.snowY(lb.x, lb.z) + y;
-  const at = (t) => new THREE.Vector3(la.x + (lb.x - la.x) * t, ya + (yb - ya) * t - 0.55 * 4 * t * (1 - t), la.z + (lb.z - la.z) * t);
+  const at = buntingAt(la, lb);
   for (let i = 0; i < n; i++) kit.put('paint', M.paint, segment(at(i / n), at((i + 1) / n), 0.012, COL.iron), { noCast: true });
   for (let i = 0; i < n - 1; i++) {
     const p = at((i + 0.5) / n);
@@ -121,13 +124,22 @@ function peakGeometry(k) {
 const BULBS = [0xff6b5e, 0xffd45a, 0x6fd6a0, 0x7ab8ff, 0xff9ad0];
 const FROST = 0xeaf6ff;
 // A string of little coloured bulbs along each cottage's front eave: glow-coloured (no real light), sagging a hair between the hooks.
-function eaveLights(kit, M, c) {
+// Beauty pass 2: they are lit past 1 (bloom picks them up) and each has a twinkling halo (snowvillelight.js reads litSpots()).
+const toWorld = (c, lx, ly, lz) => { const s = Math.sin(c.yaw); const co = Math.cos(c.yaw); const x = c.x + lx * co + lz * s; const z = c.z - lx * s + lz * co; return [x, P.snowY(c.x, c.z) - 0.08 + ly, z]; };
+function eaveSpots(c) {
   const n = Math.round(c.w * 1.6);
+  const out = [];
   for (let i = 0; i < n; i++) {
     const u = (i + 0.5) / n;
     const lx = -c.w / 2 + 0.1 + (c.w - 0.2) * u;
     const sag = 0.12 * Math.sin(Math.PI * ((i % 4) / 3 + 0.0)) * 0.6;
-    kit.put('glow', M.glow, stand(paint(new THREE.OctahedronGeometry(0.06, 0).translate(lx, c.h - 0.2 - sag, c.d / 2 + 0.5), BULBS[(i + Math.round(c.x)) % BULBS.length]), c.x, c.z, -0.08, c.yaw), { noCast: true });
+    out.push({ lx, ly: c.h - 0.2 - sag, lz: c.d / 2 + 0.5, hex: BULBS[(i + Math.round(c.x)) % BULBS.length] });
+  }
+  return out;
+}
+function eaveLights(kit, M, c) {
+  for (const b of eaveSpots(c)) {
+    kit.put('glow', M.glow, stand(hot(paint(new THREE.OctahedronGeometry(0.07, 0).translate(b.lx, b.ly, b.lz), b.hex), 1.9), c.x, c.z, -0.08, c.yaw), { noCast: true });
   }
 }
 // Frost in the top corners of each front window, a holly-and-berry planter on the left sill, a red bow on the wreath and holly on the lintel.
@@ -182,6 +194,79 @@ function skatesAbout(kit, M) {
   }
 }
 
+// ---- BEAUTY PASS 2 (2026-11-28): light and colour. The village fir wears a spiral garland and presents at its foot, eight firs about the village are strung with coloured lights, the two pennant strings and the lamp
+// posts carry lit bulbs, and every lit thing has a twinkling halo (the halo layer is a Points in snowvillelight.js, which reads litSpots(): one list for the bulbs drawn here and the halos). ------------
+const FIR_LIGHT_HUES = [0xff5a4e, 0xffd24a, 0x62e0a0, 0x6cb4ff, 0xff8ad0];
+const jigf = (i, n) => { const v = Math.sin(i * 12.9898 + n * 78.233) * 43758.5453; return v - Math.floor(v); }; // snowvilleparts.js's jig (each fir's own width and height)
+let _strung = null;
+// The firs strung with lights: the nearest eight of the village's own firs (not the wood's rim), with each bulb's place on the tier cones (in the fir's frame: scaled, turned, stood).
+export function stringFirs() {
+  if (_strung) return _strung;
+  const all = P.scatterFirs();
+  const picks = all.map((k, i) => ({ k, i })).filter(({ k }) => !k.rim && Math.hypot(k.x + 2, k.z - 12) < 30 && Math.hypot(k.x - P.SQUARE_FIR.x, k.z - P.SQUARE_FIR.z) > 3)
+    .sort((a, b) => Math.hypot(a.k.x + 2, a.k.z - 12) - Math.hypot(b.k.x + 2, b.k.z - 12)).slice(0, 8);
+  _strung = picks.map(({ k, i }) => {
+    const wf = 0.78 + 0.5 * jigf(i, 1); const hf = 0.88 + 0.3 * jigf(i, 2);
+    const H = 4.5 * k.s; const out = [];
+    for (let t = 0; t < k.tiers; t++) {
+      const f = t / k.tiers; const r = (1.55 - 1.1 * f) * k.s; const h = H * (0.42 - 0.06 * f); const y = H * (0.18 + 0.68 * f);
+      const n = 7 - t;
+      for (let j = 0; j < n; j++) {
+        const a = (j / n) * Math.PI * 2 + t * 1.1; const kk = 0.1 + 0.16 * ((j * 5 + t) % 3) / 2;
+        const lx = Math.cos(a) * r * (1 - kk) * 1.04 * wf; const lz = Math.sin(a) * r * (1 - kk) * 1.04 * wf; const ly = (y + kk * h) * hf;
+        const ry = k.x * 7; // geo.rotateY(ry)
+        const x = lx * Math.cos(ry) + lz * Math.sin(ry); const z = -lx * Math.sin(ry) + lz * Math.cos(ry);
+        out.push({ x: k.x + x, z: k.z + z, y: P.snowY(k.x, k.z) - 0.1 + ly, hex: FIR_LIGHT_HUES[(j + t + i) % FIR_LIGHT_HUES.length], r: 0.075 });
+      }
+    }
+    return out;
+  }).flat();
+  return _strung;
+}
+// The village fir's garland: a spiral up from low to the star, plus the baubles' own places (for their halos).
+export function gardenFir() {
+  const F = P.SQUARE_FIR; const sc = F.h / 4.5; const out = [];
+  for (let n = 0; n < 40; n++) {
+    const f = n / 39; const a = n * 0.95;
+    const r = (1.5 - 1.1 * (0.1 + 0.78 * f)) * sc * 0.95;
+    out.push({ x: F.x + Math.cos(a) * r, z: F.z + Math.sin(a) * r, y: P.snowY(F.x, F.z) + F.h * (0.2 + 0.66 * f), hex: n % 2 ? 0xffe28a : 0xfff4d0, r: 0.065 });
+  }
+  return out;
+}
+function strungSpots() {
+  const out = [...stringFirs(), ...gardenFir()];
+  const L = P.LAMPS;
+  for (const [la, lb] of [[L[0], L[1]], [L[2], L[3]]]) {
+    const at = buntingAt(la, lb);
+    for (let i = 1; i < 9; i++) { const p = at(i / 9); out.push({ x: p.x, z: p.z, y: p.y - 0.04, hex: FIR_LIGHT_HUES[i % FIR_LIGHT_HUES.length], r: 0.05 }); }
+  }
+  return out;
+}
+// Presents round the village fir's foot (small, non-solid: nothing to stand on, no collider).
+export function presents() {
+  const F = P.SQUARE_FIR;
+  return [[0.9, 0.3, 0.5, 0xc8483f], [1.3, -0.4, 0.4, 0x2f8f8a], [-0.2, 1.2, 0.45, 0xf2c14e], [-1.1, 0.8, 0.5, 0x6a4a9a]].map(([dx, dz, s, hex], i) => ({ x: F.x + dx * 1.25, z: F.z + dz * 1.25, s, hex, a: i * 0.7 }));
+}
+
+// Every lit thing's halo: { x, y, z, hex, big (a window or lamp glow, else a bulb), ph (its own twinkle phase) }, in world coordinates. Pure; no clock.
+let _spots = null;
+export function litSpots() {
+  if (_spots) return _spots;
+  const out = [];
+  const add = (x, y, z, hex, big, i) => out.push({ x, y, z, hex, big, ph: jigf(i, 7) });
+  let n = 0;
+  for (const c of P.COTTAGES) {
+    for (const b of eaveSpots(c)) { const w = toWorld(c, b.lx, b.ly, b.lz); add(w[0], w[1], w[2], b.hex, false, n++); }
+    for (const sx of [-1, 1]) { const w = toWorld(c, sx * c.w * 0.32, c.h * 0.55, c.d / 2 + 0.12); add(w[0], w[1], w[2], 0xffa850, true, n++); }
+    const w = toWorld(c, c.w / 2 + 0.12, c.h * 0.55, 0); add(w[0], w[1], w[2], 0xffa850, true, n++);
+  }
+  for (const sp of strungSpots()) add(sp.x, sp.y, sp.z, sp.hex, false, n++);
+  for (const l of P.LAMPS) add(l.x, P.snowY(l.x, l.z) + 2.75, l.z, 0xffc070, true, n++);
+  add(P.SQUARE_FIR.x, P.snowY(P.SQUARE_FIR.x, P.SQUARE_FIR.z) + P.SQUARE_FIR.h + 0.12, P.SQUARE_FIR.z, 0xffd45a, true, n++);
+  _spots = out;
+  return out;
+}
+
 export function drawBeauty(kit, M, { low = false } = {}) {
   scatterShrubs().forEach((k, ci) => {
     for (let i = 0; i < k.n; i++) {
@@ -198,5 +283,7 @@ export function drawBeauty(kit, M, { low = false } = {}) {
   const L = P.LAMPS;
   bunting(kit, M, L[0], L[1], [0x2f8f8a, 0xf2c14e]);
   bunting(kit, M, L[2], L[3], [0xc8483f, 0xf4ecd8]);
+  for (const sp of strungSpots()) kit.put('glow', M.glow, hot(paint(new THREE.TetrahedronGeometry(sp.r, 0).translate(sp.x, sp.y, sp.z), sp.hex), 1.9), { noCast: true });
+  if (!low) for (const g of presents()) kit.put('paint', M.paint, stand(paint(box(g.s, g.s * 0.8, g.s).rotateY(g.a), g.hex), g.x, g.z, g.s * 0.4 - 0.05), { noCast: true });
   for (const k of BP.ridgePeaks()) kit.put('ridge', M.paint, peakGeometry(k), { noCast: true });
 }
