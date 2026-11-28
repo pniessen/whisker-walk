@@ -18,6 +18,7 @@ import { COL, paint, pad, dotTexture } from './jungleparts.js';
 import { rungOf, sparklePlan } from './junglesparkle.js';
 import { callNote, patterNote, croakNote } from './junglecritters.js';
 import { topHalf, tri3, seasonOf, SEASON, surpriseAt, bloomAt, bloomRamp, bloomSpots, spiralAt } from './junglebeauty4.js';
+import { B5, SLOTH_REST, creaturePlan, createCreatures, snakeIndex, snakeHex, gazeAt, zoneWeights, easeWeights, zoneColor, arrivalDue, bloomLight, chimeNote, createBeds, WIND } from './junglebeauty5.js';
 import { dayAt, brush, brushOffset, createPool, REACT, RIPPLE, PETALS, DAY } from './junglereact.js';
 const SURPRISE_DUR = { spiral: 15, monkeys: 10 };
 
@@ -131,7 +132,7 @@ export function beauty2Parts() {
       const y = gy(s.x, s.z) + 0.35 * s.s + (0.58 * s.s) * (1 - (d / (r * 1.2)) ** 2) + 0.12;
       const hex = i % 3 === 2 ? HOT[(s.pal + 3) % HOT.length] : HOT[s.pal];
       out.push([new THREE.ConeGeometry(0.42 * s.s, 0.26, 7, 1, true).rotateX(Math.PI).rotateZ(0.2 * Math.sin(a)).translate(x, y, z), hex, i, 'paint']);
-      out.push([pad(5).scale(0.13, 1, 0.13).translate(x, y + 0.02, z), 0xffe040, 0, 'paint']);
+      out.push([pad(3).scale(0.13, 1, 0.13).translate(x, y + 0.02, z), 0xffe040, 0, 'paint']); // pass 5: the hearts are triangles now (13 cm wide); this pays for the frogs and the sloth
     }
   });
   // glowing mushrooms: a cream stem, a bright cap (unlit: it reads as glowing) and a paler spot
@@ -209,6 +210,7 @@ export function swayParts(rung = 'high') {
   const plan = beauty2Plan();
   const S = new Soup();
   const wind = { x: 0.8, z: 0.55 };
+  const snakeAt = snakeIndex(plan.vines.slice(0, B2.vines[rung]));
   const mk = (ph, w, amp, lean, cx, cz, push = 0) => S.piece({ ph, w, amp, lean, cx, cz, push }); // cx, cz, push: where it stands and how far she can part it (pass 3)
   const gy = P.jungleY;
   plan.vines.slice(0, B2.vines[rung]).forEach((v, i) => {
@@ -216,12 +218,14 @@ export function swayParts(rung = 'high') {
     const gyv = gy(v.x, v.z);
     const top = Math.max(gyv + 0.9 + v.len, v.y0);
     const y0 = Math.min(v.y0, top);
-    S.ribbon(v.x, y0, v.z, v.len, 0.22, 5, v.yaw, (k) => (k % 2 ? 0x3fa83a : 0x2f8a34), id, 0.5);
+    const snake = i === snakeAt; // pass 5: one vine is a snake (banded, thicker, a yellow head); it sways when she looks at it
+    if (snake) S.pieces[id].look = { x: v.x, y: y0 - v.len * 0.55, z: v.z };
+    S.ribbon(v.x, y0, v.z, v.len, snake ? 0.36 : 0.22, 5, v.yaw, snake ? snakeHex : (k) => (k % 2 ? 0x3fa83a : 0x2f8a34), id, snake ? 0.7 : 0.5);
     for (let k = 1; k <= v.n; k++) { // leaf pairs and blossoms down the vine, the biggest at the end
       const t = k / (v.n + 0.4); const y = y0 - v.len * t; const w = t ** 1.3; const big = k === v.n;
       const lx = Math.cos(v.yaw); const lz = Math.sin(v.yaw);
       S.tri([v.x, y, v.z, w], [v.x + lx * 0.3, y - 0.1, v.z + lz * 0.3, w], [v.x + lx * 0.12, y - 0.24, v.z + lz * 0.12, w], 0x58c040, id, [1, 0.8, 0.8]);
-      S.blob(v.x + lz * 0.08, y - 0.05, v.z - lx * 0.08, big ? 0.42 : 0.26 + 0.03 * (k % 2), big ? 0.44 : 0.3, HOT[(v.pal + k * 2) % HOT.length], w, id);
+      S.blob(v.x + lz * 0.08, y - 0.05, v.z - lx * 0.08, big ? 0.42 : 0.26 + 0.03 * (k % 2), big ? 0.44 : 0.3, snake ? (big ? 0xf0d020 : 0x5a7a1c) : HOT[(v.pal + k * 2) % HOT.length], w, id);
     }
   });
   plan.canopy.slice(0, B2.canopy[rung]).forEach((c) => {
@@ -253,7 +257,19 @@ export function swayParts(rung = 'high') {
     S.ribbon(x - 0.17, y0, L.z1 - 0.35, 1.5, 0.32, 5, 0, () => cloth[i][0], id, 0.15);
     S.ribbon(x + 0.17, y0, L.z1 - 0.35, 1.5, 0.32, 5, 0, () => cloth[i][1], id, 0.15);
   });
-  return { soup: S, flockAt: S.pos.length / 3 };
+  // pass 5: the frogs on their lily pads and the sloth in its crown (triangles of this one soup; a frog sinks and a sloth's head turns in drawSway)
+  const marks = { frogs: [], sloth: null };
+  creaturePlan().frogs.slice(0, B5.frogs[rung]).forEach((f) => {
+    const id = mk(0, 1, 0, 0); const R = 0.78;
+    for (let k = 0; k < 6; k++) { const a0 = (k / 6) * TAU; const a1 = ((k + 1) / 6) * TAU; S.tri([f.x, f.y, f.z, 0], [f.x + Math.cos(a0) * R, f.y, f.z + Math.sin(a0) * R, 0], [f.x + Math.cos(a1) * R, f.y, f.z + Math.sin(a1) * R, 0], 0x2a6a46, id, [1.15, 0.9, 0.9]); }
+    const a = S.pos.length / 3; S.blob(f.x, f.y + 0.16, f.z, 0.32, 0.2, 0xb8f030, 0, id);
+    marks.frogs.push({ a, n: S.pos.length / 3 - a, x: f.x, y: f.y + 0.14, z: f.z });
+  });
+  { const sl = creaturePlan().sloth; const y = P.jungleY(sl.x, sl.z) + sl.y; const id = mk(0, 1, 0, 0);
+    S.blob(sl.x, y, sl.z, 0.42, 0.3, 0x5a3e24, 0, id);
+    const a = S.pos.length / 3; S.blob(sl.x + Math.cos(SLOTH_REST) * 0.42, y + 0.12, sl.z + Math.sin(SLOTH_REST) * 0.42, 0.2, 0.17, 0x9a7a52, 0, id);
+    marks.sloth = { a, n: S.pos.length / 3 - a, x: sl.x, y, z: sl.z }; }
+  return { soup: S, flockAt: S.pos.length / 3, marks };
 }
 
 /** A wind with slow gusts: 0.2 to 1. Pure. */
@@ -334,7 +350,7 @@ export function createJungleBeauty2({ scene, tier = null, reducedMotion = false,
   const surpriseNow = (t) => { for (const k of ['spiral', 'monkeys']) { const a = forced[k] === null ? -1 : t - forced[k]; if (a >= 0 && a < SURPRISE_DUR[k]) return { kind: k, age: a, dur: SURPRISE_DUR[k], k: 'f' + forced[k] }; } return surpriseAt(t); };
   const bloomNow = (t) => (forced.bloom === null ? bloomAt(t, DAY) : bloomRamp(t - forced.bloom));
   const plan = beauty2Plan();
-  const { soup } = swayParts(rung);
+  const { soup, marks } = swayParts(rung);
   const nS = soup.pos.length / 3;
   const nBirds = reducedMotion ? 0 : B2.flock[rung];
   const total = nS + nBirds * BIRD_VERTS;
@@ -388,6 +404,10 @@ export function createJungleBeauty2({ scene, tier = null, reducedMotion = false,
   // pass 4: night-blooms (pooled points among pass 1's flower clusters; dark until the dusk they open)
   const spots = bloomSpots(sparklePlan().anchors, rung === 'lite' ? 3 : rung === 'low' ? 8 : 14);
   spots.forEach((s, i) => { const rgb = _hexRgb(s.hex); pts.push({ kind: 'night', s, i, size: 2.2, rgb }); if (s.big) pts.push({ kind: 'night', s, i, size: 6, rgb, halo: true }); });
+  // pass 5: the creatures (dragonflies, frogs and pads, beetles, a sloth) and the river's light bloom: more points of the same mesh, no triangle
+  const crit = createCreatures(rung);
+  crit.points().forEach((p) => pts.push(p));
+  (rung === 'lite' ? [2.6] : [5, 2.6, 1.2]).forEach((size, k) => pts.push({ kind: 'lbloom', k, size, rgb: [0.5, 0.95, 0.8] }));
   const nP = pts.length;
   const mPos = new Float32Array(nP * 3); const mCol = new Float32Array(nP * 3); const mSize = Float32Array.from(pts, (p) => p.size);
   const mGeo = new THREE.BufferGeometry();
@@ -406,6 +426,7 @@ export function createJungleBeauty2({ scene, tier = null, reducedMotion = false,
   // ---- per frame ----
   const dxs = new Float32Array(soup.pieces.length); const dzs = new Float32Array(soup.pieces.length);
   const react = new Float32Array(soup.pieces.length); const awayX = new Float32Array(soup.pieces.length); const awayZ = new Float32Array(soup.pieces.length); const _o = { x: 0, z: 0 };
+  let snakeLook = 0;
   function drawSway(t) {
     const g = gustAt(t);
     for (let i = 0; i < soup.pieces.length; i++) {
@@ -413,12 +434,16 @@ export function createJungleBeauty2({ scene, tier = null, reducedMotion = false,
       const flutter = Math.sin(t * p.w + p.ph) + 0.4 * Math.sin(t * p.w * 2.3 + p.ph * 1.7);
       dxs[i] = 0.8 * (p.amp * g * flutter + p.lean * g * 2.2);
       dzs[i] = 0.55 * (p.amp * g * Math.cos(t * p.w * 0.9 + p.ph) + p.lean * g * 2.2);
+      if (p.look && snakeLook > 0.003) { dxs[i] += snakeLook * 0.9 * Math.sin(t * 2.7 + p.ph); dzs[i] += snakeLook * 0.55 * Math.cos(t * 2.1 + p.ph * 1.3); } // pass 5: the snake vine sways while she looks at it
       if (react[i] > 0.004) { brushOffset(p, react[i], awayX[i], awayZ[i], t, _o); dxs[i] += _o.x; dzs[i] += _o.z; } // she parts it (pass 3)
     }
     for (let v = 0; v < nS; v++) {
       const w = wgt[v]; const p = pid[v];
       pos[v * 3] = rest[v * 3] + dxs[p] * w; pos[v * 3 + 1] = rest[v * 3 + 1] - 0.06 * w * Math.abs(dxs[p]) * 3; pos[v * 3 + 2] = rest[v * 3 + 2] + dzs[p] * w;
     }
+    // pass 5: a frog that has plopped shrinks and sinks (and climbs back), the sloth's head turns about its neck
+    marks.frogs.forEach((m, k) => { const s = crit.frogs[k]?.shown ?? 1; for (let v = m.a; v < m.a + m.n; v++) { pos[v * 3] = m.x + (rest[v * 3] - m.x) * (0.1 + 0.9 * s); pos[v * 3 + 1] = m.y + (rest[v * 3 + 1] - m.y) * (0.1 + 0.9 * s) - 0.35 * (1 - s); pos[v * 3 + 2] = m.z + (rest[v * 3 + 2] - m.z) * (0.1 + 0.9 * s); } });
+    if (marks.sloth) { const m = marks.sloth; const d = crit.sloth.ang - SLOTH_REST; const c = Math.cos(d); const sn = Math.sin(d); for (let v = m.a; v < m.a + m.n; v++) { const rx = rest[v * 3] - m.x; const rz = rest[v * 3 + 2] - m.z; pos[v * 3] = m.x + rx * c - rz * sn; pos[v * 3 + 2] = m.z + rx * sn + rz * c; } }
   }
   const flock = { on: false, t0: 0, fx: 0, fz: 0, cx: 0, cz: 0, y: 0, next: FLOCK.first, count: 0 };
   const spiral = { key: null, cx: 0, cz: 0, y: 0, on: false }; const _sp = { x: 0, y: 0, z: 0, fx: 0, fz: 0 };
@@ -456,16 +481,24 @@ export function createJungleBeauty2({ scene, tier = null, reducedMotion = false,
     }
   }
   const _fwd = new THREE.Vector3();
+  const snakePiece = soup.pieces.find((p) => p.look) ?? null;
   const _pt = { x: 0, y: 0, z: 0, g: 0 };
   const catAt = { x: 0, z: 0 };
+  const _cr = { x: 0, y: 0, z: 0, g: 0, size: 1 };
+  const zw = { porch: 0, garden: 1, river: 0, canopy: 0 }; const zt = { porch: 0, garden: 1, river: 0, canopy: 0 }; const zc = [0.4, 0.84, 0.34]; let zInit = false; // pass 5: the colour story
+  motes.userData.zones = zw; // read by the picture page
+  const lbloom = { on: false, t0: 0, x: 0, y: 0, z: 0 }; const arrive = { clearing: false, river: false }; let forcedArrival = null;
+  const beds = createBeds(audio);
   function drawMotes(t, rain, day) {
     const dim = 1 - 0.8 * Math.min(1, rain); // the shafts and the dust fade in a shower
     for (let i = 0; i < nP; i++) {
       const p = pts[i]; let x; let y; let z; let g;
       if (p.kind === 'mist') { // a low haze that drifts round her, thickest at dawn
         const B = 16; const wrap = (v, c) => ((((v - c) % (2 * B)) + 2 * B) % (2 * B)) - B + c;
-        x = wrap(hash(p.i * 5 + 1) * 2 * B + t * (0.25 + 0.2 * hash(p.i)), catAt.x); z = wrap(hash(p.i * 5 + 2) * 2 * B + t * 0.12, catAt.z);
-        y = P.jungleY(x, z) + 2.0 + 0.5 * Math.sin(t * 0.2 + p.i); g = 0.5 * day.mist * SE.mist * (0.7 + 0.3 * Math.sin(t * 0.3 + p.i * 2));
+        const sp = 0.34 * (0.8 + 0.4 * hash(p.i)); // pass 5: it drifts the way the wind (and the cloth) blows
+        x = wrap(hash(p.i * 5 + 1) * 2 * B + t * sp * WIND.x, catAt.x); z = wrap(hash(p.i * 5 + 2) * 2 * B + t * sp * WIND.z, catAt.z);
+        y = P.jungleY(x, z) + 2.0 + 0.5 * Math.sin(t * 0.2 + p.i); g = 0.5 * day.mist * SE.mist * (0.7 + 0.3 * Math.sin(t * 0.3 + p.i * 2)) * (0.8 + 0.3 * gustAt(t)) + 0.16 * (1 - zw.garden) * (0.7 + 0.3 * Math.sin(t * 0.4 + p.i)) * (1 - 0.6 * day.noon); // and takes the colour of the place she is in
+        mCol[i * 3] = (p.rgb[0] * 0.25 + zc[0] * 0.75) * g; mCol[i * 3 + 1] = (p.rgb[1] * 0.25 + zc[1] * 0.75) * g; mCol[i * 3 + 2] = (p.rgb[2] * 0.25 + zc[2] * 0.75) * g; mPos[i * 3] = x; mPos[i * 3 + 1] = y; mPos[i * 3 + 2] = z; continue;
       } else if (p.kind === 'ring') {
         pool.ringPoint(p.r, p.k, _pt); x = _pt.x; y = _pt.y; z = _pt.z; g = _pt.g * 0.9;
       } else if (p.kind === 'petal') {
@@ -479,12 +512,16 @@ export function createJungleBeauty2({ scene, tier = null, reducedMotion = false,
       } else if (p.kind === 'night') {
         const o = bloomNow(t); const sm = o * o * (3 - 2 * o); const s = p.s;
         x = s.x; z = s.z; y = s.y + 0.25 + 0.15 * sm; g = sm * (p.halo ? 0.3 : 0.85 + 0.15 * Math.sin(t * 2.1 + p.i)); mSize[i] = p.size * (0.15 + 0.85 * sm);
+      } else if (p.kind === 'cr') {
+        crit.at(p.c, t, day, _cr); x = _cr.x; y = _cr.y; z = _cr.z; g = _cr.g; mSize[i] = _cr.size;
+      } else if (p.kind === 'lbloom') {
+        const a = lbloom.on ? t - lbloom.t0 : -1; x = lbloom.x; z = lbloom.z; y = lbloom.y + 0.2 * p.k; g = bloomLight(a) * (p.k === 0 ? 0.07 : p.k === 1 ? 0.12 : 0.2);
       } else if (p.kind === 'halo') {
         x = p.x; y = p.y; z = p.z; g = (0.32 + 0.1 * Math.sin(t * 2.3 + p.ph * 3) + 0.06 * Math.sin(t * 5.1 + p.ph)) * (0.6 + 0.4 * dim) * day.glow;
       } else if (p.kind === 'mush') {
         x = p.x; y = p.y; z = p.z; g = (0.22 + 0.12 * Math.sin(t * 0.9 + p.ph)) * (0.7 + 0.8 * day.glow);
       } else {
-        x = p.x; y = p.y; z = p.z; g = Math.max(0, Math.sin(t * p.w + p.ph)) ** 6 * dim * SE.glint;
+        x = p.x; y = p.y; z = p.z; g = Math.max(0, Math.sin(t * p.w + p.ph)) ** 6 * dim * SE.glint * (0.7 + 0.5 * gustAt(t)); // the water glitters with the wind
       }
       mPos[i * 3] = x; mPos[i * 3 + 1] = y; mPos[i * 3 + 2] = z;
       mCol[i * 3] = p.rgb[0] * g; mCol[i * 3 + 1] = p.rgb[1] * g; mCol[i * 3 + 2] = p.rgb[2] * g;
@@ -492,12 +529,13 @@ export function createJungleBeauty2({ scene, tier = null, reducedMotion = false,
     mGeo.attributes.position.needsUpdate = true; mGeo.attributes.color.needsUpdate = true; mGeo.attributes.aSize.needsUpdate = true;
   }
   function draw(t, rain, camera, day) {
+    zoneColor(zw, zc);
     drawSway(t); drawFlock(t, camera);
     geo.attributes.position.needsUpdate = true;
     drawMotes(t, rain, day);
   }
   draw(0, 0, null, dayAt(0));
-  if (reducedMotion) { mCol.fill(0); for (let i = 0; i < nP; i++) if (pts[i].kind === 'halo' || pts[i].kind === 'mush') { for (let k = 0; k < 3; k++) mCol[i * 3 + k] = pts[i].rgb[k] * 0.3; } mGeo.attributes.color.needsUpdate = true; }
+  if (reducedMotion) { const keep = Float32Array.from(mCol); mCol.fill(0); for (let i = 0; i < nP; i++) { if (pts[i].kind === 'halo' || pts[i].kind === 'mush') { for (let k = 0; k < 3; k++) mCol[i * 3 + k] = pts[i].rgb[k] * 0.3; } else if (pts[i].kind === 'cr' && crit.still(pts[i].c.kind)) for (let k = 0; k < 3; k++) mCol[i * 3 + k] = keep[i * 3 + k]; } mGeo.attributes.color.needsUpdate = true; } // pass 5: the frogs, their pads and the sloth stay where they sit
 
   // pass 3: the day's light (the sun's colour and strength, the haze's reach and tint), eased from what the place began with; put back on dispose
   const fog = scene.fog ?? null;
@@ -516,21 +554,30 @@ export function createJungleBeauty2({ scene, tier = null, reducedMotion = false,
       tintC.setRGB(0.95, 0.5, 0.28); fog.color.lerp(tintC, 0.55 * day.dusk);
       fog.near = base.near * (1 - 0.6 * day.dawn - 0.35 * day.dusk); fog.far = base.far * (1 - 0.4 * day.dawn - 0.12 * day.dusk + 0.1 * day.noon);
     }
+    tintC.setRGB(zc[0], zc[1], zc[2]); // pass 5: one colour story, amber at the porch, green in the garden, teal at the river, gold-green on the rise
+    if (fog && base.fogC) fog.color.lerp(tintC, 0.8);
+    if (base.sunC) sun.color.lerp(tintC, 0.85);
+    if (fill && base.fillI) fill.color.lerp(tintC, 0.85);
   }
   let nextCricket = 1.5; let crickets = 0; let nextDistant = SOUND_GAP.distant.first; let distant = 0; let nextDrip = 0;
-  let nextFrog = 9; let frogs = 0; let nextWind = 3; let winds = 0; let nextRustle = 0; let nextMonkey = 0; let monkeys = 0; let stirred = 0; let lastFlush = -99; let last = null;
+  let nextChime = 4; let chimes = 0; let nextFrog = 9; let frogs = 0; let nextWind = 3; let winds = 0; let nextRustle = 0; let nextMonkey = 0; let monkeys = 0; let stirred = 0; let lastFlush = -99; let last = null;
   const hexRgb = (pal) => _hexRgb(HOT[pal % HOT.length]);
   return {
     sway, shafts, motes,
     counts: { rung, vines: Math.min(plan.vines.length, B2.vines[rung]), shafts: nShaft, points: nP, birds: nBirds, swayTriangles: nS / 3 },
     pool, react, season: SE,
-    trigger(kind, t) { forced[kind] = t; if (kind === 'monkeys') nextMonkey = t; },
+    crit, zones: zw, beds, lbloom,
+    trigger(kind, t) { if (kind === 'arrival' || kind === 'river') { forcedArrival = kind; return; } forced[kind] = t; if (kind === 'monkeys') nextMonkey = t; },
     update(dt, t, catPos, rain = 0, camera = null) {
       const day = dayAt(t);
+      // pass 5: where she stands sets the colour story and the sound beds; the weights ease so nothing jumps
+      if (catPos) { zoneWeights(catPos.x, catPos.z, zt); if (!zInit) { Object.assign(zw, zt); zInit = true; } else easeWeights(zw, zt, dt); }
+      const gust = gustAt(t); beds.update(zw, gust);
+      if (!rain && t >= nextChime && zw.porch > 0.12 && gust > 0.5) { chimeNote(audio, chimes, Math.min(1, zw.porch * 1.8) * gust); chimes++; nextChime = t + (3 + 4 * hash(chimes * 3 + 5)) / (0.4 + gust); } else if (t >= nextChime) nextChime = t + 1;
       // (each schedule runs on while muted: no catching up) the day's voice: birds are loudest at dawn, crickets and frogs at dusk, a breath of wind through the leaves at noon
       if (rain > 0.05) { if (t >= nextDrip) { patterNote(audio, rain * 0.6, 0.9); nextDrip = t + SOUND_GAP.drip; } } else {
-        if (t >= nextCricket) { cricketNote(audio, crickets); crickets++; nextCricket = t + (SOUND_GAP.cricket.min + SOUND_GAP.cricket.span * hash(crickets * 3 + 7)) * (1.5 - 1.1 * day.dusk); }
-        if (t >= nextDistant) { callNote(audio, 100 + distant * 3 + (day.dawn > 0.4 ? 47 : 0)); distant++; nextDistant = t + (SOUND_GAP.distant.min + SOUND_GAP.distant.span * hash(distant * 5 + 9)) * (1.7 - 1.15 * day.dawn); }
+        if (t >= nextCricket) { cricketNote(audio, crickets); crickets++; nextCricket = t + (SOUND_GAP.cricket.min + SOUND_GAP.cricket.span * hash(crickets * 3 + 7)) * (1.5 - 1.1 * day.dusk) * (1.9 - 1.3 * zw.garden - 0.4 * zw.river); } // the garden hums with insects, the porch and the rise less
+        if (t >= nextDistant) { callNote(audio, 100 + distant * 3 + (day.dawn > 0.4 ? 47 : 0)); distant++; nextDistant = t + (SOUND_GAP.distant.min + SOUND_GAP.distant.span * hash(distant * 5 + 9)) * (1.7 - 1.15 * day.dawn) * (1.5 - 0.9 * zw.canopy - 0.3 * zw.garden); } // and the birds sing from the canopy
         if (day.dusk > 0.4 && t >= nextFrog) { croakNote(audio, 60 + frogs); frogs++; nextFrog = t + 5 + 7 * hash(frogs * 7 + 3); }
         const su = surpriseNow(t);
         if (su && su.kind === 'monkeys' && t >= nextMonkey) { (monkeys % 2 ? croakNote : callNote)(audio, 200 + monkeys * 5); monkeys++; nextMonkey = t + 0.3 + 0.55 * hash(monkeys * 3 + 1); } // a chorus of distant monkeys, calling back and forth
@@ -548,16 +595,28 @@ export function createJungleBeauty2({ scene, tier = null, reducedMotion = false,
         if (pool.step(t, catPos, rain, dt, moving) === 'splash') patterNote(audio, 0.9, 0.2);
         if (pool.touch(t, catPos, plan.shrubs, hexRgb)) callNote(audio, 31 + frogs);
         pool.advance(dt);
+        // pass 5: the creatures, the snake vine's gaze, the arrival
+        crit.step(dt, t, catPos, (x, y, z) => { pool.ripple(x, y + 0.02, z, 0.7); patterNote(audio, 0.9, 0.2); });
+        if (snakePiece && camera) { camera.getWorldDirection(_fwd); const look = snakePiece.look; snakeLook += (gazeAt(camera.position, _fwd, look.x, look.y, look.z) - snakeLook) * Math.min(1, dt * 3); } else snakeLook *= Math.exp(-dt * 3);
+        const due = forcedArrival ?? arrivalDue(arrive, t, catPos); forcedArrival = null;
+        if (due === 'clearing') { // a soft burst of petals and a flush of birds
+          const y = P.jungleY(catPos.x, catPos.z) + 1.6;
+          pool.burst(catPos.x - 1.7, y, catPos.z - 2.2, [0.7, 0.18, 0.36]); if (rung !== 'lite') pool.burst(catPos.x + 1.7, y, catPos.z - 2.6, [0.7, 0.45, 0.05]);
+          if (!flock.on && nBirds) { flock.next = t + 0.9; lastFlush = t; callNote(audio, 77); }
+        } else if (due === 'river') { // a gentle light bloom
+          Object.assign(lbloom, { on: true, t0: t, x: catPos.x, y: P.jungleY(catPos.x, catPos.z) + 1.4, z: catPos.z - 3 }); // over the water ahead of her
+          pool.ripple(catPos.x, P.jungleY(catPos.x, catPos.z) + P.RIVER_DEPTH + 0.02, catPos.z, 1.3); patterNote(audio, 0.5, 0.1);
+        }
         last = { x: catPos.x, z: catPos.z };
       }
       draw(t, rain, camera, day); grade(day);
-      sway.material.color.setRGB(SE.tint[0] * (1 - 0.1 * day.noon), SE.tint[1] * (1 - 0.06 * day.noon), SE.tint[2] * (1 - 0.1 * day.noon)); // pass 4: the saturated blossoms ease a little in the noon glare
-      if (shafts) { shafts.material.opacity = SHAFT.opacity * Math.min(1.3, day.shaft) * (0.85 + 0.15 * Math.sin(t * 0.27)) * (1 - 0.7 * Math.min(1, rain)); shafts.material.color.setRGB(day.warm[0], day.warm[1], day.warm[2]); }
+      sway.material.color.setRGB(SE.tint[0] * (1 - 0.1 * day.noon) * (0.86 + 0.28 * zc[0]), SE.tint[1] * (1 - 0.06 * day.noon) * (0.86 + 0.28 * zc[1]), SE.tint[2] * (1 - 0.1 * day.noon) * (0.86 + 0.28 * zc[2])); // pass 4: the saturated blossoms ease a little in the noon glare
+      if (shafts) { shafts.material.opacity = SHAFT.opacity * Math.min(1.3, day.shaft) * (0.85 + 0.15 * Math.sin(t * 0.27)) * (1 - 0.7 * Math.min(1, rain)); shafts.material.color.setRGB(day.warm[0], day.warm[1], day.warm[2]).lerp(tintC, 0.75); }
     },
     dispose() {
       if (base.sunC) { sun.color.copy(base.sunC); sun.intensity = base.sunI; } if (fill && base.fillI) { fill.color.copy(base.fillC); fill.intensity = base.fillI; } if (base.env !== null) { scene.environmentIntensity = base.env; scene.backgroundIntensity = 1; }
       if (fog && orig.fogC) { fog.color.copy(orig.fogC); fog.near = orig.near; fog.far = orig.far; }
-      scene.remove(sway, motes); geo.dispose(); sway.material.dispose(); mGeo.dispose(); mMat.dispose();
+      beds.dispose(); scene.remove(sway, motes); geo.dispose(); sway.material.dispose(); mGeo.dispose(); mMat.dispose();
       if (shafts) { scene.remove(shafts); shafts.geometry.dispose(); shafts.material.dispose(); }
     },
   };

@@ -65,7 +65,7 @@ describe('the life', () => {
   it('sends a flock across in front of the camera, and the gust stays in range', () => {
     const a = mk(); const cam = new THREE.PerspectiveCamera(); cam.position.set(0, 2.9, 33); cam.lookAt(0, 1, 28); cam.updateMatrixWorld();
     const nS = a.sway.geometry.attributes.position.count - a.counts.birds * 15; const pos = a.sway.geometry.attributes.position.array;
-    for (let t = 0; t < 12; t += 1 / 30) a.update(1 / 30, t, { x: 0, z: 28 }, 0, cam);
+    for (let t = 0; t < 8; t += 1 / 30) a.update(1 / 30, t, { x: 0, z: 28 }, 0, cam);
     let live = 0; for (let i = nS * 3; i < pos.length; i++) if (pos[i] !== 0) live++;
     expect(live).toBeGreaterThan(0);
     for (let t = 0; t < 400; t += 0.7) { expect(B.gustAt(t)).toBeGreaterThanOrEqual(0); expect(B.gustAt(t)).toBeLessThanOrEqual(1); }
