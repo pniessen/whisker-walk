@@ -8,5 +8,6 @@ import { createLighthouseVistas } from './lighthousebeauty7.js';
 import { createLighthouseAlive } from './lighthousealive.js';
 import { createFindLooks } from './lighthousemoments.js';
 import { createKeeperCats } from './lighthousecats.js';
+import { createLighthouseVoice } from './lighthousevoice.js';
 
-Object.assign(ST, { story: Object.freeze({ createLighthouseSound, createLighthouseWeather, createLighthouseVistas, createLighthouseAlive, createFindLooks, createKeeperCats }) });
+Object.assign(ST, { story: Object.freeze({ createLighthouseSound, createLighthouseWeather, createLighthouseVistas, createLighthouseAlive, createFindLooks, createKeeperCats, createLighthouseVoice }) });

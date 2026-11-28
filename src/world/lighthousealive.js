@@ -588,6 +588,7 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
       if (boatsMesh && base) { boatsMesh.geometry.attributes.position.array.set(base); boatsMesh.geometry.attributes.normal.array.set(baseN); boatsMesh.geometry.attributes.position.needsUpdate = true; boatsMesh.geometry.attributes.normal.needsUpdate = true; }
     },
     get gulls() { return gulls; },
+    get critters() { return critters; },
     get printVerts() { return lastPrints; },
     get creatureTris() { return (wGeo.drawRange.count - wetDyn - lastPrints) / 3; },
     objects: objs,

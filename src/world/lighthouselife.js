@@ -165,13 +165,14 @@ export function createLighthouseLife(ctx = {}) {
     return { beam, core, halo, glow, patch, all };
   });
   for (const m of parts.all) scene?.add(m);
-  const { createLighthouseSound, createLighthouseWeather, createLighthouseVistas, createLighthouseAlive, createFindLooks, createKeeperCats } = ST.story;
+  const { createLighthouseSound, createLighthouseWeather, createLighthouseVistas, createLighthouseAlive, createFindLooks, createKeeperCats, createLighthouseVoice } = ST.story;
   const sound = createLighthouseSound(audio);
   // the weather as events (lighthouseweather.js, beauty pass 6): storm, fog, the golden sunset, a starry night; its state is read by the beam and the sea
   const wx = withLocalUuids('lighthouse-weather', () => createLighthouseWeather({ scene, sun: ctx.sun ?? null, fill: ctx.fill ?? null, waterFx: ctx.waterFx ?? [], weather: ctx.weather ?? null, hour: ctx.hour, night: ctx.night ?? 0, seed, reducedMotion: !!ctx.reducedMotion, lite: lowTier, force: ctx.wx ?? (ctx.hour === undefined ? 'off' : null), waters: ctx.waters ?? [] }));
   // the five photogenic vistas (lighthousebeauty7.js, beauty pass 7): a grade, haze and a golden moment where she stands still
   const vistas = withLocalUuids('lighthouse-vistas', () => createLighthouseVistas({ scene, ground, reducedMotion: !!ctx.reducedMotion, lite: lowTier }));
   const alive = withLocalUuids('lighthouse-alive', () => createLighthouseAlive({ scene, reducedMotion: !!ctx.reducedMotion, tier, sound, seed, wonder: ctx.wonder ?? null, tone: ctx.tone ?? null, night: ctx.night ?? 0, wx: wx.state }));
+  const voice = withLocalUuids('lighthouse-voice', () => createLighthouseVoice({ scene, ground, audio, sound, crit: alive.critters, reducedMotion: !!ctx.reducedMotion, lite: lowTier })); // beauty pass 9: the coast answers her voice and moves
   const looks = createFindLooks({ scene, ground, reducedMotion: !!ctx.reducedMotion });
   const cats = createKeeperCats({ scene, ground, colliders: ctx.colliders, waters: ctx.waters, sound, log, progression, roomSeed: seed, visits: ctx.visits, reducedMotion: !!ctx.reducedMotion });
   // her own meow button (game/interactions.js doMeow tells the bus): the cave's echo answers it
@@ -329,6 +330,7 @@ export function createLighthouseLife(ctx = {}) {
       placeBeam(glowK, catPos, camera);
       alive.update(dt, t, camera, beamAngle(t, seed), glowK, catPos);
       sound.beds?.(dt, catPos);
+      voice.update(dt, t, catPos, camera, session);
 
       if (shipDue !== null && !shipDone && t >= shipDue) {
         shipDone = true;
@@ -361,6 +363,7 @@ export function createLighthouseLife(ctx = {}) {
       sound.dispose();
       alive.dispose();
       vistas.dispose();
+      voice.dispose();
       wx.dispose();
       offMeow?.();
       looks.dispose();
