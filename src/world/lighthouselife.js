@@ -165,7 +165,7 @@ export function createLighthouseLife(ctx = {}) {
   });
   for (const m of parts.all) scene?.add(m);
   const sound = createLighthouseSound(audio);
-  const alive = withLocalUuids('lighthouse-alive', () => createLighthouseAlive({ scene, reducedMotion: !!ctx.reducedMotion, tier, sound }));
+  const alive = withLocalUuids('lighthouse-alive', () => createLighthouseAlive({ scene, reducedMotion: !!ctx.reducedMotion, tier, sound, seed, wonder: ctx.wonder ?? null }));
   const looks = createFindLooks({ scene, ground, reducedMotion: !!ctx.reducedMotion });
   const cats = createKeeperCats({ scene, ground, colliders: ctx.colliders, waters: ctx.waters, sound, log, progression, roomSeed: seed, visits: ctx.visits, reducedMotion: !!ctx.reducedMotion });
   // her own meow button (game/interactions.js doMeow tells the bus): the cave's echo answers it
