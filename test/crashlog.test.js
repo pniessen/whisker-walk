@@ -103,8 +103,11 @@ describe('the wiring and the opt-in gate', () => {
 
   it('sends a sanitised row once per new crash id when on, and never reads a name', async () => {
     const { diag, send } = setup(true);
-    diag.note('frame', new Error('boom ABCD "Biscuit"'));
-    diag.note('frame', new Error('boom ABCD "Biscuit"'));
+    // The same failure is the same throw site (notes now take their file:line
+    // from the error's stack), so the repeat is the one error thrown again.
+    const boom = new Error('boom ABCD "Biscuit"');
+    diag.note('frame', boom);
+    diag.note('frame', boom);
     diag.note('frame', new Error('other'));
     await tick();
     expect(send).toHaveBeenCalledTimes(2);
@@ -123,8 +126,9 @@ describe('the wiring and the opt-in gate', () => {
   it('a failing send is silent and not retried', async () => {
     const send = vi.fn(async () => { throw new Error('offline'); });
     const { diag } = setup(true, send);
-    diag.note('frame', new Error('a'));
-    diag.note('frame', new Error('a'));
+    const a = new Error('a'); // one throw site, thrown twice
+    diag.note('frame', a);
+    diag.note('frame', a);
     await tick();
     expect(send).toHaveBeenCalledTimes(1);
   });

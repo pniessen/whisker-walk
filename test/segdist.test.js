@@ -48,7 +48,9 @@ describe('world scatter is unchanged by the refactor (Polish 3)', () => {
   });
   it('the Woods', () => {
     expect(digest([woods.woodsTreeSpots(), woods.woodsUndergrowth()])).toBe('c359ee70220b9532');
-    expect(digest(built(woods))).toBe('062c5b96c7ed3787');
+    // the owner had the 69 hidden tree-top perches removed (fe40e164); colliders, critters,
+    // keep-out and the tree list are unchanged (checked part by part); was '062c5b96c7ed3787'.
+    expect(digest(built(woods))).toBe('87145b36311e9974');
   });
   it('the River', () => {
     expect(digest([river.riverTrees(), river.riverReeds(), river.riverLilyPads()])).toBe('47af40bd00a6b4d5');

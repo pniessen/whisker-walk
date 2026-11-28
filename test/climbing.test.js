@@ -1010,9 +1010,9 @@ describe('CF-9b — the gated perches themselves', () => {
     expect(GATED.park).toHaveLength(17);
     expect(GATED.seaside).toHaveLength(5);
     expect(GATED.docks).toHaveLength(10);
-    // Woods: a fork on every scenery tree, and nothing else.
-    expect(GATED.woods.length).toBeGreaterThanOrEqual(60);
-    for (const p of GATED.woods) expect(p.kind).toBe('tree');
+    // Woods: nothing. The owner had the invisible tree-top perches on the
+    // scenery trees removed (fe40e164), and the Woods has no other gated prop.
+    expect(GATED.woods).toEqual([]);
     // River: a fork on every willow and alder (a pine has no low fork), and
     // nothing else.
     expect(GATED.river.length).toBeGreaterThanOrEqual(20);

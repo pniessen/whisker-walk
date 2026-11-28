@@ -124,7 +124,7 @@ function walkOnce(w, getSession, { area = 'neighborhood', duskMode = false, seed
   // Headless there is no GL, so the thumbnail pass notes one 'gl' failure (a
   // missing capabilities object, no source file). Any other note is a real
   // failure the walk made.
-  const noted = diagnostics.entries().filter((e) => !(e.kind === 'gl' && e.source === '' && /precision/.test(e.message)));
+  const noted = diagnostics.entries().filter((e) => !(e.kind === 'gl' && /precision/.test(e.message)));
   expect(noted.map((e) => `${e.kind}: ${e.message} (${e.source})`)).toEqual([]);
   const tracked = track(session.scene);
   // Which of the parts under test this walk built, by the name their module
