@@ -116,7 +116,7 @@ describe('the wing\'s places', () => {
     const m = GOLD_MICE.jungle.find((g) => g.id === 'gm-jungle-3');
     expect(m).toMatchObject({ x: W.BRANCH.x, z: W.BRANCH.z, y: W.BRANCH.h });
     expect(Q.JUNGLE_GOLD.find((g) => g.id === 'gm-jungle-3').y).toBe(1.0);
-    const perch = area.perches.find((p) => p.x === W.BRANCH.x && p.z === W.BRANCH.z);
+    const perch = area.perches.find((p) => p.x === W.BRANCH.x && p.z === W.BRANCH.z - 0.5);
     expect(perch.y).toBeCloseTo(P.jungleY(m.x, m.z) + m.y, 1);
     const from = { x: m.x - 1.0, z: m.z + 0.9 }; // standing on the hill beside the branch
     expect(flood.reachesWithin(from.x, from.z, 1)).toBe(true);
