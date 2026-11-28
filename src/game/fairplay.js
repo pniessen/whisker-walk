@@ -139,7 +139,7 @@ export function handleFairEvent(e, ctx) {
     case 'bed': { // the sound beds of the places she walks through: the barkers' murmur, a sizzle by the food stalls, birds, the farm beyond the hedge
       const v = e.volume;
       if (e.bed === 'barkers') audio.crowdMurmur?.(v);
-      else if (e.bed === 'sizzle') audio.hiss?.(v * 0.3);
+      else if (e.bed === 'sizzle') audio.crowdMurmur?.(v * 0.6); // (no sizzle sound of its own yet: the same soft noise, a little quieter)
       else if (e.bed === 'birds') audio.peep?.(v * 0.5);
       else if (e.bed === 'farm') { if ((e.n ?? 0) % 2) audio.cluck?.(v * 0.5); else audio.moo?.(v * 0.45); }
       break;
