@@ -15,6 +15,15 @@
 // are the life's to switch off (it sets the amplitudes to 0).
 // =============================================================================
 import * as THREE from 'three';
+import { STALLS } from './marketplan.js';
+
+// Beauty pass 5: each stall's colour identity (its awning, sign and counter are this hue already), echoed by the bunting
+// over it and the cloth on the cobbles in front of it (the shaders below read it from the react record).
+export const STALL_HUES = Object.freeze({
+  fish: 0x4a86b8, baker: 0xe0a030, cheese: 0xf0d040, milk: 0x7ec0e0, flowers: 0xe0609a, fruit: 0x5cae3c,
+  toys: 0x8a5ac0, plants: 0x2f8a5a, bric: 0xc88030, butcher: 0xd04050,
+});
+const SHOPS = STALLS.filter((s) => s.w > 0 && STALL_HUES[s.id] !== undefined);
 
 export function createReact(puddles = []) {
   const pud = [];
@@ -32,6 +41,11 @@ export function createReact(puddles = []) {
     uMkSway: { value: 0 },
     uMkSea: { value: new THREE.Vector4(0, 0, 0, 0) }, // beauty pass 4: the season's weights, x autumn, y winter, z spring, w summer (marketseason.js)
     uMkPud: { value: pud },
+    // beauty pass 5: the day's rhythm (x: how open, the morning's lift; y: how shut, the evening's dim), and the ten stalls
+    // (x, z, face x, face z) with their hues, for the bunting's and the cloth's echo. 0 / 0 draws the square as before.
+    uMkDay: { value: new THREE.Vector2(0, 0) },
+    uMkSt: { value: Array.from({ length: 10 }, (_, i) => (SHOPS[i] ? new THREE.Vector4(SHOPS[i].at.x, SHOPS[i].at.z, SHOPS[i].face.x, SHOPS[i].face.z) : new THREE.Vector4(1e4, 1e4, 0, 1))) },
+    uMkStC: { value: Array.from({ length: 10 }, (_, i) => new THREE.Color(SHOPS[i] ? STALL_HUES[SHOPS[i].id] : 0xffffff).convertSRGBToLinear()) },
   };
 }
 
@@ -43,7 +57,8 @@ export function addSquareLife(material, kind, react, geo) {
   const prevKey = material.customProgramCacheKey;
   const colour = kind === 'water' ? '' : `{
   vec3 w = vMkW;
-  diffuseColor.rgb *= uMkTone;
+  diffuseColor.rgb *= uMkTone;${kind === 'paint' ? `
+  diffuseColor.rgb *= mix(vec3(1.0), vec3(0.8, 0.78, 0.9), uMkDay.y);` : ''}
   {
     // beauty pass 4: the season. A warm russet foliage and a golden tone in autumn, frost and a cool tone in winter,
     // fresh green and blossom in spring, a bright richer tone in summer; fallen leaves, petals or daisies on the flat ground
@@ -66,7 +81,19 @@ export function addSquareLife(material, kind, react, geo) {
         : vec3(0.9, 0.95, 1.0);
       c = mix(c, sc, spot * (uMkSea.x + uMkSea.z + uMkSea.w * 0.6 + uMkSea.y * 0.5) * 0.85);
     }
-${kind === 'paint' ? `    c = mix(c, vec3(0.92, 0.96, 1.0), uMkSea.y * smoothstep(0.6, 0.9, vMkN.y) * smoothstep(0.35, 0.9, w.y) * 0.75);
+${kind === 'ground' ? `    if (w.y < 0.03) {
+      // beauty pass 5: a woven cloth in each stall's hue on the cobbles under and before its counter
+      for (int i = 0; i < 10; i++) {
+        vec4 st = uMkSt[i];
+        vec2 dp = w.xz - st.xy;
+        float lz = dot(dp, st.zw);
+        float lx = dot(dp, vec2(-st.w, st.z));
+        float inside = (1.0 - smoothstep(1.35, 1.6, abs(lx))) * smoothstep(-0.9, -0.7, lz) * (1.0 - smoothstep(2.0, 2.3, lz));
+        float weave = 0.5 + 0.5 * sign(sin(lx * 14.0) * sin(lz * 14.0));
+        c = mix(c, uMkStC[i] * (0.85 + 0.3 * weave), inside * (0.2 + 0.16 * weave));
+      }
+    }
+` : ''}${kind === 'paint' ? `    c = mix(c, vec3(0.92, 0.96, 1.0), uMkSea.y * smoothstep(0.6, 0.9, vMkN.y) * smoothstep(0.35, 0.9, w.y) * 0.75);
 ` : ''}    diffuseColor.rgb = c;
   }
   float low = 1.0 - smoothstep(0.25, 0.45, w.y);
@@ -114,11 +141,11 @@ varying vec3 vMkW;
 varying vec3 vMkN;
 uniform float uMkR; uniform vec3 uMkCat; uniform vec3 uMkTone; uniform float uMkCloud; uniform float uMkRip; uniform float uMkSpark;
 uniform vec4 uMkPud[5];
-uniform vec4 uMkSea;`)
+uniform vec4 uMkSea;\nuniform vec2 uMkDay;\nuniform vec4 uMkSt[10];\nuniform vec3 uMkStC[10];`)
       .replace('#include <color_fragment>', `#include <color_fragment>\n${colour}`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${glow}`);
   };
-  material.customProgramCacheKey = () => `${prevKey ? prevKey.call(material) : ''}|market-life-${kind}-v2`;
+  material.customProgramCacheKey = () => `${prevKey ? prevKey.call(material) : ''}|market-life-${kind}-v3`;
 }
 
 // The part of the day for walk second t: 0 morning .. 1 evening, over `period` seconds, then back
@@ -137,4 +164,12 @@ export function toneAt(p, out) {
   const k = p < 0.5 ? p * 2 : p * 2 - 1;
   out.set(a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k);
   return out;
+}
+
+// Beauty pass 5: the day's rhythm for part p of the day: how open the stalls are (the awnings lift their tint through the
+// morning) and how shut (the evening dims them, as the lanterns brighten).
+export const openAt = (p) => 1 - Math.min(1, Math.max(0, p / 0.3));
+export function closeAt(p) {
+  const k = Math.min(1, Math.max(0, (p - 0.55) / 0.4));
+  return k * k * (3 - 2 * k);
 }

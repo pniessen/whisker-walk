@@ -1503,7 +1503,8 @@ function drawBunting(PARTS, flags, poles, lanterns) {
       const c = PENNANT_COLORS[Math.floor(hash01(i, k, 31) * PENNANT_COLORS.length) % PENNANT_COLORS.length];
       const hp = hash01(i, k, 47);
       const cell = hp < 0.42 ? 0 : 1 + (Math.floor(hp * 1000) % 3); // a little under half plain, the rest a paw, a fish or a mouse
-      K.put('flags', flags, pennantOf[cell], mat4(p.x, p.y, p.z, { yaw, sx: PENNANT.w, sy: PENNANT.h }), { color: c, noCast: true });
+      const big = cell ? 1.3 : 1; // beauty pass 5: the pictured flags (paw, fish, mouse) 30% larger, so they read at play distance
+      K.put('flags', flags, pennantOf[cell], mat4(p.x, p.y, p.z, { yaw, sx: PENNANT.w * big, sy: PENNANT.h * big }), { color: c, noCast: true });
     }
   });
   string.dispose();

@@ -90,7 +90,7 @@
 // own lists and the life's own arrays, the spot is one object filled in place,
 // and the apples write into their one InstancedMesh.
 // =============================================================================
-import { setMarketDusk } from './market.js';
+import { setMarketDusk, LANTERN_DAY, LANTERN_MAX } from './market.js';
 import { MARKET_REGISTRATION, marketArea, MUSICIAN, PIGEON_PATCH, TREAT_STALLS, STALLS, stallById } from './marketplan.js';
 import { applePaths, createApples, createPetals, createBucketBlooms, rollPaths, createRollers, WOOL, WOOL_COLOURS, MARKET_WOOL_SALT } from './marketfruit.js';
 import { inWatchZone } from '../marketrules.js';
@@ -100,7 +100,8 @@ import { loudness } from './roofssound.js';
 import { findAt, noteMarketFind, MARKET_FIND_ANCHORS } from './marketfinds.js';
 import { createErrands } from './marketerrandlive.js';
 import { createRoofsSmoke } from './roofsair.js';
-import { dayPart, toneAt } from './marketreact.js';
+import { dayPart, toneAt, openAt, closeAt } from './marketreact.js';
+import { createCreatures } from './marketcreatures.js';
 import { seasonOf, applySeason, createDrift } from './marketseason.js';
 
 export const MARKET_BUCKET_ID = 'market-bucket-1';
@@ -175,6 +176,9 @@ export function createMarketLife(area, ctx = {}) {
   if (season === 'winter' && area?.look?.lantern?.emissive) area.look.lantern.emissive.multiplyScalar(1.3); // winter: the lanterns warmer
   const drift = scene && react ? createDrift(scene, { season, reducedMotion, tier: ctx.tier }) : null;
   let rip = 0;
+  // beauty pass 5 (marketcreatures.js): the square's small creatures, one pooled Points
+  const creatures = scene && react ? createCreatures(scene, { reducedMotion, tier: ctx.tier }) : null;
+  let greeted = false;
   const still = reducedMotion || lite;
   const smoke = scene && !lite && area?.chimneys?.length ? createRoofsSmoke(scene, area.chimneys, { reducedMotion }) : null;
   const people = typeof ctx.people === 'function' ? ctx.people : null;
@@ -185,7 +189,7 @@ export function createMarketLife(area, ctx = {}) {
   const pigeons = (ctx.critters?.list ?? []).filter((c) => c?.type === 'bird' && c.def?.labelAs === 'pigeon');
   const pigeonWas = pigeons.map((c) => !!c.fleeing);
   let sound = ctx.audio
-    ? createMarketSound(ctx.audio, { pigeons: pigeons.length ? pigeons : [PIGEON_PATCH], musician: MUSICIAN, stalls: TREAT_STALLS.map((id) => stallById(id).at), chimes: STALLS.filter((st) => st.w > 0).map((st) => st.at) })
+    ? createMarketSound(ctx.audio, { pigeons: pigeons.length ? pigeons : [PIGEON_PATCH], musician: MUSICIAN, stalls: TREAT_STALLS.map((id) => stallById(id).at), chimes: STALLS.filter((st) => st.w > 0).map((st) => st.at), zones: { bees: stallById('flowers').at, gulls: stallById('fish').at, bells: stallById('baker').at } })
     : null;
 
   // finding
@@ -311,6 +315,8 @@ export function createMarketLife(area, ctx = {}) {
       for (const u of flutter) u.uMkT.value = t;
       smoke?.update(t);
       drift?.update(t, catPos, sound);
+      if (creatures && typeof window !== 'undefined' && window.innerHeight) creatures.setViewHeight(window.innerHeight * Math.min(window.devicePixelRatio || 1, 2));
+      if (creatures && catPos && !creatures.arrived) { creatures.arrive(t); sound?.arrive(); }
       musician?.update(t);
       if (musician && catPos) musician.detail(Math.hypot(catPos.x - MUSICIAN.x, catPos.z - MUSICIAN.z));
       sound?.update(dt, catPos, t);
@@ -344,6 +350,14 @@ export function createMarketLife(area, ctx = {}) {
         const part = ctx.dusk ? 0.8 : reducedMotion ? 0.35 : dayPart(t);
         toneAt(part, react.uMkTone.value);
         sound?.setPart(part);
+        // beauty pass 5: the day's rhythm. The awnings lift in the morning and dim at dusk, as the lanterns brighten
+        const open = openAt(part);
+        const close = closeAt(part);
+        react.uMkDay.value.set(lite ? 0 : open, lite ? 0 : close);
+        if (!ctx.dusk && area?.look?.lantern) area.look.lantern.emissiveIntensity = LANTERN_DAY + (LANTERN_MAX - LANTERN_DAY) * close * 0.85;
+        creatures?.update(dt, t, catPos, { part, tone: react.uMkTone.value, dusk: !!ctx.dusk });
+        sound?.zones(dt, catPos);
+        if (!greeted && catPos && sound) greeted = sound.greetNear(catPos);
         if (!reducedMotion) react.uMkR.value = t;
         if (catPos) react.uMkCat.value.set(catPos.x, catPos.y, catPos.z);
         react.uMkSpark.value = lite ? 0 : reducedMotion ? 0.5 : 1;
@@ -398,6 +412,7 @@ export function createMarketLife(area, ctx = {}) {
       for (const u of flutter) u.uMkAmp.value = 0;
       smoke?.dispose();
       drift?.dispose();
+      creatures?.dispose();
       apples?.dispose();
       wool?.dispose();
       petals?.dispose();
