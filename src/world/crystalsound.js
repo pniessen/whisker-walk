@@ -17,8 +17,11 @@ export const DRIP_EAR = 16;
 export const PLINK_GAIN = 0.018;
 // the great crystals and which of the soft notes each one sings (the Heart sings the Rose's)
 export const GREATS = Object.freeze([[ROSE_GREAT, 0], [BLUE_GREAT, 1], [GOLD_GREAT, 2], [HEART_GREAT, 0]].map(([g, note]) => Object.freeze({ x: g.x, z: g.z, note, reach: g.s * 0.55 + 1.6, away: g.s * 0.55 + 4 })));
+export const HUE_PITCH = Object.freeze({ rose: 1, blue: 1.122, gold: 1.335, heart: 0.841 });
 // beauty round 2: the hero crystals (the cluster-sized ones, not the four greats, which have their own notes) chime softly too when she walks up to them, same soft note, same muting
-export const HERO_CHIMES = Object.freeze(planBeauty2('high').hero.filter((h) => !h.great).map((h, i) => Object.freeze({ x: h.x, z: h.z, note: (i + 1) % 3, reach: h.s * 0.55 + 1.9, away: h.s * 0.55 + 4 })));
+export const HERO_CHIMES = Object.freeze(planBeauty2('high').hero.filter((h) => !h.great).map((h, i) => Object.freeze({ x: h.x, z: h.z, note: (i + 1) % 3, ratio: HUE_PITCH[h.hue] ?? 1, hue: h.hue, reach: h.s * 0.55 + 1.9, away: h.s * 0.55 + 4 })));
+// beauty round 3: each colour tunes its crystal's chime (rose 1, blue a whole step up, gold a fourth up, violet a minor third down), and a quiet shimmer follows her past any hero crystal
+export const SHIMMER = Object.freeze({ reach: 5, gain: 0.006, f: 880 });
 export const NOTE_GAP = 6; // seconds before the same crystal may sing again
 
 export const loud = (d) => { const k = Math.min(1, Math.max(0, 1 - d / DRIP_EAR)); return k * k; };
@@ -34,6 +37,7 @@ export function createCrystalSound({ audio }) {
   const near = new Array(GREATS.length).fill(false);
   const lastNote = new Array(GREATS.length).fill(-1e9);
   const nearH = new Array(HERO_CHIMES.length).fill(false); const lastH = new Array(HERO_CHIMES.length).fill(-1e9);
+  let shim = null; let shimK = 0;
   let broken = false; // a context that throws silences the rest of the walk
   const muted = () => !audio || typeof audio.getContext !== 'function' || !!audio.isMuted?.();
 
@@ -45,7 +49,13 @@ export function createCrystalSound({ audio }) {
     gain.connect(dest);
     hum = { gain, oscs, ac };
   }
+  function stopShimmer() {
+    if (!shim) return;
+    const { gain, o, ac } = shim; shim = null;
+    try { gain.gain.cancelScheduledValues(ac.currentTime); gain.gain.setTargetAtTime(0, ac.currentTime, 0.1); o.stop(ac.currentTime + 0.5); } catch { /* closed */ }
+  }
   function stopHum() {
+    stopShimmer();
     if (!hum) return;
     const { gain, oscs, ac } = hum;
     hum = null;
@@ -100,9 +110,17 @@ export function createCrystalSound({ audio }) {
           if (d < g.reach && !near[i]) { near[i] = true; if (clock - lastNote[i] >= NOTE_GAP) { lastNote[i] = clock; if (humNote(audio, g.note)) notes++; } }
           else if (d > g.away) near[i] = false;
         });
+        // the shimmer: one very quiet sine whose loudness follows how near she is to a hero crystal and whose pitch is that crystal's colour; gone when far (no node until she is near)
+        let best = null; let bd = SHIMMER.reach;
+        for (const g of HERO_CHIMES) { const d = Math.hypot(catPos.x - g.x, catPos.z - g.z); if (d < bd) { bd = d; best = g; } }
+        const want = best ? 1 - bd / SHIMMER.reach : 0;
+        try {
+          if (want > 0.02 && !shim) { const o = ac.createOscillator(); const gain = ac.createGain(); o.type = 'sine'; o.frequency.value = SHIMMER.f * (best.ratio ?? 1); gain.gain.value = 0; o.connect(gain); gain.connect(dest); o.start(); shim = { o, gain, ac }; }
+          if (shim) { if (best) shim.o.frequency.setTargetAtTime(SHIMMER.f * (best.ratio ?? 1), ac.currentTime, 0.3); shim.gain.gain.setTargetAtTime(SHIMMER.gain * want * want, ac.currentTime, 0.25); shimK = want; if (want <= 0.02 && shimK <= 0.02) stopShimmer(); }
+        } catch { broken = true; shim = null; }
         HERO_CHIMES.forEach((g, i) => {
           const d = Math.hypot(catPos.x - g.x, catPos.z - g.z);
-          if (d < g.reach && !nearH[i]) { nearH[i] = true; if (clock - lastH[i] >= NOTE_GAP) { lastH[i] = clock; if (humNote(audio, g.note)) notes++; } }
+          if (d < g.reach && !nearH[i]) { nearH[i] = true; if (clock - lastH[i] >= NOTE_GAP) { lastH[i] = clock; if (humNote(audio, g.note, g.ratio ?? 1)) notes++; } }
           else if (d > g.away) nearH[i] = false;
         });
       }

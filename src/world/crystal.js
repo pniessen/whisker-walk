@@ -28,6 +28,7 @@ import { ST } from './crystalstages.js'; // the two wing C stages' slots (filled
 import { crystalCollectibles, createCrystalFindsLife } from './crystalfinds.js';
 import { drawFindMarks } from './crystalfindparts.js';
 import { CRYSTAL_SCENICS } from './crystalfindsplan.js';
+import { createCrystalAlive } from './crystalalive.js'; // beauty round 3: the cave reacts to the cat and lives
 import { createCrystalDecor } from './crystaldecorparts.js'; // layer 3: mushrooms, gardens, moss, stalagmites, pools of light, pebbles (three draws)
 import { createCaveLife } from './cavelifelive.js'; // layer 4: fish, bats, fireflies, moths, salamander, beetles, crab
 import { createCaveErrandLive } from './crystalerrandlive.js'; // C7: Lumi's errand of the day
@@ -88,6 +89,7 @@ export function build(scene) {
       life: (ctx) => {
         const light = createCrystalLight(ctx);
         const decor = createCrystalDecor(ctx);
+        const alive = createCrystalAlive({ scene: ctx.scene, decor, tier: ctx.tier, reducedMotion: ctx.reducedMotion });
         const cave = createCaveLife(ctx);
         const lumi = createLumi({ scene: ctx.scene, progression: ctx.progression, audio: ctx.audio, reducedMotion: ctx.reducedMotion });
         const wingLife = createWing({ scene: ctx.scene, lumi, progression: ctx.progression, log: ctx.log, audio: ctx.audio, tier: ctx.tier, reducedMotion: ctx.reducedMotion, send: ctx.sendEvent });
@@ -114,6 +116,7 @@ export function build(scene) {
         const arbiter = createPromptArbiter([riding, lumi, errand, wingLife, slot(() => river), slot(() => cart), slot(() => forgeJob), slot(() => ST.deep), slot(() => ST.play?.pads)]);
         return {
           light,
+          alive,
           critters,
           sound,
           lumi,
@@ -132,8 +135,8 @@ export function build(scene) {
             if (typeof ev?.kind === 'string' && ev.kind.startsWith('wd-')) return ST.deep?.credit?.(ev); // the Echo Deep (second story): its steps, never Lumi's
             return lumi.credit(ev);
           },
-          update(dt, t, catPos, camera, session) { light.update(dt, t); decor.update(dt); lumi.update(dt, t, catPos, camera, session); wingLife.update(dt, t, catPos, camera, session); finds.update(dt, t, catPos, camera, session); critters.update(dt); cave.update(dt, t); sound.update(dt, catPos); errand.update(dt, t, catPos, camera, session); river?.update(dt, t, catPos, camera, session); cart?.update(dt, t, catPos, camera, session); forgeJob?.update(dt, t, catPos, camera, session); grotto?.update(dt); deep?.update(dt, t, catPos); song?.update(dt, t, catPos); intro.update(dt); guide.update(dt, t, catPos, camera); },
-          dispose() { deep?.dispose(); song?.dispose(); forgeJob?.dispose(); cart?.dispose(); grotto?.dispose(); river?.dispose(); cave.dispose(); decor.dispose(); guide.dispose(); intro.dispose(); errand.dispose(); sound.dispose(); critters.dispose(); finds.dispose(); wingLife.dispose(); lumi.dispose(); light.dispose(); },
+          update(dt, t, catPos, camera, session) { light.update(dt, t); decor.update(dt); alive.update(dt, t, catPos, camera); lumi.update(dt, t, catPos, camera, session); wingLife.update(dt, t, catPos, camera, session); finds.update(dt, t, catPos, camera, session); critters.update(dt); cave.update(dt, t); sound.update(dt, catPos); errand.update(dt, t, catPos, camera, session); river?.update(dt, t, catPos, camera, session); cart?.update(dt, t, catPos, camera, session); forgeJob?.update(dt, t, catPos, camera, session); grotto?.update(dt); deep?.update(dt, t, catPos); song?.update(dt, t, catPos); intro.update(dt); guide.update(dt, t, catPos, camera); },
+          dispose() { deep?.dispose(); song?.dispose(); forgeJob?.dispose(); cart?.dispose(); grotto?.dispose(); river?.dispose(); cave.dispose(); alive.dispose(); decor.dispose(); guide.dispose(); intro.dispose(); errand.dispose(); sound.dispose(); critters.dispose(); finds.dispose(); wingLife.dispose(); lumi.dispose(); light.dispose(); },
         };
       },
     };

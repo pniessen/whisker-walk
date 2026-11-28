@@ -192,7 +192,7 @@ export const beautySites = (rung = 'high') => { const d = planBeauty(rung); retu
 // Things that read at a glance from the play camera: HERO crystals (tall, strongly graded spikes standing INSIDE the footprint of the biggest existing clusters, so nothing new is
 // solid or standable) with a glow halo each, a big colour WASH under every chamber (rose, cyan, amber, violet), light SHAFTS from the dome, MOTES that rise with trails and
 // water RIPPLES on the Blue Pool. Planned apart again (own salts), pure data; LOW keeps about half of each list, a prefix of HIGH. The drawing animates them in the shader.
-export const ZONE_RGB = Object.freeze({ rose: Object.freeze([1, 0.4, 0.68]), blue: Object.freeze([0.15, 0.8, 1]), gold: Object.freeze([1, 0.64, 0.18]), heart: Object.freeze([0.6, 0.36, 1]) });
+export const ZONE_RGB = Object.freeze({ rose: Object.freeze([1, 0.4, 0.68]), blue: Object.freeze([0.1, 0.56, 0.78]), gold: Object.freeze([1, 0.64, 0.18]), heart: Object.freeze([0.6, 0.36, 1]) });
 export const BEAUTY2_SALTS = Object.freeze({ hero: 0x6865726f, shaft: 0x73686674, mote: 0x6d6f7465, ripple: 0x72697070 });
 export const BEAUTY2_COUNT = Object.freeze({
   high: Object.freeze({ hero: 8, wash: 4, shafts: 8, motes: 56, ripples: 8 }),
@@ -237,4 +237,27 @@ export function planBeauty2(rung = 'high') {
   const out = { hero: hero.slice(0, N.hero), wash: wash.slice(0, N.wash), shafts: shafts.slice(0, N.shafts), motes: motes.slice(0, N.motes), ripples: ripples.slice(0, N.ripples) };
   for (const k of Object.keys(out)) Object.freeze(out[k]);
   return (_b2[rung] = Object.freeze(out));
+}
+
+// ---- beauty round 3 (2026-11-28): THE CAVE REACTS AND LIVES ----------------------------------------------------------------------------------------
+// Low mist banks drifting over the chamber floors (kind 6 in the light mesh) and the creatures' and meteor's homes (the Points are drawn in crystalalive.js). Pure data again, own salts.
+export const BEAUTY3_SALTS = Object.freeze({ mist: 0x6d697374, creature: 0x63726561 });
+const _m3 = {};
+export function planMist() {
+  if (_m3.mist) return _m3.mist;
+  const rng = mulberry32(BEAUTY3_SALTS.mist);
+  return (_m3.mist = Object.freeze(Array.from({ length: 6 }, (_, i) => {
+    const c = CH[i % CH.length]; let x = c.x; let z = c.z;
+    for (let t = 0; t < 40; t++) { const a = rng() * 6.28; const r = c.r * (0.1 + rng() * 0.6); x = c.x + Math.cos(a) * r; z = c.z + Math.sin(a) * r * 0.9; if (inside(x, z)) break; }
+    return Object.freeze({ x, z, r: 4.2 + rng() * 2.2, rgb: ZONE_RGB[c.hue], wob: rng() * 6, ph: rng(), speed: 0.012 + rng() * 0.01 });
+  })));
+}
+// The glow creatures' homes: a handful round each hero crystal (hue-coloured), so they gather where the crystals are.
+export function planCreatures(n = 14) {
+  if (_m3[`c${n}`]) return _m3[`c${n}`];
+  const hero = planBeauty2('high').hero; const rng = mulberry32(BEAUTY3_SALTS.creature);
+  return (_m3[`c${n}`] = Object.freeze(Array.from({ length: n }, (_, i) => {
+    const h = hero[i % hero.length]; const a = rng() * 6.28;
+    return Object.freeze({ x: h.x + Math.cos(a) * (h.s * 0.8 + 0.8), z: h.z + Math.sin(a) * (h.s * 0.8 + 0.8), y: 0.7 + rng() * 2.2, hue: h.hue, rgb: ZONE_RGB[h.hue], ph: rng() * 6.28, rate: 0.35 + rng() * 0.4, rad: 0.7 + rng() * 0.9 });
+  })));
 }
