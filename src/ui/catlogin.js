@@ -219,13 +219,21 @@ export function isBare(cl, a) {
   return !!(cl.bringing || cl.preview);
 }
 
+// New player: a button with a one-line note, or the "all full" note. a.newPlayer comes from homebase (players.js is start-up code).
+function newPlayerHtml(a) {
+  const np = a.newPlayer;
+  if (!np || np.room() === null) return '';
+  const e = a.escapeHtml;
+  if (!np.room()) return `<p class="settings-note">${e(a.phrase('catlogin.newplayer.full'))}</p>`;
+  return `<div class="catlogin-newplayer"><button id="catlogin-new-player" type="button">${e(a.phrase('catlogin.newplayer'))}</button><p class="settings-note">${e(a.phrase('catlogin.newplayer.note'))}</p></div>`;
+}
+
 /** The sheet's body for the state `cl`. `extra` is what homebase keeps under More (the kept copies, Delete my online data). */
 export function sheetHtml(cl, a, extra = '') {
   if (cl.bringing) return `<div class="sync-bringing" role="status">${a.escapeHtml(a.phrase('catlogin.bringing', cl.bringing.name))}</div>`;
   if (cl.preview) return previewHtml(cl, a);
   const code = a.sync.getCode();
-  if (!code) return unlinkedHtml(cl, a, extra);
-  return linkedHtml(cl, a, code, extra);
+  return (code ? linkedHtml(cl, a, code, extra) : unlinkedHtml(cl, a, extra)) + newPlayerHtml(a);
 }
 
 // ── typing ─────────────────────────────────────────────────────────
@@ -439,6 +447,15 @@ export async function click(e, cl, a) {
           if (res.ok) { cl.notKept = !!res.notKept; } else cl.error = res.error;
           a.render();
         },
+      });
+      return true;
+    case 'catlogin-new-player':
+      a.confirmCard.ask({
+        text: a.phrase('catlogin.newplayer.ask'),
+        note: a.phrase('catlogin.newplayer.keep'),
+        yes: a.phrase('catlogin.newplayer.yes'),
+        returnFocus: () => a.root.querySelector?.('#catlogin-new-player')?.focus?.({ preventScroll: true }),
+        onYes: () => { if (!a.newPlayer?.start()) a.notice?.(a.phrase('catlogin.newplayer.fail')); },
       });
       return true;
     // Unlink asks first: afterwards this device no longer shows the code.

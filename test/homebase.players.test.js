@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { memoryStorage as memStorage } from './helpers/storage.js';
 
-// New player and Switch player in Game settings (src/players.js). Same no-DOM stand-in as homebase.grownups.test.js.
+// New player (in the My cat sheet) and Switch player (in Game settings) (src/players.js). Same no-DOM stand-in as homebase.grownups.test.js.
 // Six kid tiles (the
 // last is My den, which says "go now"), then Sound & controls as a slim row,
 // then one quiet For grown-ups door. For grown-ups holds Game settings, Cloud
@@ -80,34 +80,49 @@ afterEach(() => {
 const settings = { get: () => null, set() {}, all: () => ({ volume: 1, musicVolume: 1, quality: 'auto' }) };
 const { addPlayer, readIndex } = await import('../src/players.js');
 const { SAVE_KEY } = await import('../src/progression.js');
+await import('../src/ui/catlogin.js'); // the sheet's chunk, cached first
+const { sheetDrawn } = await import('./helpers/catsheet.js');
 
-function setup({ withPlayers = true } = {}) {
+async function setup({ withPlayers = true } = {}) {
   const raw = memStorage({ [SAVE_KEY]: JSON.stringify({ version: 4, points: 21 }) }, { removeItem: true, expose: 'map' });
   const progression = createProgression(raw);
   const reload = vi.fn();
-  const hb = createHomeBase({ players: withPlayers ? { raw, saveKey: SAVE_KEY } : null, reload, progression, album: { photos: [] }, onStartWalk: () => {}, rooms: null, sync: null, cloud: null, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync: null, myId: 'me', toast: () => {} });
+  const hb = createHomeBase({ players: withPlayers ? { raw, saveKey: SAVE_KEY } : null, reload, progression, album: { photos: [] }, onStartWalk: () => {}, rooms: null, sync: { available: true, getCode: () => null, catStatus: () => null }, cloud: null, settings, onSettingsChange: () => {}, onVisitDen: () => {}, colonySync: null, myId: 'me', toast: () => {} });
   hb.show();
-  dressingMock.opts.onOpenSheet('settings');
+  dressingMock.opts.onOpenSheet('sync'); // My cat: where New player lives
+  await sheetDrawn(html);
   return { raw, hb, reload };
 }
 const html = () => doc.root.innerHTML;
-const click = (target) => doc.root.listeners.click({ target: { id: '', dataset: {}, closest: () => null, ...target }, detail: 1 });
+const click = async (target) => doc.root.listeners.click({ target: { id: '', dataset: {}, closest: () => null, ...target }, detail: 1 });
 const card = () => doc.body.children.find((c) => c.id === 'confirm-card' && !c.removed);
 
 describe('New player and Switch player', () => {
-  it('shows the players list and a New player button in Game settings; nothing when the page has no per-player storage', () => {
-    setup();
-    expect(html()).toContain('id="btn-new-player"');
-    expect(html()).toContain('Players on this device');
+  it('shows a New player button with its one-line note in the My cat sheet, not in Game settings', async () => {
+    await setup();
+    expect(html()).toContain('id="catlogin-new-player"');
+    expect(html()).toContain('Saves this player exactly as is and starts a fresh player with a new cat.');
     expect(html()).not.toContain('data-switch-player');
+    dressingMock.opts.onOpenSheet('settings');
+    expect(html()).not.toContain('catlogin-new-player');
+    expect(html()).not.toContain('New player');
   });
-  it('is absent when the page could not set up per-player storage', () => {
-    setup({ withPlayers: false });
-    expect(html()).not.toContain('btn-new-player');
+  it('says the device is full instead of offering the button when there is no room', async () => {
+    const { raw } = await setup();
+    for (let i = 0; i < 8; i++) addPlayer(raw, { saveKey: SAVE_KEY });
+    dressingMock.opts.onOpenSheet('menu');
+    dressingMock.opts.onOpenSheet('sync');
+    await sheetDrawn(html);
+    expect(html()).not.toContain('catlogin-new-player');
+    expect(html()).toContain('This device has all the players it can hold.');
   });
-  it('New player asks first, in kind words, with the safe answer first; Not now changes nothing', () => {
-    const { raw, reload } = setup();
-    click({ id: 'btn-new-player' });
+  it('is absent when the page could not set up per-player storage', async () => {
+    await setup({ withPlayers: false });
+    expect(html()).not.toContain('catlogin-new-player');
+  });
+  it('New player asks first, in kind words, with the safe answer first; Not now changes nothing', async () => {
+    const { raw, reload } = await setup();
+    await click({ id: 'catlogin-new-player' });
     const c = card();
     expect(c).toBeTruthy();
     expect(c.innerHTML).toContain('Start a new player?');
@@ -117,10 +132,10 @@ describe('New player and Switch player', () => {
     expect(reload).not.toHaveBeenCalled();
     expect(raw.map.has('whisker-walk-players')).toBe(false);
   });
-  it('Yes keeps the old save as it is, makes a new player, and reloads; then the list offers the old player', () => {
-    const { raw, reload } = setup();
+  it('Yes keeps the old save as it is, makes a new player, and reloads; then the list offers the old player', async () => {
+    const { raw, reload } = await setup();
     const save = raw.map.get(SAVE_KEY);
-    click({ id: 'btn-new-player' });
+    await click({ id: 'catlogin-new-player' });
     vi.advanceTimersByTime(5000);
     card().listeners.click({ target: { closest: () => ({ getAttribute: () => 'yes' }) }, detail: 1 });
     expect(reload).toHaveBeenCalledTimes(1);
@@ -128,11 +143,12 @@ describe('New player and Switch player', () => {
     expect(raw.map.get(`${SAVE_KEY}.before-new-player`)).toBe(save);
     expect(readIndex(raw)).toEqual({ active: 'p2', players: [{ id: 'p1' }, { id: 'p2' }] });
   });
-  it('lists the players and a tap on another one switches the pointer and reloads', () => {
-    const { raw, hb, reload } = setup();
+  it('lists the players and a tap on another one switches the pointer and reloads', async () => {
+    const { raw, hb, reload } = await setup();
     addPlayer(raw, { saveKey: SAVE_KEY });
     dressingMock.opts.onOpenSheet('menu');
     dressingMock.opts.onOpenSheet('settings');
+    expect(html()).toContain('Players on this device');
     expect(html()).toContain('data-switch-player="p1"');
     expect(html()).toContain('data-switch-player="p2"');
     expect(html()).toContain('Player 2');

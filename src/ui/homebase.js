@@ -501,6 +501,16 @@ export function createHomeBase({ players = null, progression, album, onStartWalk
     sync, escapeHtml, phrase, addPhrases, tvState, root, get confirmCard() { return confirmCard; },
     render: () => render(), afterConfirm: (res) => afterCloudConfirm(res),
     sheetOpen: () => openSheet === 'sync',
+    notice: (t) => showNotice?.(t),
+    // New player lives in the My cat sheet: room() is null when the page has no per-player storage.
+    newPlayer: {
+      room: () => (players ? playerList().length < MAX_PLAYERS : null),
+      start: () => {
+        const r = players ? addPlayer(players.raw, { saveKey: players.saveKey }) : { ok: false };
+        if (r.ok) reload();
+        return r.ok;
+      },
+    },
   };
   function loadCatlogin() {
     return (catloginP ??= import('./catlogin.js').then((m) => {
@@ -702,9 +712,9 @@ export function createHomeBase({ players = null, progression, album, onStartWalk
     .then((m) => m[back ? 'openBack' : 'open']({ ...catApi, progression, album, reload, doc: document, storage: () => globalThis.localStorage, rooms: () => rooms?.getState?.(), notice: showNotice, reduced: reducedNow }))
     .catch((err) => note('ui', err));
 
-  // More than one player on this device (src/players.js): New player keeps this player exactly as is and
+  // More than one player on this device (src/players.js): New player (now in the My cat sheet) keeps this player exactly as is and
   // starts a brand-new one; Switch player lists everyone on the device, tap to switch. Both only write the
-  // small player list and reload. Hidden when the page could not set up its own storage per player.
+  // small player list and reload (New player is in the My cat sheet). Hidden when the page could not set up its own storage per player.
   const playerList = () => (players ? listPlayers(players.raw, { saveKey: players.saveKey, nameOf: (id) => CATALOG.cats[id]?.name ?? null }) : []);
   function playersHtml() {
     if (!players) return '';
@@ -713,9 +723,7 @@ export function createHomeBase({ players = null, progression, album, onStartWalk
       + list.map((p) => `<button type="button" class="hb-row" data-switch-player="${escapeHtml(p.id)}"${p.active ? ' aria-current="true" disabled' : ''}>`
         + `<span class="hb-row-name">${escapeHtml(p.label)}${p.active ? ' (playing now)' : ''}</span><span class="hb-row-go" aria-hidden="true">${p.points} 🐾</span></button>`).join('')
       + '</div>' : '';
-    const room = list.length < MAX_PLAYERS;
-    return `<h3 class="hb-players-title">Players on this device</h3>${rows}`
-      + (room ? '<button id="btn-new-player" type="button">New player</button>' : '<p class="settings-note">This device has all the players it can hold.</p>');
+    return rows ? `<h3 class="hb-players-title">Players on this device</h3>${rows}` : '';
   }
   function switchPlayerTo(id) {
     if (!players || !setActive(players.raw, id)) { showNotice?.('Could not switch players here. Nothing was changed.'); return; }
@@ -2179,19 +2187,6 @@ export function createHomeBase({ players = null, progression, album, onStartWalk
     }
     const swBtn = e.target.closest?.('[data-switch-player]');
     if (swBtn && !swBtn.disabled) { switchPlayerTo(swBtn.getAttribute('data-switch-player')); return; }
-    if (e.target.id === 'btn-new-player') {
-      confirmCard.ask({
-        text: 'Start a new player?',
-        note: 'Your current player is saved and you can switch back.',
-        yes: 'Yes, new player',
-        returnFocus: () => root.querySelector('#btn-new-player')?.focus?.({ preventScroll: true }),
-        onYes: () => {
-          const r = players ? addPlayer(players.raw, { saveKey: players.saveKey }) : { ok: false };
-          if (r.ok) reload(); else showNotice?.('Could not start a new player. Your current player was not changed.');
-        },
-      });
-      return;
-    }
     if (e.target.id === 'btn-reset') {
       confirmCard.ask({
         text: 'Erase all progress and start over?',

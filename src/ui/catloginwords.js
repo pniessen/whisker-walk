@@ -25,6 +25,14 @@ export const LINES = Object.freeze({
   'catlogin.change.yes': 'Yes, change it',
   'catlogin.unlink.note': (words) => `Your cat code is ${words}. Write it down. It’s the only way to get this cat back.`,
   'catlogin.preview.cloud': 'In the cloud',
+  // New player (moved here from Game settings)
+  'catlogin.newplayer': 'New player',
+  'catlogin.newplayer.note': 'Saves this player exactly as is and starts a fresh player with a new cat.',
+  'catlogin.newplayer.full': 'This device has all the players it can hold.',
+  'catlogin.newplayer.ask': 'Start a new player?',
+  'catlogin.newplayer.keep': 'Your current player is saved and you can switch back.',
+  'catlogin.newplayer.yes': 'Yes, new player',
+  'catlogin.newplayer.fail': 'Could not start a new player. Your current player was not changed.',
   // add a device (cat login M4): the device that has the cat
   'catlogin.hop.add': 'Add a device',
   'catlogin.hop.opening': 'Making a hop code…',
