@@ -760,6 +760,11 @@ function defaultState() {
     mapMode: 'north',
     // Additive: SAVE_VERSION stays 4. Missing or junk loads as Clan Edition.
     edition: DEFAULT_EDITION,
+    // Which words this save reads in: 'on' (the family's), 'off' (everyday) or
+    // null (never chosen: the family's where the device can show them, else
+    // everyday; src/serieslock.js wordSetFor). Always written, and synced like
+    // any choice. Additive: SAVE_VERSION stays 4.
+    wordSet: null,
     // Each kid's clan pick (mine) and the partner's cached pick, with the
     // partner's player id so a new partner resets it. Additive, so
     // SAVE_VERSION stays 4: an older save starts with no pick.
@@ -1386,6 +1391,7 @@ function sanitizeState(parsed) {
     visitPrizePending: isPrizeAccessory(parsed.visitPrizePending) ? parsed.visitPrizePending : null,
     mapMode: parsed.mapMode === 'turn' ? 'turn' : 'north',
     edition: sanitizeEdition(parsed.edition),
+    wordSet: parsed.wordSet === 'on' || parsed.wordSet === 'off' ? parsed.wordSet : null,
     clanPick,
     keptOffers: keptOffersOnLoad(parsed.keptOffers, { walks, owned: unlockedAreas }),
     tutorial: sanitizeTutorial(parsed.tutorial, {
@@ -2073,6 +2079,15 @@ export function createProgression(storage) {
         state.mapMode = mode;
         save();
       }
+    },
+    // The words this save reads in: 'on' or 'off'. Anything else is refused.
+    setWordSet(id) {
+      if (id !== 'on' && id !== 'off') return false;
+      if (state.wordSet !== id) {
+        state.wordSet = id;
+        save();
+      }
+      return true;
     },
     setEdition(edition) {
       if (EDITIONS.includes(edition) && edition !== state.edition) {

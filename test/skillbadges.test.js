@@ -38,7 +38,6 @@ describe('the badge words and pictures', () => {
   for (const mode of ['on', 'off']) {
     it(`says every line in the ${mode} word set`, () => {
       addPhrases(LINES);
-      if (mode === 'off') addWordSet('off', off);
       setSeriesMode(mode);
       try {
         for (const id of Object.keys(LINES)) {
@@ -47,7 +46,7 @@ describe('the badge words and pictures', () => {
           expect(t).not.toMatch(/clan/i);
         }
         expect(phrase('skillbadge.named', 'Spring Paws')).toBe('Skill: Spring Paws');
-      } finally { setSeriesMode('on'); if (mode === 'off') removeWordSet('off'); }
+      } finally { setSeriesMode('on'); }
     });
   }
 });

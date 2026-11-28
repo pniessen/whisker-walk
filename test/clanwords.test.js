@@ -3,8 +3,9 @@ import { readFileSync, globSync } from 'node:fs';
 import { FRIEND_RUNGS } from '../src/skills.js';
 import { outsideTag } from '../src/colony.js';
 import { CAT_NAMES, KIT_NAMES, LEGENDARY_NAMES } from '../src/straynames.js';
-import { RIVAL_PREFIXES, PREFIXES, CAT_PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, DENIED_NAMES, RANK_WORDS, OUTSIDE_WORDS, CLAN_SUFFIX, RANK_KEYS, PLACE_WORDS, HOMAGE_CHOICES, HOMAGE_PREFIXES, HOME_LINES, CLAN_CAT_PREFIXES } from '../src/clanwords.js';
+import { RIVAL_PREFIXES, PREFIXES, CAT_PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, DENIED_NAMES, RANK_WORDS, OUTSIDE_WORDS, CLAN_SUFFIX, PLACE_WORDS, HOMAGE_CHOICES, HOMAGE_PREFIXES, HOME_LINES, CLAN_CAT_PREFIXES } from '../src/clanwords.js';
 import { validPetName } from '../src/net.js';
+import { RANK_KEYS } from '../src/wordids.js';
 
 test('pools are frozen, non-empty and free of duplicates', () => {
   expect(Object.isFrozen(PREFIXES)).toBe(true);
@@ -171,11 +172,14 @@ function borrowedIn(src) {
   });
 }
 
+// The files that may spell a series word: the two word sets and the ids (wordids.js).
+const WORD_FILES = ['src/clanwords.js', 'src/offclanwords.js', 'src/wordids.js'];
+
 // Pre-existing literals where the word means something unrelated to the clan.
 const ALLOW = [];
 
 test('no borrowed word is hard-coded anywhere but clanwords.js', () => {
-  const files = globSync('src/**/*.js').filter((f) => !f.endsWith('clanwords.js'));
+  const files = globSync('src/**/*.js').filter((f) => !WORD_FILES.includes(f.split('\\').join('/')));
   const offenders = [];
   for (const f of files) {
     const src = readFileSync(f, 'utf8');

@@ -1,22 +1,25 @@
 // The ONE door to the word tables: which set of words the game is using, and
 // the tables of that set.
 //
-// clanwords.js is a word SET (today the only one, the family's game). No other
-// module in src/ may import it: they import this file and ask for the tables
-// when they need a word,
+// This build holds ONE set: the everyday words (offclanwords.js, 'off'). The
+// family's set ('on', clanwords.js) is not in any public file: it is sealed in
+// src/seriesvault.js and only a family code opens it (serieslock.js), when it
+// is added here with installSeriesSet(). No module in src/ imports clanwords.js:
+// they import this file and ask for the tables when they need a word,
 //
 //   words().RANK_WORDS[rank]        words().PLACE_WORDS.town
 //
-// so a second set can be added later without touching those modules again.
-// test/wordset.test.js fails if any other module imports clanwords.js, and
-// proves with a stand-in set that the words on screen follow the set in use.
+// so a set can come and go without touching those modules.
+// test/wordset.test.js fails if any module imports clanwords.js, and proves
+// with a stand-in set that the words on screen follow the set in use.
 //
 // RULES
 //   - Read words() WHEN THE WORD IS NEEDED, inside a function or a getter.
 //     Never keep a table, or a word taken from one, in a module-level const:
 //     that value would stay behind when the set changes.
-//   - The mode is held here and nowhere else. There is no setting for it yet
-//     and nothing saves it; it is 'on' unless a test says otherwise.
+//   - The mode is held here and nowhere else. It starts 'off' (the everyday
+//     words); the save's wordSet preference and the family lock choose
+//     (main.js applyWordSet).
 //   - RANK_KEYS and GROUP_KEY are ids, not words. They are the same in every
 //     set, so they are plain exports and may be kept in a const.
 //   - A set has every table in TABLES. It may also carry PHRASES: entries for
@@ -24,8 +27,8 @@
 //   - A set's PREFIXES list has the same length in every set: a save stores
 //     its colony's title as a position in that list (progression.js).
 //   - A set may also carry what it does DIFFERENTLY, as data (2026-11-18). The
-//     'on' set carries none of these (except EMBLEMS, below), so the family's
-//     game is what it was:
+//     family's set carries none of these (except EMBLEMS, below), so the
+//     family's game is what it was:
 //       RULES       switches read with wordRule(): storedNames (a cat is shown
 //                   under the name it is stored with, never a composed one),
 //                   noStarNames (no top-rank names are offered), stoneSeat
@@ -39,39 +42,35 @@
 //     the everyday set carry one; a set without it shows no emblem.
 //     Code asks these questions of the set; it never asks which set is in use.
 //
-// A leaf like clanwords.js: it imports that file only, so anything may import
+// A leaf: it imports the everyday set and the ids only, so anything may import
 // it without a cycle and without THREE.
-import * as on from './clanwords.js';
+import * as off from './offclanwords.js';
+import { SET_SHAPE, shapeProblem, SERIES_ON, SERIES_OFF } from './wordids.js';
 
-// Ids for every rank and role: never shown, the same whatever the words are.
-export { RANK_KEYS } from './clanwords.js';
+// Ids for every rank and role, the group key and the set ids: never shown, the
+// same whatever the words are (wordids.js).
+export { RANK_KEYS, GROUP_KEY, SERIES_ON, SERIES_OFF } from './wordids.js';
 
-// The word the page's own names are built with (button attributes, the "have
-// you seen the question" storage key). Never shown to a player, and it does
-// NOT follow the mode: a storage key that changed with the words would forget
-// what a device has already seen.
-export const GROUP_KEY = on.CLAN_SUFFIX.toLowerCase();
+// The tables every set must have (the shape is wordids.js SET_SHAPE).
+export const TABLES = Object.freeze(Object.keys(SET_SHAPE));
 
-// The tables every set must have.
-export const TABLES = Object.freeze([
-  'PREFIXES', 'CAT_PREFIXES', 'RIVAL_PREFIXES', 'WARRIOR_SUFFIXES', 'RANK_SUFFIX', 'CLAN_SUFFIX',
-  'RANK_WORDS', 'OUTSIDE_WORDS', 'PLACE_WORDS', 'DENIED_NAMES', 'HOMAGE_PREFIXES', 'HOME_LINES',
-  'CLAN_CAT_PREFIXES',
-]);
+const SETS = new Map([[SERIES_OFF, off]]);
+let mode = SERIES_OFF;
 
-export const SERIES_ON = 'on';
-
-const SETS = new Map([[SERIES_ON, on]]);
-let mode = SERIES_ON;
-
-// Which set is in use: 'on' today.
+// Which set is in use: 'off' (everyday) until the family's set is installed and chosen.
 export function seriesMode() {
   return mode;
 }
 
-// Every set this build holds, 'on' first.
+// Every set this build holds, 'on' first when it is installed.
 export function seriesModes() {
-  return [...SETS.keys()];
+  const ids = [...SETS.keys()];
+  return SETS.has(SERIES_ON) ? [SERIES_ON, ...ids.filter((id) => id !== SERIES_ON)] : ids;
+}
+
+// Whether the family's set is installed in this session.
+export function seriesAvailable() {
+  return SETS.has(SERIES_ON);
 }
 
 // The tables of the set in use.
@@ -98,36 +97,32 @@ export function rankWord(key) {
   return words().RANK_WORDS[rankShown(key)];
 }
 
-const keysOf = (v) => (v && typeof v === 'object' && !(v instanceof Set) ? Object.keys(v) : []);
-
 // Adds a set under `id`. It must be complete: every table, and inside each
-// keyed table every key the 'on' set has (a rank with no word would print
+// keyed table every key the shape lists (a rank with no word would print
 // "undefined" on a tag). Throws otherwise, so a half-written set never loads.
 export function addWordSet(id, set) {
   if (typeof id !== 'string' || id === '' || SETS.has(id)) throw new Error(`Whisker Walk: word set id "${id}" is empty or taken`);
-  if (!set || typeof set !== 'object') throw new Error(`Whisker Walk: word set "${id}" is not a table`);
-  for (const name of TABLES) {
-    const mine = set[name];
-    const theirs = on[name];
-    if (mine == null || typeof mine !== typeof theirs || Array.isArray(mine) !== Array.isArray(theirs)) {
-      throw new Error(`Whisker Walk: word set "${id}" has no ${name}`);
-    }
-    if (Array.isArray(theirs)) continue;
-    for (const k of keysOf(theirs)) {
-      if (!Object.hasOwn(mine, k)) throw new Error(`Whisker Walk: word set "${id}" has no ${name}.${k}`);
-      if (Array.isArray(theirs[k]) && !(Array.isArray(mine[k]) && mine[k].length === theirs[k].length)) {
-        throw new Error(`Whisker Walk: word set "${id}" has the wrong number of ${name}.${k}`);
-      }
-    }
-  }
-  if (set.PREFIXES.length !== on.PREFIXES.length) throw new Error(`Whisker Walk: word set "${id}" has the wrong number of PREFIXES`);
+  const problem = shapeProblem(set);
+  if (problem) throw new Error(`Whisker Walk: word set "${id}" has ${problem}`);
   SETS.set(id, set);
 }
 
-// Takes a set out again (a test's stand-in). The 'on' set stays.
+// Adds the family's set as 'on' once a family code has opened the vault. It
+// must be complete (shapeProblem). Installing the same object again does
+// nothing; a different one throws.
+export function installSeriesSet(set) {
+  const have = SETS.get(SERIES_ON);
+  if (have) {
+    if (have === set) return;
+    throw new Error('Whisker Walk: the family word set is already installed');
+  }
+  addWordSet(SERIES_ON, set);
+}
+
+// Takes a set out again (a test's stand-in). The everyday set stays.
 export function removeWordSet(id) {
-  if (id === SERIES_ON) return;
-  if (mode === id) mode = SERIES_ON;
+  if (id === SERIES_OFF) return;
+  if (mode === id) mode = SERIES_OFF;
   SETS.delete(id);
 }
 
@@ -143,7 +138,7 @@ export function setSeriesMode(id) {
 export function inEachWordSet(fn) {
   const was = mode;
   try {
-    return [...SETS.keys()].map((id) => {
+    return seriesModes().map((id) => {
       mode = id;
       return fn(id);
     });

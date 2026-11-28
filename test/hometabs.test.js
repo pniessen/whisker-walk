@@ -165,7 +165,7 @@ describe('star name picker', () => {
   it('offers one button per candidate', () => {
     const c = candidateStarNames('player-abc12345');
     const html = renderStarNamePicker(c, null);
-    for (const n of c) expect(html).toContain(`data-star-name="${n}"`);
+    for (const n of c) expect(html).toContain(`data-top-name="${n}"`);
   });
 });
 

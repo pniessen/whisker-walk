@@ -206,7 +206,6 @@ describe('the new words, in both word sets', () => {
   const NEW = ['coop.hophint', 'coop.following', 'coop.found', 'coop.foundboth', 'coop.edge'];
   for (const mode of ['on', 'off']) {
     it(`${mode}: each new line reads, carries the cat's name where it should, and no button name`, () => {
-      if (mode === 'off') addWordSet('off', off);
       setSeriesMode(mode);
       try {
         for (const id of NEW) expect(Object.keys(LINES)).toContain(id);
@@ -217,7 +216,7 @@ describe('the new words, in both word sets', () => {
         expect(plainify(phrase('coop.hophint'), 'ps')).toBe('Hold ✚ down to hop to your friend');
         expect(plainify(phrase('coop.hophint'), 'xbox')).not.toContain('⟦');
         for (const t of [phrase('coop.found', 'Pip', 'x'), phrase('coop.hophint'), phrase('coop.edge', 'Pip')]) expect(t).not.toMatch(/player\s*[12]|clan|warrior/i);
-      } finally { setSeriesMode('on'); if (mode === 'off') removeWordSet('off'); }
+      } finally { setSeriesMode('on'); }
     });
   }
 });

@@ -11,17 +11,16 @@
 // drawings for EMBLEMS, a table every set may carry. No module
 // asks "is the set 'off'?": they ask the set in use for a table or a rule.
 //
-// NOT IN USE YET. Nothing in src/ imports this file and no build holds the
-// set: the game is the family's ('on') for everyone until the switch is built
-// (phase 3 adds it to wordset.js and decides who may turn it). The tests put
-// it in use through test/helpers/offwords.js.
+// The set every build holds, and the one a player has until a family code
+// opens the family set (wordset.js: it starts on this set, and the other is
+// added next to it as the on set). The tests put the family's set in use through
+// test/setup/familywords.js and this one through test/helpers/offwords.js.
 //
 // What a reader of this set never sees: a name that changes with rank, a
 // name made of two halves, a top-rank name to pick, a label on the player's
 // own cat, a second-in-command, a mother rank.
 import { CAT_NAMES, KIT_NAMES, LEGENDARY_NAMES } from './straynames.js';
-import { phrase } from './clanphrases.js';
-import { RANK_KEYS } from './wordset.js';
+import { RANK_KEYS } from './wordids.js';
 
 export const OFF_ID = 'off';
 
@@ -218,7 +217,7 @@ export const PHRASES = Object.freeze({
   // the game is "Whisker Walk 2"; only the older plain edition adds its name
   'edition.title.canon': WILD_EDITION,
   'edition.game': (editionTitle) => (editionTitle === WILD_EDITION ? 'Whisker Walk 2' : `Whisker Walk 2: ${editionTitle}`),
-  'prize.warpaint.canon': () => phrase('prize.warpaint.legacy'),
+  'prize.warpaint.canon': 'War Paint',
 
   // picking a home (worded as choosing where to live, not as an outsider joining)
   'pick.heading': 'Pick your home crew',
@@ -229,8 +228,8 @@ export const PHRASES = Object.freeze({
   'pick.changeAskClick': 'Click a crew to make it your home.',
   'map.camp': (group) => `${group} home base`,
 
-  // not offered in this set (RULES.noStarNames), so there is nothing to say
-  'star.pick': '',
+  // (star.pick, the long fight-move names and the landmark labels are the base table: clanphrases.js says the
+  // everyday thing there, and the family set overrides it)
 
   // walking the bounds with a cat of your crew
   'patrol.prompt': (name) => `E — walk the bounds with ${name}`,
@@ -241,20 +240,8 @@ export const PHRASES = Object.freeze({
 
   'journal.chasedOff': 'Outsiders chased away',
 
-  // the fight moves keep their four short names; the long name is the same word
-  'move.rearUpSwat.name': 'Swat',
-  'move.leapScratch.name': 'Leap',
+  // the fight moves keep their four short names; the long name is the same word (the base table)
   'move.pin.name': 'Pin',
-  'move.rollingTumble.name': 'Tumble',
-
-  // landmarks (her picks: grandfather oak, heron rocks, the stone ring)
-  'landmark.woods.oak': 'the grandfather oak',
-  'landmark.woods.oakLookout': 'grandfather oak lookout',
-  'landmark.woods.oakSquirrels': 'two squirrels racing up the grandfather oak',
-  'landmark.river.warmRocks': 'heron rocks',
-  'landmark.river.warmPebble': 'a warm pebble on the low rock',
-  'landmark.island.ring': 'the stone ring under the old ash',
-  'landmark.island.stoneFind': 'a bright beetle wing on a flat stone',
 
   // ---- the Woods' south strip (bigger areas, 2026-11-19; only seen with the
   // ?grow=1 switch on); builder's pick

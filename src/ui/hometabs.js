@@ -180,7 +180,7 @@ export function renderStarNamePicker(candidates, current) {
   if (options.length === 0) return '';
   const chosen = typeof current === 'string' ? current : '';
   const buttons = options.map((c) =>
-    `<button type="button" class="star-name-pick${c === chosen ? ' chosen' : ''}" data-star-name="${escapeHtml(c)}">${escapeHtml(c)}</button>`
+    `<button type="button" class="star-name-pick${c === chosen ? ' chosen' : ''}" data-top-name="${escapeHtml(c)}">${escapeHtml(c)}</button>`
   ).join('');
   return `<div class="star-name-picker">
     <div class="tag">${phrase('star.pick')}${chosen ? ` (now: ${escapeHtml(chosen)})` : ''}</div>

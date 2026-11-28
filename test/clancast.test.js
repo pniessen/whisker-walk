@@ -4,7 +4,8 @@ import {
   clanCast, castFor, clanCountFor, lonersFor, clanHomeFor, tagSubFor, tagOptsFor,
   CAST_RANKS, CAST_CORE, CAST_HIGH, INTRUDER_SLOTS, MIN_LONERS_HIGH, RAIDER_SLOTS, RANK_SCALE, CLAN_COLOURS, CLAN_COATS,
 } from '../src/clancast.js';
-import { CLAN_CAT_PREFIXES, RANK_KEYS, RANK_SUFFIX, RANK_WORDS, DENIED_NAMES } from '../src/clanwords.js';
+import { CLAN_CAT_PREFIXES, RANK_SUFFIX, RANK_WORDS, DENIED_NAMES } from '../src/clanwords.js';
+import { RANK_KEYS } from '../src/wordids.js';
 import { clanName } from '../src/clanhomes.js';
 import { isStrayName, STRAY_BREEDS } from '../src/straynames.js';
 import { GORGE_FLOOR_COLOR } from '../src/world/gorge.js';

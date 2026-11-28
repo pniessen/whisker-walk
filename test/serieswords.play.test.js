@@ -15,7 +15,7 @@ import { createProgression } from '../src/progression.js';
 import { createEnemyWalkLog, rollHostile } from '../src/enemies.js';
 import { clanCast } from '../src/clancast.js';
 import { HOMES } from '../src/clanhomes.js';
-import { RANK_KEYS } from '../src/clanwords.js';
+import { RANK_KEYS } from '../src/wordids.js';
 import { PATROL_MIN } from '../src/clancats.js';
 import { CAT_NAMES, KITTYPET_NAMES, LEGENDARY_NAMES, isKittypetName } from '../src/straynames.js';
 import { discoveryText } from '../src/ui/hud.js';

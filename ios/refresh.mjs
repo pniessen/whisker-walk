@@ -21,7 +21,8 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, r
 import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { loadEnv } from 'vite';
-import { preflight, parseDevices, profileMatches, summarize, refreshDevices, updateHistory, cloudProblem, ciPassed, CI_WORKFLOW } from './refresh-lib.mjs';
+import { preflight, parseDevices, profileMatches, summarize, refreshDevices, updateHistory, cloudProblem, wordsProblem, ciPassed, CI_WORKFLOW } from './refresh-lib.mjs';
+import { scanDir } from '../scripts/bundlewords.mjs';
 import {
   planNight, isGameRunning, nightNotice, notifyScript, latestResults, stillPending,
   takeLock as takeLockFile, dropLock as dropLockFile,
@@ -248,6 +249,14 @@ function checkCloud(builtDir) {
   if (problem) throw new StepFailed(`Not shipping a game without cloud saves: ${problem}.`, { reason: problem });
 }
 
+// The app holds the everyday words only: the family's set is sealed (src/seriesvault.js) and never in
+// a built file. Any word of it in the built game refuses the build, which takes the last-good path.
+function checkWords(builtDir) {
+  const offences = scanDir(builtDir);
+  const problem = wordsProblem(offences);
+  if (problem) throw new StepFailed(`${problem}: ${offences.slice(0, 5).join('; ')}`, { reason: problem });
+}
+
 // Test, build and sign main. On success (except --dev) it becomes the last
 // good version the nightly run can fall back to.
 function freshBuild() {
@@ -274,6 +283,7 @@ function freshBuild() {
   step('Building the game for the app');
   logged('build-ios', 'npm', ['run', 'build:ios'], { reason: 'the game build failed', timeout: TIMEOUT.buildIos });
   checkCloud('ios/web');
+  checkWords('ios/web');
   renewProfile();
   step('Building and signing the app');
   const profile = build('generic/platform=iOS');

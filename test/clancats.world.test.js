@@ -19,7 +19,7 @@ const { createClanCats } = await import('../src/clancats.js');
 const { castFor, roamHomes } = await import('../src/clancast.js');
 const { campLayout } = await import('../src/world/camp.js');
 const { clanWalkableFor } = await import('../src/world/clanground.js');
-const { RANK_KEYS: K } = await import('../src/clanwords.js');
+const { RANK_KEYS: K } = await import('../src/wordids.js');
 
 const CAMP = new Set([K.leader, K.deputy, K.elder, K.kit]);
 

@@ -75,6 +75,7 @@ const SENTINELS = {
   visitPrizePending: PRIZE,
   mapMode: 'turn',
   edition: 'legacy',
+  wordSet: 'on',
   clanPick: { mine: 'woods' },
   keptOffers: [Object.keys(KEPT_OFFERS)[0]],
   tutorial: { first: 'part' },

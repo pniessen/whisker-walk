@@ -39,6 +39,7 @@ import { usageHtml } from '../usage.js';
 import { isMilestone, welcomeLine } from '../visits.js';
 import { createVisitCelebration } from './visitcelebration.js';
 import { settingsSwitchHtml } from './screencards.js';
+import { seriesAvailable, seriesMode, SERIES_ON } from '../wordset.js';
 import { emptyStateHtml } from './emptystates.js';
 import { PAW } from './pawicon.js';
 import { createConfirmCard, spendAsk } from './confirmcard.js';
@@ -157,7 +158,7 @@ export function showEditionTitle(doc, edition) {
 //   nearby: game/nearby.js, the rooms the app found on the local network.
 //     Absent, or not available (Safari, desktop), nothing of it is drawn
 //   metPlayers: src/metplayers.js (the device's own list when absent)
-export function createHomeBase({ players = null, progression, album, onStartWalk, rooms, sync, onlineDelete = null, cloud, settings, onSettingsChange, onTvChange = null, onVisitDen, onOpenDen = null, colonySync, myId, toast, onCelebrate, onBirthdaySong, onAudioWake, onCardsClosed, haptics: canBuzz = false, nearby = null, metPlayers = null, getIsTouch = () => false, reload = () => globalThis.location?.reload?.() }) {
+export function createHomeBase({ players = null, progression, album, onStartWalk, rooms, sync, onlineDelete = null, cloud, settings, onSettingsChange, onTvChange = null, onVisitDen, onOpenDen = null, colonySync, myId, toast, onCelebrate, onBirthdaySong, onAudioWake, onCardsClosed, haptics: canBuzz = false, nearby = null, metPlayers = null, getIsTouch = () => false, reload = () => globalThis.location?.reload?.(), family = null, onWordsChange = null }) {
   const met = () => metPlayers ?? deviceMetPlayers();
   const root = document.getElementById('homebase');
   let petNameError = null;
@@ -191,7 +192,7 @@ export function createHomeBase({ players = null, progression, album, onStartWalk
 
   // Gift-code box (its own sheet). Typed text, the last result and the busy flag
   // live here because render() rebuilds the panel.
-  const redeemer = createRedeemer({ progression });
+  const redeemer = createRedeemer({ progression, family });
   let redeemText = '';
   let redeemResult = null;
   let redeemBusy = false;
@@ -732,6 +733,19 @@ export function createHomeBase({ players = null, progression, album, onStartWalk
 
   // The edition is not a look: say what switching does, so a grown-up does
   // not flip it like a colour (the save keeps everything either way).
+  // The family's words (src/serieslock.js): a switch once this device can show them. A save made with
+  // them, opened on a device that cannot, says so once; any other locked device shows nothing at all.
+  function familyWordsHtml() {
+    if (seriesAvailable()) {
+      return `${settingsSwitchHtml('set-family-words', seriesMode() === SERIES_ON, 'Family words')}
+          <p class="settings-note" id="set-family-note">Your family code turned these on. Switching changes only the words. Nothing is lost.</p>`;
+    }
+    if (progression.state.wordSet === SERIES_ON) {
+      return '<p class="settings-note" id="set-family-locked">This save was made with the family words. Type the family code in Gift code to see them on this device.</p>';
+    }
+    return '';
+  }
+
   function renderSettings() {
     if (!settings) return '';
     const s = settings.all();
@@ -747,6 +761,7 @@ export function createHomeBase({ players = null, progression, album, onStartWalk
             </select>
           </label>
           <p class="settings-note" id="set-edition-note">${phrase('edition.note')}</p>
+          ${familyWordsHtml()}
           ${settingsSwitchHtml('set-show-tips', s.showTips !== false, tutorialLine('settings.tips'))}
           ${progression.saveWriteFailed ? `<p class="settings-note" id="set-save-note" role="status">${escapeHtml(tutorialLine('settings.save-failed'))}</p>` : ''}
         </div>
@@ -2233,7 +2248,7 @@ export function createHomeBase({ players = null, progression, album, onStartWalk
     }
     // A picked star name goes through the same validated path as the text
     // field: the chosen name IS state.petName (no new field, spec §6.1).
-    const starPick = e.target.dataset?.starName;
+    const starPick = e.target.dataset?.topName;
     if (starPick !== undefined) {
       if (goodNewPetName(starPick)) {
         progression.setPetName(starPick);
@@ -2671,6 +2686,12 @@ export function createHomeBase({ players = null, progression, album, onStartWalk
     }
     if (e.target.id === 'set-edition') {
       progression.setEdition(e.target.value);
+      render();
+      return;
+    }
+    if (e.target.id === 'set-family-words') {
+      progression.setWordSet(e.target.checked ? 'on' : 'off');
+      onWordsChange?.();
       render();
       return;
     }

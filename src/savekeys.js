@@ -29,6 +29,7 @@ export const KEPT_KEYS = Object.freeze([
   'whisker-walk-adapt', // what this device's graphics learned about itself
   'whisker-walk-gl-reload', // the graphics-recovery reload guard (diagnostics)
   'whisker-walk-nearby-opted', // this device's choice about looking for rooms on the local network
+  'whisker-walk-family-words', // the key that opens the family's words on this device (src/serieskey.js): a fresh cat must not ask for the code again
   'whisker-walk-redeem-rest', // the guessing rest of the code box: a fresh cat must not skip it
   'whisker-walk-crash-log', // the device's sanitised crash log (src/crashlog.js): about the device, not the cat
   'whisker-walk-coop', // couch co-op settings (follow, pads) are per device, like the TV mode
@@ -36,8 +37,8 @@ export const KEPT_KEYS = Object.freeze([
   PLAYERS_KEY, // the list of players on this device and which one is playing (src/players.js)
   FRESH_BACKUP_KEY, // the rollback slot
 ]);
-/** Strings in src/ that look like keys but are not storage keys (a hashing salt). */
-export const NOT_KEYS = Object.freeze(['whisker-walk-redeem-v1']);
+/** Strings in src/ that look like keys but are not storage keys (a hashing salt, the vault's authenticated text). */
+export const NOT_KEYS = Object.freeze(['whisker-walk-redeem-v1', 'whisker-walk-series-v1']);
 
 /** 'reset' | 'kept' | null (null: not classified, which test/freshcat.keys.test.js refuses). */
 export function classify(key) {

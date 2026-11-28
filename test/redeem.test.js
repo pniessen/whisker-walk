@@ -247,7 +247,7 @@ describe('renderRedeemHtml', () => {
     expect(h).toContain('🎁 Got a gift code?');
     expect(h).toContain('<form class="redeem-form"');
     expect(h).toContain('id="redeem-input"');
-    for (const a of ['autocomplete="off"', 'autocapitalize="characters"', 'spellcheck="false"', 'maxlength="40"']) expect(h).toContain(a);
+    for (const a of ['autocomplete="off"', 'autocapitalize="characters"', 'spellcheck="false"', 'maxlength="64"']) expect(h).toContain(a);
     expect(h).toContain('Open it!');
     expect(h).not.toContain('disabled');
     expect(h).toContain('aria-live="polite"');
@@ -281,5 +281,49 @@ describe('redeemMessage for areas', () => {
     expect(msg).toBe('🎉 Surprise! You got The Old Docks!');
     const two = redeemMessage({ kind: 'gift', points: 0, items: [{ kind: 'areas', id: 'park', owned: false, refund: 0 }] }, catalog);
     expect(two).toBe('🎉 Surprise! You got City Park!');
+  });
+});
+
+// ---- the family's code (src/serieslock.js) --------------------------------------------------------
+import { createRedeemer as createFamilyRedeemer, redeemMessage as familyMessage, FREE_MISSES as FAMILY_FREE_MISSES } from '../src/redeem.js';
+
+describe('a family code in the gift box', () => {
+  const box = (tryCode, extra = {}) => {
+    const calls = [];
+    const progression = { redeemCode: vi.fn(() => ({ ok: false, reason: 'unknown' })) };
+    const rest = new Map();
+    const storage = { getItem: (k) => rest.get(k) ?? null, setItem: (k, v) => rest.set(k, String(v)) };
+    const r = createFamilyRedeemer({ progression, codes: { gift: { label: 'x' } }, hash: async (n) => (n === 'GAFT' ? 'gift' : `h-${n}`), storage, family: { tryCode: async (n) => { calls.push(n); return tryCode(n); } }, ...extra });
+    return { r, calls, progression };
+  };
+
+  it('typed in lowercase with spaces and an O for a 0, it unlocks', async () => {
+    const { r, calls } = box((n) => (n === 'ABC0D2' ? 'unlocked' : 'no'));
+    expect(await r.redeem(' abc o d-2 ')).toEqual({ kind: 'family' });
+    expect(calls).toEqual(['ABC0D2']);
+    expect(familyMessage({ kind: 'family' })).toBe('🎉 Your family words are on! You can switch them in Game settings.');
+  });
+
+  it('a wrong one is unknown and counts a miss; the third rests the box', async () => {
+    const { r } = box(() => 'no');
+    for (let i = 0; i < FAMILY_FREE_MISSES; i++) expect(await r.redeem(`wrong ${i}`)).toEqual({ kind: 'unknown' });
+    expect((await r.redeem('another')).kind).toBe('resting');
+  });
+
+  it('no WebCrypto here is the existing unsupported line', async () => {
+    const { r } = box(() => 'unsupported');
+    expect(await r.redeem('whatever code')).toEqual({ kind: 'unsupported' });
+  });
+
+  it('a gift code is a gift, without asking the family lock', async () => {
+    const { r, calls, progression } = box(() => 'unlocked');
+    progression.redeemCode = vi.fn(() => ({ ok: true, items: [], points: 5 }));
+    expect((await r.redeem('gaft')).kind).toBe('gift');
+    expect(calls).toEqual([]);
+  });
+
+  it('a lock that throws is just a miss', async () => {
+    const { r } = box(() => { throw new Error('boom'); });
+    expect(await r.redeem('whatever code')).toEqual({ kind: 'unknown' });
   });
 });

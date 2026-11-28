@@ -113,7 +113,6 @@ describe('the wire format is unchanged', () => {
 describe('both word sets say it kindly', () => {
   for (const set of ['on', 'off']) {
     it(`set ${set}`, () => {
-      if (set === 'off') addWordSet('off', off);
       setSeriesMode(set);
       try {
         for (const id of ['coop.partnerOlder', 'coop.partnerNoPlace']) {
@@ -122,7 +121,7 @@ describe('both word sets say it kindly', () => {
           expect(bannedIn(t)).toBe(null);
         }
         expect(phrase('coop.partnerOlder')).toBe('Your friend needs to update the game: close it and open it again.');
-      } finally { setSeriesMode('on'); if (set === 'off') removeWordSet('off'); }
+      } finally { setSeriesMode('on'); }
     });
   }
 });

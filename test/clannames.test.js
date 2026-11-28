@@ -1,7 +1,8 @@
 import { test, expect } from 'vitest';
 import { CAT_NAMES, KIT_NAMES, LEGENDARY_NAMES } from '../src/straynames.js';
 import { TAME_FEEDS, HEAD_START_MAX } from '../src/colony.js';
-import { PREFIXES, CAT_PREFIXES, RIVAL_PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, CLAN_SUFFIX, DENIED_NAMES, RANK_KEYS } from '../src/clanwords.js';
+import { PREFIXES, CAT_PREFIXES, RIVAL_PREFIXES, WARRIOR_SUFFIXES, RANK_SUFFIX, CLAN_SUFFIX, DENIED_NAMES } from '../src/clanwords.js';
+import { RANK_KEYS } from '../src/wordids.js';
 import { prefixFor, warriorSuffixFor, clanRankFor, clanNameOf, clanTitleFor, candidateStarNames, colonyRankFor } from '../src/clannames.js';
 import { validPetName } from '../src/net.js';
 import { seedFromCode } from '../src/rng.js';

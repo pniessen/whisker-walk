@@ -14,6 +14,8 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { readFileSync, globSync } from 'node:fs';
 import * as on from '../src/clanwords.js';
 import * as off from '../src/offclanwords.js';
+import { shapeProblem } from '../src/wordids.js';
+import { OFF } from './helpers/offwords.js';
 import {
   words, wordRule, rankShown, rankWord, seriesMode, seriesModes, setSeriesMode, addWordSet, removeWordSet,
   inEachWordSet, SERIES_ON, TABLES, RANK_KEYS,
@@ -56,14 +58,14 @@ const flat = (v) => (typeof v === 'string' ? [v] : v instanceof Set ? [...v] : O
 
 afterEach(() => {
   setSeriesMode(SERIES_ON);
-  for (const id of seriesModes()) removeWordSet(id);
+  for (const id of seriesModes()) if (id !== SERIES_ON && id !== OFF) removeWordSet(id);
 });
 
 // ---- 1. the set ------------------------------------------------------------------
 
-describe('the everyday set is whole, and is not in any build yet', () => {
+describe('the everyday set is whole, and is in every build', () => {
   it('the door accepts it: every table, every key, the same number of title words', () => {
-    expect(() => addWordSet(OFF, off)).not.toThrow();
+    expect(shapeProblem(off)).toBeNull();
     expect(seriesModes()).toEqual(['on', 'off']);
     for (const name of TABLES) expect(off[name], name).toBeDefined();
     expect(off.PREFIXES.length).toBe(on.PREFIXES.length);
@@ -74,11 +76,11 @@ describe('the everyday set is whole, and is not in any build yet', () => {
     }
   });
 
-  it('no build holds it: the game starts on the family\'s words and nothing in src/ imports this file', () => {
-    expect(seriesMode()).toBe('on');
-    expect(seriesModes()).toEqual(['on']);
+  it('every build holds it: only the door imports this file', () => {
+    expect(seriesMode()).toBe('on'); // the test setup puts the family's set in use
+    expect(seriesModes()).toEqual(['on', 'off']);
     const importers = FILES.filter((f) => f !== 'src/offclanwords.js' && /offclanwords\.js/.test(read(f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')));
-    expect(importers).toEqual([]);
+    expect(importers).toEqual(['src/wordset.js']);
   });
 
   it('every line of its own is for an id the game has, in the shape the game reads', () => {
@@ -588,7 +590,7 @@ describe('6. the list of names to keep away from is not consulted', () => {
     expect(on.DENIED_NAMES.size).toBeGreaterThan(100);
     // every use of the list in src/ reads the set in use, so an empty list IS "not consulted"
     for (const f of FILES) {
-      if (f.endsWith('clanwords.js') || f === 'src/wordset.js') continue;
+      if (f.endsWith('clanwords.js') || f === 'src/wordset.js' || f === 'src/wordids.js') continue;
       const code = read(f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
       for (const m of code.matchAll(/^.*\bDENIED_NAMES\b.*$/gm)) expect(m[0], f).toMatch(/words\(\)|DENIED_NAMES\.has\(/);
     }
@@ -614,7 +616,6 @@ describe('a save keeps its colony title\'s position across both sets', () => {
   const titleOff = (i) => `${off.PREFIXES[i]} ${off.CLAN_SUFFIX}`;
 
   it('every position names one title in each set, and each title names its position', () => {
-    addWordSet(OFF, off);
     on.PREFIXES.forEach((_p, i) => {
       expect(inEachWordSet(() => clanTitleOfWord(i))).toEqual([titleOn(i), titleOff(i)]);
       // either spelling is understood whichever set is in use
@@ -658,8 +659,8 @@ describe('a save keeps its colony title\'s position across both sets', () => {
       return JSON.parse(b.map.get(KEY)).clan;
     });
     expect(saved).toEqual({ name: titleOff(word), word, adopted: false });
-    // read back by a build that holds only the family's set: the position is what counts
-    expect(seriesModes()).toEqual(['on']);
+    // read back with the family's set in use: the position is what counts
+    expect(seriesModes()).toEqual(['on', 'off']);
     expect(sanitizeClan(saved)).toEqual({ name: titleOn(word), word, adopted: false });
     expect(createProgression(b).state.clan).toEqual({ name: titleOn(word), word, adopted: false });
   });
@@ -685,8 +686,9 @@ describe('a save keeps its colony title\'s position across both sets', () => {
 // ---- 5. the family's game is untouched ---------------------------------------------------
 
 describe('with the family\'s words in use, none of this is there', () => {
-  it('the family\'s set carries no rule, no stand-in rank, no line and no badge word of its own', () => {
-    for (const extra of ['RULES', 'RANK_AS', 'LINES', 'BADGE_WORDS', 'PHRASES']) expect(words()[extra], extra).toBeUndefined();
+  it('the family\'s set carries no rule, no stand-in rank, no line and no badge word of its own, and its PHRASES are only the lines the base table says the everyday way', () => {
+    for (const extra of ['RULES', 'RANK_AS', 'LINES', 'BADGE_WORDS']) expect(words()[extra], extra).toBeUndefined();
+    expect(Object.keys(words().PHRASES).sort()).toEqual(Object.keys(on.PHRASES).sort());
     expect(wordRule('storedNames')).toBe(false);
     expect(wordRule('noStarNames')).toBe(false);
     expect(wordRule('stoneSeat')).toBe(false);

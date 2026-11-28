@@ -87,6 +87,8 @@ export default defineConfig(({ command, mode }) => ({
     // Without this a bare `npm test` also collects the copies of tests inside
     // .worktrees/ and .claude/worktrees/.
     dir: 'test',
+    // The tests that pin the family's game install the family's set first (test/setup/familywords.js).
+    setupFiles: ['./test/setup/familywords.js'],
     // Vitest's default is 5000ms per test, and the visual pass outgrew it.
     // Two files now do real work rather than arithmetic:
     //

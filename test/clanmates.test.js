@@ -8,7 +8,7 @@ import { createStrayCats } from '../src/straycats.js';
 import { createEnemyWalkLog } from '../src/enemies.js';
 import { mulberry32 } from '../src/rng.js';
 import { clanCast } from '../src/clancast.js';
-import { RANK_KEYS } from '../src/clanwords.js';
+import { RANK_KEYS } from '../src/wordids.js';
 import { PATROL_MIN } from '../src/clancats.js';
 import { memoryStorage as fakeStorage } from './helpers/storage.js';
 

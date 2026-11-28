@@ -25,7 +25,7 @@ const { setSeriesMode, addWordSet, removeWordSet, seriesModes, SERIES_ON } = awa
 const { withOffWords } = await import('./helpers/offwords.js');
 
 const DT = 1 / 30;
-afterEach(() => { setSeriesMode(SERIES_ON); for (const id of seriesModes()) removeWordSet(id); });
+afterEach(() => { setSeriesMode(SERIES_ON); for (const id of seriesModes()) if (id !== 'on' && id !== 'off') removeWordSet(id); });
 
 function farmWalk() {
   const scene = new THREE.Scene();

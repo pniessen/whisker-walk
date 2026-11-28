@@ -158,7 +158,7 @@ describe('series words on the home screen, pinned', () => {
 // older playtester's picks; re-record with
 //   UPDATE_OFF_SNAPSHOT=1 npx vitest run test/serieswords
 // when she or the owner changes one, and read the diff line by line.
-const { withOffWords, bannedLeaks, offWordCount } = await import('./helpers/offwords.js');
+const { withOffWords, withPublicWords, bannedLeaks, offWordCount } = await import('./helpers/offwords.js');
 const { UPDATING_OFF } = await import('./helpers/serieswords.js');
 
 const OFF_FIXTURE = 'series-words-off-home.json';
@@ -171,7 +171,8 @@ const OFF_IGNORE = [
 ];
 describe('everyday words: the home screen and its sheets', () => {
   it('shows exactly the recorded everyday words', () => {
-    checkAgainstFixture(OFF_FIXTURE, withOffWords(() => snapshot(everything)), UPDATING_OFF);
+    // as a device without the family code shows it (the public build)
+    checkAgainstFixture(OFF_FIXTURE, withPublicWords(() => snapshot(everything)), UPDATING_OFF);
   });
 
   it('shows no word of the family\'s set, and plenty of the everyday ones', () => {

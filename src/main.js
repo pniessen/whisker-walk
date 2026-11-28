@@ -70,6 +70,9 @@ import { createButtonUses } from './ui/buttonwords.js';
 import { tickAutoSniff } from './game/autosniff.js';
 import { createAreaLoader } from './game/areaload.js';
 import { effectiveArea } from './edition.js';
+import { seriesMode, setSeriesMode, seriesAvailable } from './wordset.js';
+import { createFamilyLock, wordSetFor, startAfterFamily } from './serieslock.js';
+import { hasFamilyKey } from './serieskey.js';
 import { createWalkLifecycle, chatHintLine, pauseCardFor, takeStartLines, resumeLabel, cardMode, SKIP_LESSON_ID, PAUSE_SOUND_ID, PAUSE_MUSIC_ID, PAUSE_VIEW_CLASS, pauseSoundOf } from './game/walk.js';
 import { applyDenSpot } from './game/denlive.js';
 import { createLazyDenShop } from './ui/denshoplazy.js';
@@ -143,12 +146,20 @@ try {
   note('gl', err);
 }
 
+// The family's words (src/serieslock.js): a device that holds the key opens the sealed set
+// before the first screen, so that screen is already in the family's words. The wait is
+// capped, and a device with no key never waits at all.
+const family = createFamilyLock({ storage: window.localStorage });
+const FAMILY_WAIT_MS = 1500;
+// Set by init(): puts the words the save wants in use and redraws the home screen.
+let wordsChanged = () => {};
+
 if (!renderer) {
   overlay.classList.remove('hidden');
   overlay.innerHTML =
     '<div class="pause-card"><p>Sorry — your browser could not start WebGL, which Whisker Walk needs. Try updating your browser or enabling hardware acceleration.</p></div>';
 } else {
-  init();
+  startAfterFamily({ hasKey: hasFamilyKey(window.localStorage), restore: family.restore, init, late: () => wordsChanged(), waitMs: FAMILY_WAIT_MS });
 }
 
 function init() {
@@ -200,6 +211,22 @@ function init() {
   // .hud-controls bar would keep showing alongside the touch UI after an
   // onFirstTouch upgrade.
   const progression = createProgression(window.localStorage);
+  // Which words this save reads in (its own choice, else the family's where this device can show them).
+  function applyWordSet() {
+    const want = wordSetFor(progression.state, seriesAvailable());
+    if (seriesMode() !== want) setSeriesMode(want);
+  }
+  applyWordSet();
+  // A typed family code turns the words on for this save (the box says "Your family words are on!").
+  async function tryFamilyCode(normalized) {
+    const answer = await family.tryCode(normalized);
+    if (answer === 'unlocked') {
+      progression.setWordSet('on');
+      applyWordSet();
+    }
+    return answer;
+  }
+  wordsChanged = () => { applyWordSet(); try { homebase.refresh(); } catch { /* the home screen is not built yet */ } };
   // Fire and forget: asks the browser not to clear the save under storage pressure.
   askToKeepSaves();
   const album = createAlbum(window.localStorage);
@@ -259,7 +286,7 @@ function init() {
     // (never in a walk), and tells the Cloud save sheet when it has something to say
     atHome: () => !session,
     onCatStatus: () => { try { homebase.refreshSync(); } catch { /* the home screen is not built yet */ } },
-    onApplied: () => { try { homebase.refresh(); } catch { /* the home screen is not built yet */ } },
+    onApplied: () => { try { wordsChanged(); } catch { /* the home screen is not built yet */ } },
   });
 
   const hud = createHud();
@@ -696,7 +723,7 @@ function init() {
   const homebaseCloud = createHomebaseCloud({ MP, pid, getCloud, getPsecret, onlineAllowed: togetherAllowed, pushProfileNow, blockList });
   // "Delete my online data" on the Cloud save sheet (src/game/onlinedelete.js).
   const onlineDelete = createOnlineDelete({ MP, pid, getCloud: openCloud, getPsecret, sync, progression });
-  const homebase = createHomeBase({ players: PLAYER_BOOT.ok && RAW_STORAGE ? { raw: RAW_STORAGE, saveKey: SAVE_KEY } : null, progression, album, onStartWalk: beginWalkFromHomebase, rooms, sync, onlineDelete, cloud: homebaseCloud, settings, onSettingsChange: applySettings, onTvChange: (on) => tvLoader.apply(on), onVisitDen: beginDenWalk, onOpenDen: (o) => denShop.openHome(o), colonySync, myId: pid, toast: cloudToast, onCelebrate: () => audio.unlockFanfare(), onBirthdaySong: () => audio.playTune(birthdayTune(), settings.get('musicVolume')), onAudioWake: () => { const c = audio.getContext(); if (c.state === 'suspended') c.resume?.()?.catch?.(() => {}); }, onCardsClosed: () => showColonyNews([]), haptics: haptics.available, nearby, getIsTouch: () => isTouch });
+  const homebase = createHomeBase({ players: PLAYER_BOOT.ok && RAW_STORAGE ? { raw: RAW_STORAGE, saveKey: SAVE_KEY } : null, progression, album, onStartWalk: beginWalkFromHomebase, rooms, sync, onlineDelete, cloud: homebaseCloud, settings, onSettingsChange: applySettings, onTvChange: (on) => tvLoader.apply(on), onVisitDen: beginDenWalk, onOpenDen: (o) => denShop.openHome(o), colonySync, myId: pid, toast: cloudToast, onCelebrate: () => audio.unlockFanfare(), onBirthdaySong: () => audio.playTune(birthdayTune(), settings.get('musicVolume')), onAudioWake: () => { const c = audio.getContext(); if (c.state === 'suspended') c.resume?.()?.catch?.(() => {}); }, onCardsClosed: () => showColonyNews([]), haptics: haptics.available, nearby, getIsTouch: () => isTouch, family: { tryCode: tryFamilyCode }, onWordsChange: () => wordsChanged() });
   // Visit milestones: count this open before show(), so the header badge has
   // the number. A milestone's celebration comes before every other card; the
   // farewell and the news follow once it closes. A plain visit shows the

@@ -80,7 +80,7 @@ const TABLE = Object.freeze({
   'place.groupLand': (group) => `${group} land`,
 
   // ---- the star name ---------------------------------------------------------
-  'star.pick': 'Or pick a star name',
+  'star.pick': '',
 
   // ---- a group cat on a walk -------------------------------------------------
   'patrol.prompt': (name) => `E — patrol with ${name}`,
@@ -125,23 +125,23 @@ const TABLE = Object.freeze({
   'journal.chasedOff': 'Intruders chased off',
 
   // ---- the special fight moves: the name, and the short name on a button -----
-  'move.rearUpSwat.name': 'Rear-up Swat',
+  'move.rearUpSwat.name': 'Swat',
   'move.rearUpSwat.short': 'Swat',
-  'move.leapScratch.name': 'Leap and Scratch',
+  'move.leapScratch.name': 'Leap',
   'move.leapScratch.short': 'Leap',
   'move.pin.name': 'Pin',
   'move.pin.short': 'Pin',
-  'move.rollingTumble.name': 'Rolling Tumble',
+  'move.rollingTumble.name': 'Tumble',
   'move.rollingTumble.short': 'Tumble',
 
   // ---- landmark labels -------------------------------------------------------
-  'landmark.woods.oak': 'the great oak',
-  'landmark.woods.oakLookout': 'great oak lookout',
-  'landmark.woods.oakSquirrels': 'two squirrels racing up the great oak',
-  'landmark.river.warmRocks': 'sun-warmed rocks',
-  'landmark.river.warmPebble': 'a sun-warmed pebble on the low rock',
-  'landmark.island.ring': 'the meeting ring under the old ash',
-  'landmark.island.stoneFind': 'a bright beetle wing on a meeting stone',
+  'landmark.woods.oak': 'the grandfather oak',
+  'landmark.woods.oakLookout': 'grandfather oak lookout',
+  'landmark.woods.oakSquirrels': 'two squirrels racing up the grandfather oak',
+  'landmark.river.warmRocks': 'heron rocks',
+  'landmark.river.warmPebble': 'a warm pebble on the low rock',
+  'landmark.island.ring': 'the stone ring under the old ash',
+  'landmark.island.stoneFind': 'a bright beetle wing on a flat stone',
 
   // ---- her birthday (2026-11-21): the Gathering on the island ----------------
   // the home screen's line above Explore while the event is on

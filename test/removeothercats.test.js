@@ -19,7 +19,7 @@ const made = (names) => {
   for (const n of names) p.createCustomCat({ name: n, personality: 'steady', look });
   return p;
 };
-afterEach(() => { setSeriesMode(SERIES_ON); for (const id of seriesModes()) removeWordSet(id); });
+afterEach(() => { setSeriesMode(SERIES_ON); for (const id of seriesModes()) if (id !== 'on' && id !== 'off') removeWordSet(id); });
 
 describe('removeOtherCats', () => {
   it('keeps the cat she walks as and drops the rest, their scars and her sleepers', () => {
@@ -84,7 +84,6 @@ describe('the words', () => {
     const lines = () => [phrase('cats.removeOthers'), phrase('cats.removeAsk', 2), phrase('cats.removeAsk', 1), phrase('cats.removeKeep', 'Ash'), phrase('cats.removeKeepNone'), phrase('cats.removeYes')];
     const on = lines();
     expect(on.join(' ')).toMatch(/cannot be undone/);
-    addWordSet('off', off);
     setSeriesMode('off');
     expect(lines()).toEqual(on);
   });
