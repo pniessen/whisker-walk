@@ -7,6 +7,7 @@ import { snowvilleCollectibles, snowvilleScenics, createSnowvilleFindsLife } fro
 import { wingColliders, wingPerches, wingStory } from './snowvillewingplan.js';
 import { drawWing } from './snowvillewingparts.js';
 import { drawDetail } from './snowvilledetail.js';
+import { drawLore } from './snowvillelore.js';
 import { detailColliders } from './snowvilledetailplan.js';
 import { skiColliders } from './snowvilleskisplan.js';
 import { createWing } from './snowvillewinglive.js';
@@ -24,7 +25,7 @@ Object.assign(ST, {
     colliders: () => [...wingColliders(), ...detailColliders(), ...skiColliders()],
     perches: wingPerches,
     story: wingStory(),
-    draw: (kit, M, opts) => { drawWing(kit, M); drawDetail(kit, M, opts); drawRun(kit, M); drawSkis(kit, M); }, // the wing's drawing and the round-two detail (houses, trees, notices, village)
+    draw: (kit, M, opts) => { drawWing(kit, M); drawDetail(kit, M, opts); drawLore(kit, M, opts); drawRun(kit, M); drawSkis(kit, M); }, // the wing's drawing and the round-two detail (houses, trees, notices, village)
     wing: createWing,
     strayHomes, // four friendly cats at their own homes (round two)
     strayNotes: createStrayNotes,

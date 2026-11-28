@@ -77,7 +77,7 @@ export function build(scene, opts = {}) {
       ground: P.createSnowvilleGround(),
       // the flakes, the glints, the brazier's glow and her cheeks, with Tilly and chapter one (milestone V2) on top
       life: (ctx) => {
-        const light = createSnowvilleLight(ctx);
+        const light = createSnowvilleLight(ctx); // (ctx.season: a picture page or a test may pin the season; the game reads the date)
         const tilly = createTilly({ scene: ctx.scene, progression: ctx.progression, audio: ctx.audio, reducedMotion: ctx.reducedMotion, send: ctx.sendEvent });
         const wing = ST.b?.wing?.({ scene: ctx.scene, tilly, progression: ctx.progression, log: ctx.log, audio: ctx.audio, tier: ctx.tier, reducedMotion: ctx.reducedMotion, send: ctx.sendEvent }); // the hearth, the strings of lights and Lantern Night (milestone V5)
         const errand = ST.b?.errand?.({ scene: ctx.scene, reducedMotion: ctx.reducedMotion, progression: ctx.progression, log: ctx.log, audio: ctx.audio, roomSeed: ctx.roomSeed, visits: ctx.visits, tilly, send: ctx.sendEvent }); // Tilly's errand of the day (milestone V7, in stage b)
