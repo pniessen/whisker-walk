@@ -1,4 +1,4 @@
-import { box, cyl, ball, sheet, stripes, bunting, hash01 } from './fairkit.js';
+import { box, cyl, ball, sheet, stripes, bunting, hash01, seasonLook } from './fairkit.js';
 import { FAIR_PAINT } from './fairparts.js';
 
 // =============================================================================
@@ -38,10 +38,10 @@ export function lid(P, r, y, hex, n = 7, x = 0, z = 0, turn = 0, tilt = 0, a = 0
 // A half barrel of flowers: what the fair plants where the lawns have their
 // flower patches (the butterflies' corners). About 90 triangles.
 export const TUB = Object.freeze({ r: 0.42, h: 0.42 });
-const TUB_FLOWERS = Object.freeze([0xf2a0c0, 0xf9d648, 0xffffff, 0xf58a2e, 0xe8423a, 0xb98ae0]);
 export function flowerTub(K, salt = 0) {
   const P = K.solid;
   const { r, h } = TUB;
+  const TUB_FLOWERS = seasonLook().tub ?? seasonLook().bunting;
   // the staves (open: the soil and the leaves fill the top), one iron hoop, the soil
   cyl(P, r, r - 0.06, h, 0, 0, 0, 0xa8743f, { sides: 9, open: true });
   cyl(P, r + 0.012, r - 0.005, 0.06, 0, h - 0.13, 0, 0x4a4038, { sides: 9, open: true });

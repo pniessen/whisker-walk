@@ -175,6 +175,18 @@ export function catenary(a, b, sag, n) {
 }
 
 export const BUNTING_COLORS = Object.freeze([0xe8423a, 0xf6c92e, 0x3aa0e0, 0x4cba62, 0xf58a2e, 0xb061d6]);
+// (beauty pass 4) the fair's season, by the date: the same pieces, other paint (summer is the plain look above). setFairSeason(name) before a build picks one.
+export const SEASONS = Object.freeze({
+  spring: { bunting: [0xf7b6c8, 0xfff1a8, 0xb8e0f6, 0xbfe8b0, 0xf7cfa0, 0xd4b8f0], bulb: [0xfff0b8, 0xffd0e0, 0xd8f0ff, 0xfff0b8, 0xe8ffd0, 0xffe0f0], drift: [0xf8b8d0, 0xffffff, 0xfbd0e0] },
+  summer: { bunting: BUNTING_COLORS, tub: [0xf2a0c0, 0xf9d648, 0xffffff, 0xf58a2e, 0xe8423a, 0xb98ae0], get bulb() { return BULB_COLORS; }, drift: null },
+  autumn: { bunting: [0xc8431f, 0xe8a020, 0x8a4a1a, 0xd9702a, 0x9a2f22, 0xb8892a], bulb: [0xfff0b8, 0xffd75a, 0xffb04a, 0xff8f6a, 0xffd75a, 0xfff0b8], drift: [0xd9531e, 0xe8a020, 0x9a3a1c, 0xc47a22] },
+  winter: { bunting: [0xc83a3a, 0xfff4e0, 0x2f7a4a, 0xf2c230, 0xa8d0f0, 0xc83a3a], bulb: [0xfff0b8, 0xffd75a, 0xfff0b8, 0xffe08a, 0xff8f6a, 0xfff0b8], drift: [0xffffff, 0xe8f2ff, 0xfff4d8] },
+});
+export const seasonOf = (d = new Date()) => ['winter', 'winter', 'spring', 'spring', 'spring', 'summer', 'summer', 'summer', 'autumn', 'autumn', 'autumn', 'winter'][d.getMonth()];
+let season = seasonOf();
+export const fairSeason = () => season;
+export const setFairSeason = (name) => { season = SEASONS[name] ? name : seasonOf(); };
+export const seasonLook = () => SEASONS[season];
 export function bunting(P, a, b, { sag = 0.5, every = 0.55, size = 0.34, salt = 0, wire = 0x5a4a3a } = {}) {
   const len = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
   const n = Math.max(2, Math.round(len / every));
@@ -189,7 +201,7 @@ export function bunting(P, a, b, { sag = 0.5, every = 0.55, size = 0.34, salt = 
     const q1 = [q[0] + (p[0] - q[0]) * g, q[1] + (p[1] - q[1]) * g, q[2] + (p[2] - q[2]) * g];
     const tip = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2 - size, (p[2] + q[2]) / 2];
     // the pennant's tip flutters (canvasOf's shader); its top edge is held by the wire
-    swayOf(sheet(P, [p1, q1, tip], BUNTING_COLORS[(i + salt) % BUNTING_COLORS.length]), [0, 0, 1]);
+    swayOf(sheet(P, [p1, q1, tip], seasonLook().bunting[(i + salt) % 6]), [0, 0, 1]);
   }
   return pts;
 }
@@ -246,7 +258,7 @@ export function bulb(P, x, y, z, hex = BULB_COLORS[0], r = 0.072) {
 }
 // Bulbs strung along the line a -> b, with its wire. At dusk the chase runs
 // along the string from a to b.
-export function bulbString(P, W, a, b, { sag = 0.4, every = 0.7, salt = 0, wire = 0x4a4038, colors = BULB_COLORS } = {}) {
+export function bulbString(P, W, a, b, { sag = 0.4, every = 0.7, salt = 0, wire = 0x4a4038, colors = seasonLook().bulb } = {}) {
   const len = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
   const n = Math.max(2, Math.round(len / every));
   const pts = catenary(a, b, sag, n);
