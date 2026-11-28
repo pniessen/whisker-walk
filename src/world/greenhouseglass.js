@@ -24,8 +24,8 @@ export const COL = Object.freeze({
 });
 // Frosted: 0.32 on the walls, 0.34 on the roof (the owner's 25 to 35 percent), a wetter edge in the lowest 0.4 m
 // that stays inside the band.
-// Beauty pass 4: the glass is drawn from both sides since pass 3, so the hall read milky; each layer is thinner now (0.21 / 0.23: about 0.38 seen through two).
-export const GLASS_ALPHA = Object.freeze({ wall: 0.2, roof: 0.22, wet: 0.01 });
+// Beauty pass 4: the glass is drawn from both sides since pass 3, so the hall read milky; each layer is thinner now (0.21 / 0.23: about 0.38 seen through two); pass 10: 0.17 / 0.19 (the hall still read a little hazy).
+export const GLASS_ALPHA = Object.freeze({ wall: 0.17, roof: 0.19, wet: 0.01 });
 const ARC_SEGMENTS = 12;
 const RIB_X = [-14, -12, -10, -8, -6, -4, -1.5, 1.5, 4, 6, 8, 10, 12, 14]; // 14 ribs; the middle bay is the door's
 

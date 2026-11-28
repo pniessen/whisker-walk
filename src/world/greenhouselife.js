@@ -43,6 +43,7 @@ import { createCreatures, dayLook } from './greenhousecreatures.js';
 import { createWeatherFx } from './greenhouseweather.js';
 import { createVistas } from './greenhousevista.js';
 import { createVoice } from './greenhousevoice.js';
+import { allocate, capGain, lightShare } from './greenhousebudget.js';
 
 export const GH_SEED_SALT = 0x6e5d1;
 export const GH_WATER_SALT = 0x6e5d2;
@@ -276,7 +277,7 @@ export function createGreenhouseLife(ctx) {
         const goal = (raining ? 0.4 : 1) * (ctx.dusk ? 0.7 : 1) * (1 + 0.22 * day.noon - 0.25 * day.morning + 0.7 * wx.state.sun);
         react.gain += (goal - react.gain) * Math.min(1, step * 0.8);
         const cloud = reducedMotion ? 1 : 0.84 + 0.16 * Math.sin(t * 0.11);
-        const gain = react.gain * cloud * (1 + 0.3 * vistas.state.k);
+        const gain = capGain(react.gain * cloud * (1 + 0.3 * vistas.state.k)); // pass 10: one shared cap on the shafts
         const warm = ctx.dusk ? 1 : day.warm;
         for (const sh of [shafts, ...roomShafts]) { if (sh) { sh.userData.shaft.uGain.value = gain; sh.userData.shaft.uWarm.value = warm; } }
         for (const mm of [mist, roomMist]) if (mm) { mm.userData.mist.uWarm.value = Math.max(warm, season === 'winter' ? 0.65 : 0, wx.state.cosy, 0.3 * wx.state.haze, 0.4 * vistas.state.k); mm.material.opacity = 1 - 0.15 * day.noon; } // winter: the lamps' halos stay warm all day
@@ -346,6 +347,12 @@ export function createGreenhouseLife(ctx) {
         } else if (!allWatered) {
           can.position.y = ground.y(can.position.x, can.position.z);
         }
+      }
+      // pass 10: at most two event effects at full strength (her voice > the golden moment > a weather event > the night's visitors)
+      {
+        const w = wx.state, ev = allocate({ voice: voice.live, gold: vistas.state.gold > 0.02, weather: Math.max(w.rain, w.sun, w.glow, w.wind) > 0.3, night: night.active });
+        vistas.state.mayStart = ev.goldMayStart; vistas.state.dim = Math.min(1, ev.gold) * lightShare(1.2 + vistas.state.gold + w.sun);
+        wx.points.material.opacity = ev.weather; night.setDim(ev.night); voice.points.material.opacity = ev.voice;
       }
       vistas.update(dt, catPos, spot.still);
       voice.update(dt, t, catPos, session, camera?.position ?? null);

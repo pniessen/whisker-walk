@@ -13,7 +13,7 @@
 import * as THREE from 'three';
 import { hash01 } from './warehouselook.js';
 import { GH_STORY_SALT } from './greenhousestory.js';
-import { DAPPLE_FX, SHAFT_SPOTS } from './greenhouseglass.js';
+import { DAPPLE_FX, SHAFT_SPOTS, NIGHT } from './greenhouseglass.js';
 import { PERK, WIND } from './greenhouseplants.js';
 
 const SALT = GH_STORY_SALT + 70;
@@ -104,7 +104,7 @@ export function createWeatherFx({ scene, reducedMotion = false, lite = false, du
       Object.assign(state, eventsAt(clock, { rain: reducedMotion ? (raining ? 1 : 0) : rain, dusk, day, sinceRain, reducedMotion }));
       if (force && typeof force === 'object') for (const k of Object.keys(force)) state[k] = force[k]; // (pictures and tests)
       void t;
-      DAPPLE_FX.sun.value = Math.max(state.sun, state.glow * 0.55); DAPPLE_FX.wet.value = state.rain;
+      DAPPLE_FX.sun.value = Math.max(state.sun, state.glow * 0.55); DAPPLE_FX.wet.value = state.rain * (1 - 0.5 * Math.min(1, NIGHT.value)); // pass 10: rain caustics were the brightest thing in a night hall
       PERK.value = Math.min(1, state.sun * 1.15); WIND.value = state.wind;
       if (fog && Number.isFinite(fog.far)) { // a haze: the garden's far reach comes in a little (at most a fifth)
         const nk = 1 - 0.2 * (lite ? 0 : Math.min(1, state.haze + state.glow * 0.4));

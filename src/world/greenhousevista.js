@@ -12,6 +12,7 @@ import * as THREE from 'three';
 import { hash01 } from './warehouselook.js';
 import { GH_STORY_SALT } from './greenhousestory.js';
 import { dotSprite } from './greenhouseweather.js';
+import { voiceFree } from './greenhousebudget.js';
 
 const SALT = GH_STORY_SALT + 80;
 // x, z: where she stands; r: how near counts; focal: what the picture is about (x, y, z); size: the halo's width (m)
@@ -58,7 +59,7 @@ export function createVistas({ scene, audio = null, reducedMotion = false, lite 
   scene?.add(points);
   const fill = scene?.children?.find?.((o) => o.isHemisphereLight) ?? null;
   const fog = scene?.fog ?? null;
-  const state = { k: 0, id: null, gold: 0, golden: false };
+  const state = { k: 0, id: null, gold: 0, golden: false, dim: 1, mayStart: true }; // (pass 10: dim and mayStart come from the shared event budget)
   let k = 0, applied = 0, fk = 1, goldAt = -1, done = false, disposed = false, clock = 0, last = null;
 
   const tint = (a) => { // move the fill's sky colour by `a` of the warm shift (undone exactly by the next call)
@@ -67,7 +68,7 @@ export function createVistas({ scene, audio = null, reducedMotion = false, lite 
     fill.color.r = Math.max(0, fill.color.r + WARM.r * d); fill.color.g = Math.max(0, fill.color.g + WARM.g * d); fill.color.b = Math.max(0, fill.color.b + WARM.b * d);
     applied = a;
   };
-  const chime = () => { try { if (audio && audio.isMuted?.() === false) audio.chime?.(); } catch { /* sound is optional */ } };
+  const chime = () => { try { if (audio && audio.isMuted?.() === false && voiceFree(audio, 1.2)) audio.chime?.(); } catch { /* sound is optional */ } };
 
   return {
     points,
@@ -86,7 +87,7 @@ export function createVistas({ scene, audio = null, reducedMotion = false, lite 
       tint(Math.round(k * 200) / 200);
       if (fog && Number.isFinite(fog.far)) { const nk = 1 - FOG_PULL * (lite ? 0 : k); if (nk !== fk) { fog.far = fog.far / fk * nk; fk = nk; } }
       // the golden moment: still 3+ s at a vista, once a walk
-      if (!done && at && at.k > 0.7 && still >= STILL_NEEDED) { done = true; goldAt = clock; state.golden = true; chime(); }
+      if (!done && at && at.k > 0.7 && still >= STILL_NEEDED && state.mayStart) { done = true; goldAt = clock; state.golden = true; chime(); }
       const g = goldAt < 0 ? 0 : clock - goldAt;
       state.gold = goldAt < 0 || g > GOLD_LEN ? 0 : sm(g / 1.2) * sm((GOLD_LEN - g) / 2);
       const halo = k > 0.02 && last;
@@ -97,7 +98,7 @@ export function createVistas({ scene, audio = null, reducedMotion = false, lite 
       const br = reducedMotion ? 1 : 0.85 + 0.15 * Math.sin(clock * 1.1);
       pos.set([f.x, f.y, f.z], 0);
       size[0] = (last?.size ?? 2) * (1 + 0.35 * state.gold);
-      col.set([1, 0.72, 0.35, halo ? 0.6 * k * br * (1 + 0.5 * state.gold) : 0], 0);
+      col.set([1, 0.72, 0.35, halo ? Math.min(0.75, 0.6 * k * br * (1 + 0.5 * state.gold)) * state.dim : 0], 0);
       const cx = cat?.x ?? last?.x ?? 0, cz = cat?.z ?? last?.z ?? 0;
       for (let i = 0; i < SP; i++) { // sparkles: pollen rising round her, each on its own beat
         const h = hash01(i, 1, SALT), h2 = hash01(i, 2, SALT), a = h * 6.283 + (reducedMotion ? 0 : clock * (0.3 + 0.2 * h2));

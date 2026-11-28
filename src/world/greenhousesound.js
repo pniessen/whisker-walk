@@ -23,6 +23,7 @@ import { hash01 } from './warehouselook.js';
 import { loudness } from './roofssound.js';
 import * as P from './greenhouseplan.js';
 import { ORCHID_ROOM as ORCHID } from './greenhouserooms.js';
+import { voiceFree } from './greenhousebudget.js';
 
 export const GH_SOUND_SALT = 0x6e5e0; // the four streams below add their own offset (all distinct from every other salt)
 export const STREAM = Object.freeze({ drip: 0, trickle: 1, bird: 2, rain: 3, bee: 4, brush: 5, cricket: 6, tin: 7, hush: 8, thunder: 9, whoosh: 10 });
@@ -76,7 +77,8 @@ export function createGreenhouseSound(audio, { weather = null, dusk = false, red
     return ac;
   }
   // one plink: a sine sliding f -> to over dur, a quick rise and a fall
-  function plink(c, f, to, at, dur, amp, rise = 0.01) {
+  function plink(c, f, to, at, dur, amp, rise = 0.01, event = false) {
+    if (!voiceFree(audio, at + dur, event)) return; // pass 10: at most 4 voices at once (3 for the ambient ticks)
     const t0 = c.currentTime + at;
     const osc = c.createOscillator();
     const g = c.createGain();
@@ -103,7 +105,7 @@ export function createGreenhouseSound(audio, { weather = null, dusk = false, red
       else if (k === 'bird') { const f = 2800 + 700 * h; plink(c, f, f + 700, 0, 0.07, amp); plink(c, f + 100, f + 800, 0.11, 0.07, amp); }
       else if (k === 'bee') { const f = 170 + 50 * h; plink(c, f, f * 1.18, 0, 0.9, amp, 0.3); plink(c, f * 1.5, f * 1.75, 0.05, 0.8, amp * 0.5, 0.3); plink(c, f * 2.01, f * 2.2, 0.02, 0.85, amp * 0.3, 0.3); }
       else if (k === 'brush') { for (let i = 0; i < 3; i++) plink(c, 5200 + 2600 * hash01(count[k], 5 + i, GH_SOUND_SALT + STREAM[k]), 3800, i * 0.03, 0.025, amp, 0.004); }
-      else if (k === 'thunder') { plink(c, 70 + 20 * h, 38, 0, 2.6, amp, 0.5); plink(c, 52, 30, 0.35 + 0.4 * h, 2.2, amp * 0.8, 0.6); } // far off: low, slow, a second roll
+      else if (k === 'thunder') { plink(c, 70 + 20 * h, 38, 0, 2.6, amp, 0.5, true); plink(c, 52, 30, 0.35 + 0.4 * h, 2.2, amp * 0.8, 0.6, true); } // far off: low, slow, a second roll
       else if (k === 'whoosh') plink(c, 260 + 120 * h, 150, 0, 1.9, amp, 0.8); // a breath through the vents
       else if (k === 'tin') plink(c, 900 + 900 * h, 700 + 400 * h, 0, 0.05, amp, 0.003);
       else if (k === 'hush') plink(c, 240 + 50 * h, 200, 0, 1.6, amp, 0.7);
@@ -143,7 +145,7 @@ export function createGreenhouseSound(audio, { weather = null, dusk = false, red
       if (disposed || !audio || muted()) return false;
       const c = bus();
       if (!c) return false;
-      try { plink(c, 470, 400, 0, 0.34, 0.016 * lv, 0.08); plink(c, 430, 330, 0.5, 0.55, 0.016 * lv, 0.1); } catch { broken = true; return false; }
+      try { plink(c, 470, 400, 0, 0.34, 0.016 * lv, 0.08, true); plink(c, 430, 330, 0.5, 0.55, 0.016 * lv, 0.1, true); } catch { broken = true; return false; }
       return true;
     },
     update(dt, catPos, under = false, fx = null) {
