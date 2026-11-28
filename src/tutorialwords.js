@@ -142,6 +142,12 @@ export const WORDS = Object.freeze({
   'pad.settings.tv': same('TV mode'),
   'pad.settings.tv-note': two('Big text for the sofa.', 'Big text for the sofa. Full screen: ⌃⌘F.'),
   'pad.settings.tv-failed': same('TV mode could not load. Try again later.'),
+  // Crash reports (src/crashlog.js): the Settings switch, its one-line note and the Copy report button.
+  'settings.crash-upload': same('Send crash reports to the game maker'),
+  'settings.crash-upload-note': same('No names or save data. Only what broke and where.'),
+  'settings.crash-copy': same('Copy report'),
+  'settings.crash-copied': same('Report copied 📋'),
+  'settings.crash-copy-hint': same('Touch and keep the text, then choose Copy.'),
   // Shown only after a save write has failed; names no group or rank, so both sets share it.
   'settings.save-failed': same('This device could not save. Free up space, then play again.'),
 });

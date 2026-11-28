@@ -295,6 +295,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
   // forget that "Swap!" was clicked once and is waiting for its second click.
   let tradeBusy = false;
   let tradeError = null;
+  let crashReportText = null;    // the Copy report text, shown in a box when the clipboard is not available
   let tradeGive = null;          // the selected items, remembered across renders
   let tradeWant = null;
   let tradeConfirmId = null;     // the incoming offer whose first click was made
@@ -660,6 +661,10 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
           ${settingsSwitchHtml('set-hide-chat', !!s.hideChat, 'Hide chat bubbles')}
           ${settingsSwitchHtml('set-tv-mode', !!(tvState.on || tvState.pending), tutorialLine('pad.settings.tv'))}
           <p class="settings-note" id="set-tv-note">${escapeHtml(tutorialLine('pad.settings.tv-note', { touch: !!getIsTouch() }))}</p>
+          ${settingsSwitchHtml('set-crash-upload', s.crashUpload === true, tutorialLine('settings.crash-upload'))}
+          <p class="settings-note" id="set-crash-note">${escapeHtml(tutorialLine('settings.crash-upload-note'))}</p>
+          <button type="button" id="set-crash-copy" class="hb-row"><span class="hb-row-name">${escapeHtml(tutorialLine('settings.crash-copy'))}</span></button>
+          ${crashReportText === null ? '' : `<p class="settings-note">${escapeHtml(tutorialLine('settings.crash-copy-hint'))}</p><textarea id="set-crash-text" class="settings-crash-text" readonly rows="8">${escapeHtml(crashReportText)}</textarea>`}
         </div>
       </section>`;
   }
@@ -2450,6 +2455,21 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
           render();
         },
       });
+      return;
+    }
+    if (e.target.id === 'set-crash-upload' && settings) { settings.set('crashUpload', e.target.checked === true); onSettingsChange?.(); render(); return; }
+    if (e.target.closest?.('#set-crash-copy')) {
+      // The report (sanitised, bounded) is read from this device's crash log, in its own small chunk.
+      try {
+        const m = await import('../crashlog.js');
+        const text = m.reportText(globalThis.localStorage, BUILD_STAMP);
+        let copied = false;
+        try { await globalThis.navigator?.clipboard?.writeText(text); copied = true; } catch { copied = false; }
+        if (copied) { crashReportText = null; toast?.(tutorialLine('settings.crash-copied')); } else crashReportText = text; // no clipboard (an iPad page): show it for a long-press copy
+      } catch (err) {
+        note('error', err);
+      }
+      render();
       return;
     }
     if (e.target.id === 'set-muted') {

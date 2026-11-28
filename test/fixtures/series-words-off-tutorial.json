@@ -349,6 +349,26 @@
    "touch": "TV mode could not load. Try again later.",
    "keys": "TV mode could not load. Try again later."
   },
+  "settings.crash-upload": {
+   "touch": "Send crash reports to the game maker",
+   "keys": "Send crash reports to the game maker"
+  },
+  "settings.crash-upload-note": {
+   "touch": "No names or save data. Only what broke and where.",
+   "keys": "No names or save data. Only what broke and where."
+  },
+  "settings.crash-copy": {
+   "touch": "Copy report",
+   "keys": "Copy report"
+  },
+  "settings.crash-copied": {
+   "touch": "Report copied 📋",
+   "keys": "Report copied 📋"
+  },
+  "settings.crash-copy-hint": {
+   "touch": "Touch and keep the text, then choose Copy.",
+   "keys": "Touch and keep the text, then choose Copy."
+  },
   "settings.save-failed": {
    "touch": "This device could not save. Free up space, then play again.",
    "keys": "This device could not save. Free up space, then play again."
@@ -711,6 +731,26 @@
   "pad.settings.tv-failed": {
    "touch": "TV mode could not load. Try again later.",
    "keys": "TV mode could not load. Try again later."
+  },
+  "settings.crash-upload": {
+   "touch": "Send crash reports to the game maker",
+   "keys": "Send crash reports to the game maker"
+  },
+  "settings.crash-upload-note": {
+   "touch": "No names or save data. Only what broke and where.",
+   "keys": "No names or save data. Only what broke and where."
+  },
+  "settings.crash-copy": {
+   "touch": "Copy report",
+   "keys": "Copy report"
+  },
+  "settings.crash-copied": {
+   "touch": "Report copied 📋",
+   "keys": "Report copied 📋"
+  },
+  "settings.crash-copy-hint": {
+   "touch": "Touch and keep the text, then choose Copy.",
+   "keys": "Touch and keep the text, then choose Copy."
   },
   "settings.save-failed": {
    "touch": "This device could not save. Free up space, then play again.",

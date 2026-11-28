@@ -393,6 +393,21 @@ function init() {
   });
   // Couch play (src/coop/): the Settings switch "Two-player couch mode" (per device), or ?coop=1 for this page load; ?coop=0 turns it off for this load.
   const couchOn = () => coopMode(location.search, settings.get('couchMode'));
+  // The crash log (src/crashlog.js, its own small chunk): a sanitised copy of the last failures on this device, and,
+  // only if "Send crash reports" is switched on in Settings, one upload per new failure. Never blocks start-up.
+  import('./crashlog.js').then((m) => m.startCrashLog({
+    diag: diagnostics,
+    storage: window.localStorage,
+    settings,
+    context: () => ({
+      place: session?.areaId ?? 'home',
+      build: BUILD_STAMP,
+      tier: `${['phone', 'tablet', 'laptop', 'tv'].find((c) => document.documentElement.classList.contains(c)) ?? 'desktop'}/${session?.tier?.name ?? 'none'}`,
+      couch: couchOn(),
+      room: !!session?.net,
+    }),
+    send: m.liveSender({ url: import.meta.env.VITE_SUPABASE_URL, key: import.meta.env.VITE_SUPABASE_ANON_KEY }),
+  })).catch(() => {});
   loadCouch = () => {
     if (!couchOn()) return;
     loadCouch = null;
