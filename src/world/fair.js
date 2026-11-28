@@ -596,6 +596,7 @@ export function cullGroundFaces(scene, names) {
 // THE GROUND'S BEAUTY (world/fairground.js): where its scuffs may lie. Trodden grass (fairWear) that is open: off the sawdust, the rides' rings, the buildings, the big flat things
 // and the pool; none east of x = 20 (the coaster's side and the Viking boat's).
 import { groundPlan, drawGround } from './fairground.js';
+import { confettiPlan, drawConfetti, poleFinery } from './fairfinery.js';
 function groundOpenCheck(segs) {
   const circles = [...WAGONS, FORTUNE_AT, BANDSTAND_AT, MUSIC_BOX_AT, ...PICNIC_RUGS, DUCK_POOL].map((t) => [t.x, t.z, 3.5]); // the big and the flat: a tuft keeps 3.5 m off each
   const blocks = [...STALLS.map(stallRect), ...RIDGE_TENTS.map(tentRect), STATION_DECK];
@@ -682,7 +683,7 @@ export function build(scene, { water = {}, wind, gateEnds = [] } = {}) {
 
     // bunting and bulbs over the midway, and round the plaza
     const top = POLE_H - 0.1;
-    for (const z of MIDWAY_POLE_Z) for (const s of [-1, 1]) parts.pole(K, s * MIDWAY_POLE_X, z, POLE_H);
+    for (const z of MIDWAY_POLE_Z) for (const s of [-1, 1]) { parts.pole(K, s * MIDWAY_POLE_X, z, POLE_H); poleFinery(K, s * MIDWAY_POLE_X, z, POLE_H, [0, z], z); }
     for (let i = 0; i < MIDWAY_POLE_Z.length - 1; i++) {
       const z0 = MIDWAY_POLE_Z[i];
       const z1 = MIDWAY_POLE_Z[i + 1];
@@ -696,6 +697,8 @@ export function build(scene, { water = {}, wind, gateEnds = [] } = {}) {
       poles: [...MIDWAY_POLE_Z.flatMap((z) => [[-MIDWAY_POLE_X, z], [MIDWAY_POLE_X, z]]), ...PLAZA_POLES.map((p) => [p.x, p.z])],
       ok: groundOpenCheck(trails.segs),
     }));
+    // (beauty pass 1) confetti and dropped popcorn on the midway and round the plaza: more flat pieces on the same list
+    drawConfetti(K.fence, confettiPlan(groundOpenCheck(trails.segs)));
     // At dusk the pole tops light soft warm pools on the ground under them
     // (render/dusk.js createLampPools finds anything tagged lampGlobeY): every
     // pole round the plaza, and one of each pair down the midway, side to
@@ -713,6 +716,7 @@ export function build(scene, { water = {}, wind, gateEnds = [] } = {}) {
     PLAZA_POLES.forEach((p, i) => {
       const q = PLAZA_POLES[(i + 1) % PLAZA_POLES.length];
       parts.pole(K, p.x, p.z, POLE_H);
+      poleFinery(K, p.x, p.z, POLE_H, [0, 0], i);
       parts.bunting(K.flags, [p.x, top, p.z], [q.x, top, q.z], { sag: 0.55, salt: i });
       parts.bulbString(K.bulbs, K.flags, [p.x, top - 0.35, p.z], [q.x, top - 0.35, q.z], { sag: 0.55, salt: i, every: 0.8 });
     });
