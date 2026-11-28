@@ -14,10 +14,10 @@ import { writeSummary } from './soak/summary.mjs';
 import { isKnownPlace } from './soak/save.mjs';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
-const USAGE = 'usage: soak-night.mjs --hours H [--minutes-per-run 4] [--out soak-out] [--places reef,moon] [--fresh] [--chrome path]';
+const USAGE = 'usage: soak-night.mjs --hours H [--minutes-per-run 4] [--out soak-out] [--places reef,moon] [--fresh] [--chrome path] [--size WxH] [--quality low|auto] [--eval-timeout S]';
 
 export function parseNightArgs(argv) {
-  const o = { hours: 8, perRun: 4, out: 'soak-out', places: null, fresh: false, chrome: null };
+  const o = { hours: 8, perRun: 4, out: 'soak-out', places: null, fresh: false, chrome: null, size: null, quality: null, evalTimeout: null };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const v = () => { if (argv[i + 1] === undefined) throw new Error(`${a} needs a value\n${USAGE}`); return argv[++i]; };
@@ -27,6 +27,9 @@ export function parseNightArgs(argv) {
     else if (a === '--places') { o.places = v().split(',').filter(Boolean); for (const p of o.places) if (!isKnownPlace(p)) throw new Error(`unknown place "${p}"`); }
     else if (a === '--fresh') o.fresh = true;
     else if (a === '--chrome') o.chrome = v();
+    else if (a === '--size') o.size = v();
+    else if (a === '--quality') o.quality = v();
+    else if (a === '--eval-timeout') o.evalTimeout = v();
     else throw new Error(`unexpected argument: ${a}\n${USAGE}`);
   }
   return o;
@@ -36,6 +39,9 @@ export function jobArgs(job, o, minutes) {
   const a = ['--seed', job.seed, '--place', job.place, '--cat', job.cat, '--tv', job.tv, '--throttle', job.throttle, '--couch', job.couch,
     '--hidden-tab', job.hiddenTab, '--minutes', minutes.toFixed(2), '--out', o.out];
   if (o.chrome) a.push('--chrome', o.chrome);
+  if (o.size) a.push('--size', o.size);
+  if (o.quality) a.push('--quality', o.quality);
+  if (o.evalTimeout) a.push('--eval-timeout', o.evalTimeout);
   return a;
 }
 

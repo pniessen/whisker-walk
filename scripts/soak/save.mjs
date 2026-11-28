@@ -37,8 +37,8 @@ export function buildSeedSave({ place, cat }) {
   return save;
 }
 
-export function seedSettings({ tv, couch }) {
-  return { muted: true, volume: 0, musicVolume: 0, tvMode: !!tv, couchMode: !!couch, showTips: false, perfReadout: true };
+export function seedSettings({ tv, couch, quality = 'auto' }) {
+  return { quality, muted: true, volume: 0, musicVolume: 0, tvMode: !!tv, couchMode: !!couch, showTips: false, perfReadout: true };
 }
 
 export const isKnownPlace = (p) => ALL_PLACES.includes(p);

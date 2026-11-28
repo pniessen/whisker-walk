@@ -1,10 +1,11 @@
 // Arguments for scripts/soak.mjs, and the replay command a crash report prints.
+import { parseSize } from './diagnose.mjs';
 import { isKnownCat, isKnownPlace } from './save.mjs';
 
-export const USAGE = 'usage: soak.mjs --seed N --place reef|moon|<id> --cat <preset|custom> [--tv 0|1] [--throttle K] [--minutes M] [--couch 0|1] [--out dir] [--chrome path] [--headed] [--hidden-tab 0|1] [--touch 0|1] [--self-test]';
+export const USAGE = 'usage: soak.mjs --seed N --place reef|moon|<id> --cat <preset|custom> [--tv 0|1] [--throttle K] [--minutes M] [--couch 0|1] [--out dir] [--chrome path] [--headed] [--hidden-tab 0|1] [--touch 0|1] [--self-test] [--eval-timeout S] [--size WxH] [--quality low|auto]';
 
 export const DEFAULTS = Object.freeze({
-  seed: 1, place: 'reef', cat: 'tabby', tv: 0, throttle: 1, minutes: 5, couch: 0, out: 'soak-out', chrome: null, headed: false, selfTest: false, hiddenTab: 0, touch: 0, dist: 'dist',
+  seed: 1, place: 'reef', cat: 'tabby', tv: 0, throttle: 1, minutes: 5, couch: 0, out: 'soak-out', chrome: null, headed: false, selfTest: false, evalTimeout: 20, size: '1280x720', quality: 'auto', hiddenTab: 0, touch: 0, dist: 'dist',
 });
 
 const int = (v, name, min, max) => {
@@ -39,6 +40,9 @@ export function parseSoakArgs(argv) {
     else if (a === '--chrome') o.chrome = val(++i, a);
     else if (a === '--headed') o.headed = true;
     else if (a === '--self-test') o.selfTest = true;
+    else if (a === '--eval-timeout') o.evalTimeout = int(val(++i, a), a, 5, 3600);
+    else if (a === '--size') { o.size = val(++i, a); parseSize(o.size); }
+    else if (a === '--quality') { o.quality = val(++i, a); if (!['low', 'auto'].includes(o.quality)) throw new Error('--quality is low or auto'); }
     else throw new Error(`unexpected argument: ${a}\n${USAGE}`);
   }
   if (!isKnownPlace(o.place)) throw new Error(`unknown place "${o.place}"`);
@@ -51,6 +55,9 @@ export function replayCommand(o) {
   const parts = ['node', 'scripts/soak.mjs', '--seed', o.seed, '--place', o.place, '--cat', o.cat, '--tv', o.tv, '--throttle', o.throttle,
     '--minutes', o.minutes, '--couch', o.couch, '--hidden-tab', o.hiddenTab, '--touch', o.touch];
   if (o.headed) parts.push('--headed');
+  if (o.evalTimeout !== DEFAULTS.evalTimeout) parts.push('--eval-timeout', o.evalTimeout);
+  if (o.size !== DEFAULTS.size) parts.push('--size', o.size);
+  if (o.quality !== DEFAULTS.quality) parts.push('--quality', o.quality);
   return parts.join(' ');
 }
 

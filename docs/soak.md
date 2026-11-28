@@ -69,6 +69,15 @@ few seconds, to prove the net works). Exit code 0 clean, 3 crash, 1 the soak its
 A crash's `replay` line repeats it. The same seed repeats the bot's plan of inputs; what the game does
 with them still depends on timing, so a crash may need a few tries (or the same `--throttle`).
 
+## Slow machines
+
+`--size 640x360` and `--quality low` (seeds the game's quality setting) lighten the load.
+`--eval-timeout S` (default 20) is how long a running page may go without answering; while the page is
+booting or loading a place the wait is at least 120 s. `run.json` and `crash.json` record the GL
+renderer (`gl`, `softwareGl`), page marks (`pageMarksMs`: botInstalled, pageLoaded, home,
+explorePressed, readyCard, walkStarted, firstFrame, frame10, frame60), Node timings, and a crash adds
+`Performance.getMetrics` and the last 30 console lines. `soak-night.mjs` passes the three flags on.
+
 ## All night
 
 ```

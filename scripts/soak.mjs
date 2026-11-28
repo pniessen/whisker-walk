@@ -11,12 +11,12 @@ import { parseSoakArgs, replayCommand, runName } from './soak/args.mjs';
 import { findChrome, launchChrome, openTab, evalIn } from './soak/chrome.mjs';
 import { startServer } from './soak/server.mjs';
 import { buildSeedSave, seedSettings, SAVE_KEY, SETTINGS_KEY } from './soak/save.mjs';
+import { BOOT_EVAL_TIMEOUT_MS, consoleLine, createRing, evalTimeoutFor, formatMetrics, isSoftwareGl, logLine, parseSize } from './soak/diagnose.mjs';
 import { mergeEntries } from './soak/groups.mjs';
 import { writeSummary } from './soak/summary.mjs';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const POLL_MS = 1000;
-const EVAL_TIMEOUT = 20e3;   // a page that does not answer for this long has hung
 const LOAD_TIMEOUT = 180e3;  // the game never reached a walk (slow throttled runs get this long)
 const CRASH_KINDS = new Set(['error', 'rejection', 'walk-ended']);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -25,7 +25,7 @@ const withTimeout = (p, ms, what) => Promise.race([p, new Promise((_, rej) => se
 export function injectedSource(opts) {
   const cfg = { seed: opts.seed, place: opts.place, couch: !!opts.couch, hiddenTab: !!opts.hiddenTab, touch: !!opts.touch, travel: true };
   const save = JSON.stringify(buildSeedSave({ place: opts.place, cat: opts.cat }));
-  const settings = JSON.stringify(seedSettings({ tv: opts.tv, couch: opts.couch }));
+  const settings = JSON.stringify(seedSettings({ tv: opts.tv, couch: opts.couch, quality: opts.quality }));
   const seed = `try { if (!localStorage.getItem('__soak_seeded')) { localStorage.setItem(${JSON.stringify(SAVE_KEY)}, ${JSON.stringify(save)}); localStorage.setItem(${JSON.stringify(SETTINGS_KEY)}, ${JSON.stringify(settings)}); localStorage.setItem('__soak_seeded', '1'); } } catch (e) {}`;
   return `${seed}\nwindow.__SOAK_CFG = ${JSON.stringify(cfg)};\n${readFileSync(join(HERE, 'soak', 'pagebot.js'), 'utf8')}`;
 }
@@ -59,13 +59,22 @@ export async function runSoak(opts, log = console.log) {
   let last = { step: 0, phase: 'boot' };
   const pageErrors = [];
   let renderer = null;
+  const consoleRing = createRing(30);
+  const timings = { runStart: 0 }; // ms since the run began, as Node saw them
+  const since = () => Date.now() - started;
+  const { w, h } = opts.tv && opts.size === '1280x720' ? { w: 1920, h: 1080 } : parseSize(opts.size);
   try {
     tab = await openTab(chrome.port, 'about:blank');
     await tab.send('Runtime.enable');
     await tab.send('Page.enable');
+    await tab.send('Log.enable').catch(() => {});
+    await tab.send('Performance.enable').catch(() => {});
+    tab.on('Runtime.consoleAPICalled', (p) => consoleRing.push(consoleLine(p)));
+    tab.on('Log.entryAdded', (p) => consoleRing.push(logLine(p.entry)));
+    tab.on('Page.loadEventFired', () => { timings.pageLoadedMs ??= since(); });
     tab.on('Runtime.exceptionThrown', (p) => pageErrors.push({ kind: 'error', message: (p.exceptionDetails?.exception?.description ?? p.exceptionDetails?.text ?? '').split('\n')[0].slice(0, 300), source: (p.exceptionDetails?.url ?? '').split('/').pop(), line: p.exceptionDetails?.lineNumber ?? 0 }));
     tab.on('Inspector.targetCrashed', () => { renderer = 'the page process crashed'; });
-    await tab.send('Emulation.setDeviceMetricsOverride', { width: opts.tv ? 1920 : 1280, height: opts.tv ? 1080 : 720, deviceScaleFactor: 1, mobile: false });
+    await tab.send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: false });
     if (opts.throttle > 1) await tab.send('Emulation.setCPUThrottlingRate', { rate: opts.throttle });
     await tab.send('Page.addScriptToEvaluateOnNewDocument', { source: injectedSource(opts) });
     await tab.send('Page.navigate', { url: pageUrl(srv.url, opts) });
@@ -79,7 +88,8 @@ export async function runSoak(opts, log = console.log) {
       await sleep(POLL_MS);
       let r;
       try {
-        const text = await withTimeout(evalIn(tab, 'window.__soak ? JSON.stringify({ step: __soak.step, phase: __soak.phase, events: __soak.events, diag: __soak.diag || null, hops: __soak.hops, places: __soak.places, hides: __soak.hides, pauses: __soak.pauses, prompt: __soak.lastPrompt, phases: __soak.phaseCounts }) : null'), EVAL_TIMEOUT, 'page answer');
+        const limit = evalTimeoutFor(last.phase === 'boot' && !last.step ? undefined : last.phase, opts.evalTimeout * 1000);
+        const text = await withTimeout(evalIn(tab, 'window.__soak ? JSON.stringify({ step: __soak.step, phase: __soak.phase, events: __soak.events, diag: __soak.diag || null, hops: __soak.hops, places: __soak.places, hides: __soak.hides, frames: __soak.frames, marks: __soak.marks, gl: __soak.gl, pauses: __soak.pauses, prompt: __soak.lastPrompt, phases: __soak.phaseCounts }) : null'), limit, 'page answer');
         r = text ? JSON.parse(text) : null;
       } catch (e) {
         crash = { kind: renderer ? 'renderer-crashed' : tab.closed ? 'chrome-died' : 'hang', message: renderer ?? e.message, entries: [{ kind: 'hang', message: renderer ?? e.message, source: '', line: 0 }] };
@@ -87,7 +97,8 @@ export async function runSoak(opts, log = console.log) {
       }
       if (!r) { if (Date.now() - started > LOAD_TIMEOUT) crash = { kind: 'never-started', message: 'the bot never came up', entries: [] }; continue; }
       last = r;
-      if (r.phase === 'walk') walkSeen = true;
+      timings.botAnswersMs ??= since();
+      if (r.phase === 'walk') { walkSeen = true; timings.walkMs ??= since(); }
       // --self-test: once a walk has run for a few seconds, throw a real error in the page, to prove the net catches it
       if (opts.selfTest && walkSeen && !selfTestDone && r.step > 120) { selfTestDone = true; await evalIn(tab, "setTimeout(() => { throw new Error('soak self-test: deliberate error'); }, 10)"); }
       if (!walkSeen && Date.now() - started > LOAD_TIMEOUT) { crash = { kind: 'never-started', message: `no walk after ${LOAD_TIMEOUT / 1000} s (phase ${r.phase})`, entries: [] }; break; }
@@ -104,7 +115,12 @@ export async function runSoak(opts, log = console.log) {
       }
     }
     const minutes = Math.round((Date.now() - started) / 600) / 100;
-    const run = { name, status: crash ? 'crash' : 'ok', minutes, steps: last.step, hops: last.hops, hides: last.hides, phases: last.phases, places: last.places, pauses: last.pauses, args: opts, replay: replayCommand(opts) };
+    // What the machine was doing: timings (page marks are ms since page start), the GL renderer,
+    // Performance.getMetrics and the last console lines.
+    let metrics = null;
+    if (crash) { try { metrics = formatMetrics((await withTimeout(tab.send('Performance.getMetrics'), 8e3, 'metrics')).metrics); } catch (e) { metrics = { error: e.message }; } }
+    const where = { gl: last.gl ?? null, softwareGl: last.gl ? isSoftwareGl(last.gl) : null, size: `${w}x${h}`, quality: opts.quality, evalTimeoutS: opts.evalTimeout, bootEvalTimeoutS: BOOT_EVAL_TIMEOUT_MS / 1000, frames: last.frames ?? 0, pageMarksMs: last.marks ?? {}, nodeTimingsMs: timings };
+    const run = { name, status: crash ? 'crash' : 'ok', minutes, steps: last.step, hops: last.hops, hides: last.hides, phases: last.phases, ...where, places: last.places, pauses: last.pauses, args: opts, replay: replayCommand(opts) };
     if (crash) {
       const screenshot = (await shot(tab, join(dir, 'crash.png'))) ? 'crash.png' : null;
       // the diagnostics record as the page shows it, once more, for the file
@@ -113,7 +129,7 @@ export async function runSoak(opts, log = console.log) {
       writeFileSync(join(dir, 'crash.json'), `${JSON.stringify({
         kind: crash.kind, message: crash.message, entries: crash.entries, seed: opts.seed, step: last.step, phase: last.phase, lastPrompt: last.prompt,
         place: opts.place, cat: opts.cat, args: opts, elapsedMin: minutes, screenshot, diagnostics: diag ? JSON.parse(diag) : null,
-        replay: replayCommand(opts),
+        replay: replayCommand(opts), ...where, metrics, console: consoleRing.list(),
       }, null, 2)}\n`);
       log(`CRASH ${crash.kind}: ${crash.message}`);
     }

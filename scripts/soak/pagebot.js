@@ -64,7 +64,7 @@
 
   // ---- state --------------------------------------------------------------------------
   const rnd = mulberry32(cfg.seed ?? 1);
-  const state = { step: 0, events: [], phase: 'boot', walkEnded: false, phaseCounts: {}, started: Date.now(), places: 0, hops: 0, hides: 0, pauses: 0, lastPrompt: '' };
+  const state = { step: 0, events: [], phase: 'boot', walkEnded: false, phaseCounts: {}, frames: 0, marks: {}, gl: null, started: Date.now(), places: 0, hops: 0, hides: 0, pauses: 0, lastPrompt: '' };
   window.__soak = state;
   const note = (kind, message, source, line) => {
     if (state.events.length < 200) state.events.push({ kind, message: String(message).slice(0, 300), source: source || '', line: line || 0, step: state.step, at: Date.now() - state.started });
@@ -75,7 +75,14 @@
   // ---- the hidden tab: rAF held back, then released all at once -----------------------
   const realRaf = window.requestAnimationFrame.bind(window);
   let held = null; // null = running; array = tab "hidden", callbacks waiting
+  const mark = (name) => { if (state.marks[name] === undefined) state.marks[name] = Math.round(performance.now()); };
+  mark('botInstalled');
+  window.addEventListener('load', () => mark('pageLoaded'));
   window.requestAnimationFrame = (cb) => {
+    state.frames += 1;
+    if (state.frames === 1) mark('firstFrame');
+    if (state.frames === 10) mark('frame10');
+    if (state.frames === 60) mark('frame60');
     if (held) { held.push(cb); return 0; }
     return realRaf(cb);
   };
@@ -133,6 +140,15 @@
     }
   }
   window.addEventListener('load', () => setTimeout(announcePads, 400));
+  // Which GL is it: the real GPU or a software renderer?
+  window.addEventListener('load', () => setTimeout(() => {
+    try {
+      const c = document.createElement('canvas');
+      const gl = c.getContext('webgl2') || c.getContext('webgl');
+      const ext = gl && gl.getExtension('WEBGL_debug_renderer_info');
+      state.gl = gl ? (ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)) : 'no webgl';
+    } catch (e) { state.gl = `unreadable: ${e && e.message}`; }
+  }, 300));
 
   // ---- keyboard -----------------------------------------------------------------------
   const down = new Set();
@@ -269,6 +285,9 @@
   function tick() {
     state.step += 1;
     const t = now();
+    if (state.phase === 'home') mark('home');
+    if (state.phase === 'overlay') mark('readyCard');
+    if (state.phase === 'walk') mark('walkStarted');
     state.phaseCounts[state.phase] = (state.phaseCounts[state.phase] || 0) + 1;
     releasePads();
     if (pads[0].axes[2] && t > plan.nextOrbit) { pads[0].axes[2] = 0; pads[0].axes[3] = 0; }
@@ -280,7 +299,7 @@
       stopMove();
       if (travelStep()) return;
       if (plan.travelling === 3) { plan.travelling = 0; if (clickEl($('#hb-back, #hb-home'))) return; }
-      if (state.step % 12 === 0) clickEl($('#btn-start'));
+      if (state.step % 12 === 0) { clickEl($('#btn-start')); mark('explorePressed'); }
       return;
     }
     if (overlayUp()) {
