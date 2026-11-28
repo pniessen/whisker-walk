@@ -34,10 +34,12 @@
   import { build } from '/src/world/greenhouse.js';
 
   const params = new URLSearchParams(location.search);
+  window.__errs = []; const ce = console.error; console.error = (...a) => { window.__errs.push(String(a[0]).slice(0, 600)); ce(...a); };
   const rm = params.get('rm') === '1';
   const DUSK = params.get('dusk') === '1';
   const LOW = params.get('low') === '1';
   const NOGLASS = params.get('noglass') === '1';
+  const RAIN = params.get('rain') === '1';
   const [W, H] = (params.get('size') || '960x540').split('x').map(Number);
   const BARE = params.has('bare');
   const DT = 1 / 30;
@@ -77,7 +79,7 @@
   sun.shadow.bias = SUN_BIAS;
   assignShadowCasters(scene);
   const fade = createTreeFade(findFadeOccluders(scene), { reducedMotion: rm });
-  const life = area.life({ reducedMotion: rm, ground: { y: () => 0 }, visits: Number(params.get('visits') || 0) });
+  const life = area.life({ reducedMotion: rm, dusk: DUSK, weather: RAIN ? { isRaining: () => true, setSheltered() {} } : null, ground: { y: () => 0 }, visits: Number(params.get('visits') || 0) });
 
   const player = createPlayer(camera, renderer.domElement);
   player.setReducedMotion(rm);
@@ -113,7 +115,7 @@
     if (BARE) return;
     const p = cat.position;
     const panes = scene.getObjectByName('palmHouse-glass');
-    hud.textContent = [`at ${p.x.toFixed(2)}, ${p.z.toFixed(2)}`, `glass ${panes?.visible ? 'shown' : 'hidden'} · draws ${renderer.info.render.calls} · tris ${renderer.info.render.triangles}`].join('\n');
+    hud.textContent = [...window.__errs.slice(0, 3),`at ${p.x.toFixed(2)}, ${p.z.toFixed(2)}`, `glass ${panes?.visible ? 'shown' : 'hidden'} · draws ${renderer.info.render.calls} · tris ${renderer.info.render.triangles}`].join('\n');
   }
 
   // ---- Shots: place her, walk `secs` with the stick, look; `cam` is a fixed camera; `settle` runs the fade on ----
@@ -164,15 +166,24 @@
     p2_catnip: { at: [-8, 15], face: [-1, -0.5] },
     p2_kitchen: { at: [25, 15], face: [1, -0.6] },
     p2_pots: { at: [8, 19], face: [0, -1] },
+    // beauty pass 3: the house reacts (play camera). moving: shot taken mid-walk, no settling
+    p3_brush: { at: [-2.9, -0.9], face: [0, -1], stick: [0, -1], secs: 0.55, moving: true },
+    p3_brush2: { at: [-5.2, 0.9], face: [0, -1], stick: [0, -1], secs: 0.5, moving: true },
+    p3_ring: { at: [-6.6, -2.9], face: [0, -1], stick: [0, -1], secs: 0.55, moving: true },
+    p3_bend: { at: [-2.9, -0.9], face: [0, -1], stick: [0, -1], secs: 0.5, moving: true, cam: { pos: [-0.2, 1.5, -2.2], look: [-2.9, 0.9, -3.3], fov: 60 } },
+    p3_pots: { at: [8, 19], face: [0, -1], cam: { pos: [11.3, 1.2, 14.2], look: [9, 0.35, 12], fov: 45 }, hold: true },
+    p3_hall: { at: [0, -3], face: [0, -1] },
     palms: { at: [-6, -9], face: [-1, 0], cam: { pos: [12, 2.4, -2.2], look: [-6, 4, -12], fov: 60 }, hold: true },
   };
   window.__shot = (name) => {
     const s = SHOTS[name];
     if (!s) throw new Error(`no shot "${name}"; there are ${Object.keys(SHOTS).join(', ')}`);
     freeCam = !!s.cam;
+    stick(0, 0);
     reset(s.at[0], s.at[1], s.face[0], s.face[1]);
     if (s.stick) stick(...s.stick);
     for (let k = 0; k < (s.secs ?? 0) / DT; k++) frame(DT);
+    if (s.moving) { if (s.cam) { camera.fov = s.cam.fov ?? 70; camera.updateProjectionMatrix(); camera.position.set(...s.cam.pos); camera.lookAt(...s.cam.look); renderer.render(scene, camera); } else render(); return name; }
     stick(0, 0);
     // let the building fade settle (the camera follows her for the walking shots, sits where `cam` says for the fixed ones)
     for (let k = 0; k < 60; k++) {
