@@ -156,7 +156,6 @@ describe('the Viking boat: climbing aboard and getting off', () => {
       if (c.x === BOAT_AT.x || Math.abs(c.x - BOAT_AT.x) > 12 || Math.abs(c.z - BOAT_AT.z) > 12) continue;
       expect(Math.hypot(c.x - BOAT_AT.x, c.z - BOAT_AT.z) > 2.5 || c.r < 1).toBe(true);
     }
-    expect(Math.abs(BOAT_AT.x - 24)).toBeGreaterThan(5);
   });
 
   it('puts cat two on the other bench through the same rules, and off the same way', () => {

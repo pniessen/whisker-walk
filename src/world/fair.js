@@ -91,7 +91,7 @@ export const MGR_AT = pt(0, 0);
 export const MUSIC_BOX_AT = pt(0, -6.7);
 export const FERRIS_AT = pt(0, -30);
 export const TEACUPS_AT = pt(-26, 2);
-export const BOAT_AT = pt(31, 3); // inside the loop of the coaster, clear of the track, the station and the paths
+export const BOAT_AT = pt(29, 38.5); // south-east, below the coaster's south turn: clear of the track, its supports, the station, the paths and the trees
 export const HELTER_AT = pt(-33, -33);
 export const HELTER_YAW = Math.PI / 4; // the door faces south-east, towards the plaza
 export const STATION_DECK = rect(21, 23.3, -5.2, 5.2);
@@ -594,7 +594,7 @@ export function cullGroundFaces(scene, names) {
 }
 
 // THE GROUND'S BEAUTY (world/fairground.js): where its scuffs may lie. Trodden grass (fairWear) that is open: off the sawdust, the rides' rings, the buildings, the big flat things
-// and the pool; none east of x = 20 (the coaster's side, and the Viking boat's).
+// and the pool; none east of x = 20 (the coaster's side and the Viking boat's).
 import { groundPlan, drawGround } from './fairground.js';
 function groundOpenCheck(segs) {
   const circles = [...WAGONS, FORTUNE_AT, BANDSTAND_AT, MUSIC_BOX_AT, ...PICNIC_RUGS, DUCK_POOL].map((t) => [t.x, t.z, 3.5]); // the big and the flat: a tuft keeps 3.5 m off each
