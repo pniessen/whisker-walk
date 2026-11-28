@@ -74,8 +74,8 @@ export function nightPoint(p, t, n, c, hoot, o) {
 export function gradeNight(n, { sun, fill, scene, fog }) {
   if (n <= 0.001) return;
   const mix = (c, r, g, b, w) => { if (!c) return; c.r += (r - c.r) * w; c.g += (g - c.g) * w; c.b += (b - c.b) * w; };
-  if (sun) { mix(sun.color, 0.62, 0.76, 1, 0.9 * n); sun.intensity *= 1 - 0.8 * n; }
-  if (fill) { mix(fill.color, 0.45, 0.6, 1, 0.9 * n); mix(fill.groundColor, 0.08, 0.12, 0.24, 0.8 * n); fill.intensity *= 1 - 0.5 * n; }
+  if (sun) { mix(sun.color, 0.62, 0.76, 1, 0.9 * n); sun.intensity *= 1 - 0.7 * n; }
+  if (fill) { mix(fill.color, 0.45, 0.6, 1, 0.9 * n); mix(fill.groundColor, 0.08, 0.12, 0.24, 0.8 * n); fill.intensity *= 1 - 0.38 * n; }
   if (typeof scene.environmentIntensity === 'number') scene.environmentIntensity *= 1 - 0.7 * n;
   if (scene.background) scene.backgroundIntensity *= 1 - 0.93 * n;
   if (fog) { mix(fog.color, 0.004, 0.014, 0.04, 0.97 * n); fog.near *= 1 - 0.3 * n; fog.far *= 1 - 0.2 * n; }
