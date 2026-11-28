@@ -31,6 +31,7 @@ import { hash01 } from './builder.js';
 import * as P from './lighthouseplan.js';
 import { wonderFor, drawWonder, WONDER_TRIS, STRIKES, THUNDER_LAG } from './lighthousewonders.js';
 import { getSeason } from './lighthouseseason.js';
+import { createCritters, CRIT_TRIS, CRIT_TRIS_LOW, doorGlow, DOOR } from './lighthousecritters.js';
 
 const TAU = Math.PI * 2;
 const h01 = hash01;
@@ -146,9 +147,12 @@ const NEAR_ROCKS = (x, z) => {
   return r(P.GULL_ROCK, 2.2) || r(P.PINNACLE, 2.2);
 };
 
-export function createLighthouseAlive({ scene, reducedMotion = false, tier = null, sound = null, seed = null, wonder = null } = {}) {
+export function createLighthouseAlive({ scene, reducedMotion = false, tier = null, sound = null, seed = null, wonder = null, tone = null, night = 0 } = {}) {
   const low = tier?.name === 'low';
+  const TN = tone && tone.length === 3 ? tone : [1, 1, 1]; // the hour's colour (lighthouseday.js): the glints, sheen and lanterns follow the same clock as the sky
+  const glintCol = new THREE.Color(GOLD.r * TN[0], GOLD.g * TN[1], GOLD.b * TN[2]);
   const still = !!reducedMotion;
+  const critters = createCritters({ low, still });
   const nGulls = low ? GULLS_LOW : GULLS_HIGH;
   const gulls = makeGulls(nGulls);
   const objs = [];
@@ -172,7 +176,7 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
   const nRings = low ? RINGS_LOW : RINGS_HIGH;
   const nMist = low ? 0 : MISTS;
   const nWonder = low || still ? 0 : WONDER_TRIS;
-  const maxV = nWonder * 3 + SEAS.length * (foamRows * FOAM_SEG * 6 + glintN * 6 + 12) + 4 * HALO_FAN * 3 + 12 * 3 + 24 * 3 + nRings * RING_SEG * 6 + nMist * 18 + 12;
+  const maxV = nWonder * 3 + SEAS.length * (foamRows * FOAM_SEG * 6 + glintN * 6 + 12) + 4 * HALO_FAN * 3 + 12 * 3 + 24 * 3 + nRings * RING_SEG * 6 + nMist * 18 + 12 + 6;
   const V = new Verts(maxV);
   const foam = []; // { sea, row, seg, v, z0, z1 }
   for (const sea of SEAS) {
@@ -203,7 +207,7 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
     const x0 = sea.shoreX + sea.dir * 3; const x1 = sea.shoreX + sea.dir * 54;
     const A = [x0, 0.075, 4]; const B = [x1, 0.075, 4]; const C = [x1, 0.075, -66]; const D = [x0, 0.075, -66]; const M = [(x0 + x1) / 2, 0.075, -42];
     V.tri(A, B, M); V.tri(B, C, M); V.tri(C, D, M); V.tri(D, A, M);
-    for (let q = 0; q < 4; q++) { V.setCol(v + q * 3, 0, 0, 0); V.setCol(v + q * 3 + 1, 0, 0, 0); V.setCol(v + q * 3 + 2, 0.3, 0.18, 0.06); }
+    for (let q = 0; q < 4; q++) { V.setCol(v + q * 3, 0, 0, 0); V.setCol(v + q * 3 + 1, 0, 0, 0); V.setCol(v + q * 3 + 2, 0.3 * TN[0], 0.18 * TN[1], 0.06 * TN[2]); }
     return { v };
   });
   // lantern halos (camera-facing quads), one for each of the boats' lanterns
@@ -216,7 +220,6 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
   for (let i = 0; i < SKYFAN; i++) V.tri([0, 0, 0], [0, 0, 0], [0, 0, 0]);
   // pass three: her rings in the shallows (RING_SEG quads each), the drifting mist (a 6-triangle fan each) and the far ship's two lights (4 triangles)
   const rings = [];
-  for (let i = 0; i < nRings; i++) { const v = V.n; for (let q = 0; q < RING_SEG * 2; q++) V.tri([0, 0, 0], [0, 0, 0], [0, 0, 0]); rings.push({ v, age: RING_LIFE, x: 0, z: 0, y: 0.1 }); }
   const mists = [];
   for (let i = 0; i < nMist; i++) {
     const v = V.n; for (let q = 0; q < 6; q++) V.tri([0, 0, 0], [0, 0, 0], [0, 0, 0]);
@@ -225,6 +228,12 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
   }
   const shipV = nMist ? V.n : -1;
   if (nMist) for (let q = 0; q < 4; q++) V.tri([0, 0, 0], [0, 0, 0], [0, 0, 0]);
+  // pass five: the tail's packed part. Her rings and the tower door's glow are written one after another from here each frame, only the ones in
+  // use, and the draw range ends after the last (a ring that has faded, or a door she is far from, costs no triangles)
+  const dynV = V.n;
+  for (let i = 0; i < nRings; i++) { rings.push({ v: dynV, age: RING_LIFE, x: 0, z: 0, y: 0.1 }); for (let q = 0; q < RING_SEG * 2; q++) V.tri([0, 0, 0], [0, 0, 0], [0, 0, 0]); }
+  const doorV = V.n;
+  V.tri([0, 0, 0], [0, 0, 0], [0, 0, 0]); V.tri([0, 0, 0], [0, 0, 0], [0, 0, 0]);
   // pass four: the pool the rare surprise (lighthousewonders.js) draws in; it is at the tail, and out of the draw range while nothing plays
   const wonderV = V.n;
   for (let i = 0; i < nWonder; i++) V.tri([0, 0, 0], [0, 0, 0], [0, 0, 0]);
@@ -234,7 +243,7 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
   const fGeo = new THREE.BufferGeometry();
   fGeo.setAttribute('position', new THREE.BufferAttribute(V.pos, 3).setUsage(THREE.DynamicDrawUsage));
   fGeo.setAttribute('color', new THREE.BufferAttribute(V.col, 3).setUsage(THREE.DynamicDrawUsage));
-  fGeo.setDrawRange(0, wonderV);
+  fGeo.setDrawRange(0, dynV);
   const fMesh = new THREE.Mesh(fGeo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.DoubleSide })); // (unfogged: an additive black would fog up to the sky's colour)
   fMesh.name = 'lighthouse:seafx';
   fMesh.frustumCulled = false;
@@ -244,7 +253,8 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
   objs.push(fMesh);
   // the wet mesh: dark, alpha-blended (an additive mesh can only lighten): her wet prints and each beach's wet band, which the tide moves
   const nPrints = low ? PRINTS_LOW : PRINTS_HIGH;
-  const wetN = (nPrints * 4 + SEAS.length * 2) * 3;
+  const critTris = low ? CRIT_TRIS_LOW : CRIT_TRIS;
+  const wetN = (nPrints * 4 + SEAS.length * 2 + critTris) * 3; // (the band first; then, packed each frame, only the prints in use and the little lives)
   const wPos = new Float32Array(wetN * 3); const wCol = new Float32Array(wetN * 4);
   const wGeo = new THREE.BufferGeometry();
   wGeo.setAttribute('position', new THREE.BufferAttribute(wPos, 3).setUsage(THREE.DynamicDrawUsage));
@@ -256,8 +266,10 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
   wMesh.castShadow = false; wMesh.receiveShadow = false;
   wMesh.userData.noMerge = true; wMesh.userData.noCast = true;
   objs.push(wMesh);
-  const prints = []; for (let i = 0; i < nPrints; i++) prints.push({ v: i * 12, born: -99, x: 0, z: 0, y: 0, yaw: 0, a: 0 });
-  const bandV = nPrints * 12;
+  const prints = []; for (let i = 0; i < nPrints; i++) prints.push({ v: 0, born: -99, x: 0, z: 0, y: 0, yaw: 0, a: 0 });
+  const bandV = 0;
+  const wetDyn = SEAS.length * 6;
+  wGeo.setDrawRange(0, wetDyn);
   for (const o of objs) scene?.add(o);
 
   const pos = V.pos; const col = V.col;
@@ -304,19 +316,25 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
   }
 
   let lastRock = -1;
+  let lastPrints = 0;
   // ---- pass three: what she sets off, and what goes on without her ----
   const cat = { x: 0, z: 0, set: false, speed: 0 };
-  const st = { wet: 0, travel: 0, sinceRing: 0, sinceStamp: 0, side: 1, surfBeat: -1, gullCalled: -99 };
+  const st = { wet: 0, travel: 0, sinceRing: 0, sinceStamp: 0, side: 1, surfBeat: -1, gullCalled: -99, since: 0, arrivedGull: false, arrivedSurf: false };
   let tide = 0;
   const flatRight = new THREE.Vector3();
   const inWaterAt = (p) => Math.abs(p.y) < 0.8 && (P.POOLS.some((q) => Math.hypot(p.x - q.x, p.z - q.z) < q.r + 0.1) || p.x > P.SEA_EAST.minX - 0.4 || p.x < P.SEA_WEST.maxX + 0.4);
   const oldest = (list, key) => list.reduce((b, q) => (q[key] < b[key] ? q : b), list[0]);
   function react(dt, t, catPos) {
+    if (catPos && still) { cat.x = catPos.x; cat.z = catPos.z; cat.set = true; } // (the door's glow and the little lives still know where she is)
     if (!catPos || still || !(dt > 0)) { if (!catPos) cat.set = false; return; }
     const moved = cat.set ? Math.hypot(catPos.x - cat.x, catPos.z - cat.z) : 0;
     const dx = catPos.x - cat.x; const dz = catPos.z - cat.z;
     cat.speed += (moved / dt - cat.speed) * clamp01(dt * 8);
     cat.x = catPos.x; cat.z = catPos.z; cat.set = true;
+    // the arrival: a gull's call, then a wash of surf, a moment after she lands (once a walk)
+    st.since += dt;
+    if (!st.arrivedGull && st.since > 0.9) { st.arrivedGull = true; sound?.gull?.(); }
+    if (!st.arrivedSurf && st.since > 2.4) { st.arrivedSurf = true; sound?.surf?.(0.9); }
     if (moved > 3) return; // a jump (a teleport, a respawn), not a step
     const inWater = inWaterAt(catPos);
     if (inWater) { st.wet = 1; st.travel = 0; } else if (st.wet > 0) { st.travel += moved; if (st.travel > WET_TRAVEL) st.wet = 0; }
@@ -383,12 +401,12 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
       const k = still ? 0.35 : Math.max(0, Math.sin(t * g.rate + g.ph)) ** 3;
       const r = g.r * (0.55 + 0.6 * k);
       quad(g.v, [g.x - r, 0.095, g.z], [g.x, 0.095, g.z - r * 0.4], [g.x, 0.095, g.z + r * 0.4], [g.x + r, 0.095, g.z]);
-      tint(g.v, 6, GOLD, 0.2 + 0.9 * k);
+      tint(g.v, 6, glintCol, 0.2 + 0.9 * k);
     }
     // sheens breathe
     for (const sh of sheens) {
       const k = 0.85 + (still ? 0 : 0.15 * Math.sin(t * 0.4 + sh.v));
-      for (let q = 0; q < 4; q++) V.setCol(sh.v + q * 3 + 2, 0.3 * k, 0.18 * k, 0.06 * k);
+      for (let q = 0; q < 4; q++) V.setCol(sh.v + q * 3 + 2, 0.3 * k * TN[0], 0.18 * k * TN[1], 0.06 * k * TN[2]);
     }
     // the boats and their lanterns' halos (facing the camera, flickering)
     const rocks = rockBoats(t);
@@ -405,7 +423,7 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
         const v = l.v + q * 3; const a0 = (q / HALO_FAN) * TAU; const a1 = ((q + 1) / HALO_FAN) * TAU;
         const rim = (a) => [cx + (right.x * Math.cos(a) + up.x * Math.sin(a)) * sz, cy + (right.y * Math.cos(a) + up.y * Math.sin(a)) * sz, cz + (right.z * Math.cos(a) + up.z * Math.sin(a)) * sz];
         put(v, 0, [cx, cy, cz]); put(v, 1, rim(a0)); put(v, 2, rim(a1));
-        tint(v, 1, WARM, 0.55 * flick); tint(v + 1, 2, WARM, 0);
+        tint(v, 1, WARM, 0.55 * flick * (1 + 0.6 * night)); tint(v + 1, 2, WARM, 0); // (the lanterns burn brighter as the night comes on)
       }
     }
     // the beam's glow on the clouds (only while the lamp is lit)
@@ -420,12 +438,15 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
       put(v, 0, [cx, cyy, cz]); put(v, 1, rim(a0)); put(v, 2, rim(a1));
       tint(v, 1, GOLD, 0.34 * glowK); tint(v + 1, 2, GOLD, 0);
     }
-    // her rings: a flat annulus that widens and thins
+    // her rings: a flat annulus that widens and thins (only the live ones are written, one after another from the packed tail's start)
+    let dyn = dynV;
     for (const r of rings) {
       if (!still) r.age = Math.min(RING_LIFE, r.age + (dt > 0 ? dt : 0));
-      const k = r.age / RING_LIFE; const live = k < 1;
+      const k = r.age / RING_LIFE;
+      if (!(k < 1)) continue;
+      r.v = dyn; dyn += RING_SEG * 6;
       const r1 = 0.25 + RING_R * Math.sqrt(k); const r0 = Math.max(0.05, r1 - 0.12 - 0.16 * k);
-      const br = live ? (1 - k) ** 1.3 * 0.75 : 0;
+      const br = (1 - k) ** 1.3 * 0.75;
       for (let q = 0; q < RING_SEG; q++) {
         const a0 = (q / RING_SEG) * TAU; const a1 = ((q + 1) / RING_SEG) * TAU;
         const pt = (a, rr) => [r.x + Math.cos(a) * rr, 0.1, r.z + Math.sin(a) * rr];
@@ -435,6 +456,17 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
         for (const i of [0, 2, 3]) tint(v + i, 1, FOAM, br * 0.12); // (the inner edge feathers out)
       }
     }
+    // the tower door's warm glow as she nears it (a camera-facing quad over the doorway, lightening only)
+    const dk = camera && !low ? doorGlow(cat) : 0;
+    if (dk > 0) {
+      const w = 0.78; const h0 = DOOR.y - 1.05; const h1 = DOOR.y + 1.05; const ox = DOOR.x + DOOR.nx * 0.32; const oz = DOOR.z + DOOR.nz * 0.32;
+      const tx = -DOOR.nz * w; const tz = DOOR.nx * w;
+      quad(dyn, [ox - tx, h0, oz - tz], [ox + tx, h0, oz + tz], [ox - tx, h1, oz - tz], [ox + tx, h1, oz + tz]);
+      const flick = still ? 1 : 0.9 + 0.1 * Math.sin(t * 2.1) + 0.05 * Math.sin(t * 6.7);
+      tint(dyn, 6, WARM, dk * 0.4 * flick * (1 + 0.5 * night));
+      dyn += 6;
+    }
+    const dynUsed = dyn;
     // low mist banks drifting over the seas (horizontal billboards, lightening only)
     if (nMist) {
       if (camera) flatRight.set(1, 0, 0).applyQuaternion(camera.quaternion); else flatRight.set(1, 0, 0);
@@ -480,14 +512,19 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
       for (let i = wi; i < nWonder; i++) { const v = wonderV + i * 3; for (let q = 0; q < 3; q++) put(v, q, [0, 0, 0]); }
       if (moment.kind === 'lightning') STRIKES.forEach((s, k) => { if (lt >= s + THUNDER_LAG && !thundered.has(k)) { thundered.add(k); sound?.surf?.(0.5 + 0.2 * k); } });
     }
-    if (playing !== momentOn) { momentOn = playing; fGeo.setDrawRange(0, playing ? V.n : wonderV); }
+    if (playing) for (let i = dynUsed; i < wonderV; i++) { put(i, 0, [0, 0, 0]); col[i * 3] = 0; col[i * 3 + 1] = 0; col[i * 3 + 2] = 0; } // (the unused packed slots, drawn while the surprise plays, are empty)
+    momentOn = playing;
+    fGeo.setDrawRange(0, playing ? V.n : dynUsed);
     fGeo.attributes.position.needsUpdate = true;
     fGeo.attributes.color.needsUpdate = true;
     // the wet mesh: prints, and each beach's wet line that the tide moves
     const wp = wPos; const wc = wCol;
     const wput = (i, x, y, z, a) => { wp[i * 3] = x; wp[i * 3 + 1] = y; wp[i * 3 + 2] = z; wc[i * 4] = 0.12; wc[i * 4 + 1] = 0.08; wc[i * 4 + 2] = 0.05; wc[i * 4 + 3] = a; };
+    let wn = wetDyn;
     for (const pr of prints) {
       const age = t - pr.born; const a = !still && age >= 0 && age < PRINT_LIFE ? Math.min(0.75, pr.a * 1.5) * (1 - age / PRINT_LIFE) ** 0.8 : 0;
+      if (!(a > 0)) continue;
+      pr.v = wn; wn += 12;
       const c = Math.cos(pr.yaw); const sn = Math.sin(pr.yaw);
       const at = (u, w) => [pr.x + (w * c + u * sn), pr.y, pr.z + (-w * sn + u * c)]; // u forward, w right
       const tri = (i, A, B, C) => { for (const [j, pt] of [A, B, C].entries()) wput(pr.v + i * 3 + j, pt[0], pt[1], pt[2], a); };
@@ -496,6 +533,20 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
       tri(2, at(0.42, 0), at(0.17, -0.1), at(0.17, 0.1));
       tri(3, at(0.34, 0.17), at(0.1, 0.07), at(0.1, 0.27));
     }
+    lastPrints = wn - wetDyn;
+    // the little lives (lighthousecritters.js), after the prints: crabs, sandpipers, seals' heads, the cormorant, the jellyfish
+    {
+      const lim = wetN;
+      flatRight.set(1, 0, 0); if (camera) flatRight.applyQuaternion(camera.quaternion);
+      flatRight.y = 0; if (flatRight.lengthSq() < 1e-6) flatRight.set(1, 0, 0); flatRight.normalize();
+      critters.update(t, dt, cat, [flatRight.x, flatRight.z], (A, B, C, ca, cb, cc) => {
+        if (wn + 3 > lim) return false;
+        for (const [j, pt, col4] of [[0, A, ca], [1, B, cb], [2, C, cc]]) { const i = wn + j; wp[i * 3] = pt[0]; wp[i * 3 + 1] = pt[1]; wp[i * 3 + 2] = pt[2]; wc[i * 4] = col4[0]; wc[i * 4 + 1] = col4[1]; wc[i * 4 + 2] = col4[2]; wc[i * 4 + 3] = col4[3]; }
+        wn += 3;
+        return true;
+      });
+    }
+    wGeo.setDrawRange(0, wn);
     SEAS.forEach((sea, i) => {
       const edge = sea.dir > 0 ? P.SEA_EAST.minX : P.SEA_WEST.maxX;
       const inland = edge - sea.dir * (3.6 + 1.5 * tide);
@@ -519,6 +570,8 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
       if (boatsMesh && base) { boatsMesh.geometry.attributes.position.array.set(base); boatsMesh.geometry.attributes.normal.array.set(baseN); boatsMesh.geometry.attributes.position.needsUpdate = true; boatsMesh.geometry.attributes.normal.needsUpdate = true; }
     },
     get gulls() { return gulls; },
+    get printVerts() { return lastPrints; },
+    get creatureTris() { return (wGeo.drawRange.count - wetDyn - lastPrints) / 3; },
     objects: objs,
   };
 }

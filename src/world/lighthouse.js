@@ -24,6 +24,7 @@ import { drawDetail } from './lighthousedetail.js';
 import { drawBeauty2 } from './lighthousebeauty2.js';
 import { drawStory } from './lighthousestory.js';
 import { setSeason, seasonData, frostMeshes } from './lighthouseseason.js';
+import { hourLook, hourNow } from './lighthouseday.js';
 import { createLighthouseLife } from './lighthouselife.js';
 import './lighthousewords.js';
 import { phrase } from '../clanphrases.js';
@@ -41,9 +42,11 @@ const DUSK_LIGHT = Object.freeze({
 });
 export const SAND_DUSK_TINT = Object.freeze({ desat: 0.12, dark: 0.88, cool: Object.freeze([1.0, 0.98, 0.94]) });
 
-export function build(scene, { water = {}, wind, season } = {}) {
+export function build(scene, { water = {}, wind, season, hour } = {}) {
   const SEASON = setSeason(season); // (the calendar's, from the date; only the picture page names one)
-  const SD = seasonData(SEASON);
+  const SD0 = seasonData(SEASON);
+  const LOOK = hourLook(hour != null && hour !== '' && Number.isFinite(Number(hour)) ? Number(hour) : hourNow(), SD0); // (the real clock's: dawn, noon, golden hour, night)
+  const SD = { ...SD0, sky: LOOK.sky, light: LOOK.light };
   const plan = P.lighthouseArea();
   return withLocalUuids('lighthouse-build', () => {
     b.applySky(scene, SKY_DAY.top, SKY_DAY.horizon);
@@ -142,7 +145,7 @@ export function build(scene, { water = {}, wind, season } = {}) {
       ground: plan.ground,
       traversal: plan.traversal,
       // the lamp: lit by the lever, a beam that turns, the ship's horn (world/lighthouselife.js)
-      life: (ctx) => createLighthouseLife({ ...ctx, colliders: plan.colliders, waters: plan.waters }),
+      life: (ctx) => createLighthouseLife({ ...ctx, colliders: plan.colliders, waters: plan.waters, tone: LOOK.tone, night: LOOK.night }),
     };
   });
 }
