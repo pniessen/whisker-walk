@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   createDiagnostics, describeError, listenForErrors, DIAG_CAPACITY, DIAG_MESSAGE_MAX,
-  DIAG_MEMORY_CAPACITY, diagnostics as record, noteMemory,
+  DIAG_MEMORY_CAPACITY, diagnostics as record, noteMemory, whereFromStack,
 } from '../src/diagnostics.js';
 
 const clockFrom = (start = 1000) => { let t = start; return () => t++; };
@@ -54,10 +54,12 @@ describe('createDiagnostics', () => {
 
   it('collapses repeats into one entry with a count, moved to the newest place', () => {
     const d = createDiagnostics({ capacity: 3, now: clockFrom(100) });
-    d.note('frame', new Error('same'));
+    // (no stack frames: the line the test happens to throw from is not what is under test; see the stack tests at the end)
+    const same = () => Object.assign(new Error('same'), { stack: 'Error: same' });
+    d.note('frame', same());
     d.note('save', 'quota');
-    d.note('frame', new Error('same'));
-    d.note('frame', new Error('same'));
+    d.note('frame', same());
+    d.note('frame', same());
     const list = d.entries();
     expect(list.map((e) => [e.kind, e.message, e.count])).toEqual([
       ['save', 'quota', 1],
@@ -66,8 +68,8 @@ describe('createDiagnostics', () => {
     expect(list[1].time).toBe(103);
     expect(d.total).toBe(4);
     // a different kind, or a different line, is a different entry
-    d.note('error', new Error('same'));
-    d.note('frame', new Error('same'), { source: 'a.js', line: 2 });
+    d.note('error', same());
+    d.note('frame', same(), { source: 'a.js', line: 2 });
     expect(d.entries()).toHaveLength(3);
   });
 
@@ -211,5 +213,24 @@ describe('listenForErrors', () => {
   it('ignores a target it cannot listen on', () => {
     expect(() => listenForErrors(null)).not.toThrow();
     expect(() => listenForErrors({})).not.toThrow();
+  });
+});
+
+describe('where a thrown error came from (the frame guard notes no place of its own)', () => {
+  const chrome = { message: 'boom', name: 'TypeError', stack: 'TypeError: boom\n    at seatCat (https://x.example/whisker-walk/assets/moon-ab12.js?v=3:812:15)\n    at https://x.example/assets/main-cd.js:99:1' };
+  const safari = { message: 'boom', name: 'TypeError', stack: 'seatCat@https://x.example/assets/moon-ab12.js:812:15\nframe@https://x.example/assets/main-cd.js:99:1' };
+
+  it('reads the first script and line off a Chrome or a Safari stack, the file name only', () => {
+    expect(whereFromStack(chrome)).toEqual({ source: 'https://x.example/whisker-walk/assets/moon-ab12.js?v=3', line: 812 });
+    expect(whereFromStack(safari)).toEqual({ source: 'https://x.example/assets/moon-ab12.js', line: 812 });
+    for (const bad of [null, undefined, 'x', 3, {}, { stack: 7 }, { stack: 'no frames here\nat <anonymous>' }]) expect(whereFromStack(bad)).toBe(null);
+  });
+
+  it('note() fills the file and line from the stack when the caller gives none, keeps a given place, and puts a place word first', () => {
+    const d = createDiagnostics({ now: clockFrom() });
+    const e = d.note('frame', Object.assign(new TypeError('boom'), { stack: chrome.stack }), { tag: 'Moon!' });
+    expect(e).toMatchObject({ kind: 'frame', message: '[Moon] TypeError: boom', source: 'moon-ab12.js', line: 812 });
+    expect(d.note('error', chrome, { source: 'https://x.example/a.js?q=room1', line: 5 })).toMatchObject({ source: 'a.js', line: 5 });
+    expect(JSON.stringify(d.entries())).not.toMatch(/room1|https?:/);
   });
 });

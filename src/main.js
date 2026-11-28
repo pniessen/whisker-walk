@@ -1221,7 +1221,7 @@ function init() {
   }
   function onFrameError(err) {
     const verdict = frameGuard.fail(performance.now());
-    note('frame', err);
+    note('frame', err, { tag: session?.areaId });
     if (frameGuard.streak === 1) console.warn('Whisker Walk: a frame failed', err);
     if (verdict !== 'trip') return;
     frameGuard.reset();

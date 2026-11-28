@@ -65,6 +65,23 @@ function fileOf(source) {
   return path.slice(path.lastIndexOf('/') + 1).slice(0, 60);
 }
 
+// Where a thrown error came from, read off its stack when the caller gave no place: the first stack line that names a script and a line,
+// as { source, line } (the file name only: fileOf drops the path and query when it is noted). Chrome and Edge write "at fn (https://host/a.js:12:34)"
+// or "at https://host/a.js:12:34", Safari and Firefox "fn@https://host/a.js:12:34". The message line and any frame with no line number are skipped.
+// Never throws; null when there is nothing to read.
+export function whereFromStack(err) {
+  try {
+    const stack = err && typeof err === 'object' ? err.stack : null;
+    if (typeof stack !== 'string') return null;
+    const lines = stack.split('\n', 12);
+    for (const raw of lines) {
+      const m = /(?:\(|@|\bat\s+)([^()\s@]+?):(\d+):\d+\)?\s*$/.exec(raw.trim());
+      if (m) return { source: m[1], line: Number(m[2]) };
+    }
+  } catch { /* nothing to read */ }
+  return null;
+}
+
 export function createDiagnostics({ capacity = DIAG_CAPACITY, now = () => Date.now() } = {}) {
   const entries = []; // oldest first; the newest (or newest repeat) is last
   const readings = []; // memory counts, oldest first
@@ -101,9 +118,13 @@ export function createDiagnostics({ capacity = DIAG_CAPACITY, now = () => Date.n
   function note(kind, err, where) {
     try {
       const k = typeof kind === 'string' && kind ? kind.slice(0, 16) : 'error';
-      const message = describeError(err);
-      const source = fileOf(where?.source);
-      const line = Number.isInteger(where?.line) && where.line > 0 ? where.line : 0;
+      // where.tag: a short place word ('moon', 'reef') put in front of the message, so a grown-up can see which place a frame failed in
+      const tag = typeof where?.tag === 'string' ? where.tag.replace(/[^a-z0-9-]/gi, '').slice(0, 20) : '';
+      const message = (tag ? `[${tag}] ` : '') + describeError(err);
+      // no place given: the top of the thrown error's own stack (the file and line of the throw, never a path or a query)
+      const at = where?.source ? where : (whereFromStack(err) ?? where);
+      const source = fileOf(at?.source);
+      const line = Number.isInteger(at?.line) && at.line > 0 ? at.line : 0;
       const time = now();
       total += 1;
       version += 1;
