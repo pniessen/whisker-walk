@@ -18,7 +18,7 @@
 // which also holds the tide's wet band along each beach); the circling gulls climb, spread and beat harder when she runs
 // under them, then settle; the moored boats bob more as she nears the quay. It lives by itself too: a slow tide (the foam
 // lines, the wet band and its edge rise and fall together), a few drifting banks of low mist, and a far ship's lights that
-// cross the east horizon now and then. Her rings, prints, the tide and the ship stand still in reduced motion; the LOW tier
+// cross the east horizon now and then (silent: the lamp's own ship horn, lighthouselife.js, stays the walk's one horn). Her rings, prints, the tide and the ship stand still in reduced motion; the LOW tier
 // has fewer rings and prints and no mist or ship. Every number is from hash01 or a constant; the only state is the walk's t.
 //
 // REDUCED MOTION freezes all of it (the gulls hang in their first positions, the foam lies still, the boats sit level, the
@@ -67,7 +67,6 @@ const MISTS = 3;
 const SHIP_PERIOD = 190; // s: the far ship is on the horizon for SHIP_SPAN of it
 const SHIP_SPAN = 110;
 const SHIP_Z = -44;
-export const SHIP_HORN_X = 74;
 const SCARE_R = 24; // m: gulls this near (over the ground) are put up by her running
 const RUN_SPEED = 2.6; // m/s
 const QUAY_R = 17; // m from a moored boat her nearness stirs it
@@ -298,7 +297,7 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
   let lastRock = -1;
   // ---- pass three: what she sets off, and what goes on without her ----
   const cat = { x: 0, z: 0, set: false, speed: 0 };
-  const st = { wet: 0, travel: 0, sinceRing: 0, sinceStamp: 0, side: 1, surfBeat: -1, gullCalled: -99, hornPass: -1 };
+  const st = { wet: 0, travel: 0, sinceRing: 0, sinceStamp: 0, side: 1, surfBeat: -1, gullCalled: -99 };
   let tide = 0;
   const flatRight = new THREE.Vector3();
   const inWaterAt = (p) => Math.abs(p.y) < 0.8 && (P.POOLS.some((q) => Math.hypot(p.x - q.x, p.z - q.z) < q.r + 0.1) || p.x > P.SEA_EAST.minX - 0.4 || p.x < P.SEA_WEST.maxX + 0.4);
@@ -453,8 +452,6 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
       dia(shipV, sx, 1.4, SHIP_Z, 0.7); tint(shipV, 3, SHIPW, 0.9 * fade);
       put(shipV + 3, 0, [sx - 0.2 * flatRight.x, 0.8, SHIP_Z]); put(shipV + 3, 1, [sx + 1.6 * flatRight.x, 1.4, SHIP_Z]); put(shipV + 3, 2, [sx + 1.6 * flatRight.x, 0.5, SHIP_Z]);
       tint(shipV + 3, 3, SHIPR, 0.8 * fade);
-      const pass = Math.floor((t + 20) / SHIP_PERIOD);
-      if (on && sx <= SHIP_HORN_X && st.hornPass !== pass) { st.hornPass = pass; if (t > 1) sound?.horn?.(); }
     }
     fGeo.attributes.position.needsUpdate = true;
     fGeo.attributes.color.needsUpdate = true;

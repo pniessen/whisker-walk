@@ -122,7 +122,7 @@ describe('the lighthouse alive layer', () => {
   });
   it('the surf follows the foam: a swell once a foam period, only while she is near the water, through the sound it is given', () => {
     const calls = [];
-    const sound = { surf: (k) => calls.push(k), gull: () => calls.push('gull'), horn: () => calls.push('horn') };
+    const sound = { surf: (k) => calls.push(k), gull: () => calls.push('gull') };
     const { alive, cam } = rig({ sound });
     for (let i = 0; i < 30 * 24; i++) alive.update(1 / 30, i / 30, cam, 0, 0, { x: 30, y: 0, z: 36 });
     const surfs = calls.filter((c) => typeof c === 'number');
