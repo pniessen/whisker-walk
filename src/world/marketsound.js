@@ -80,6 +80,15 @@ export const CHATTER = Object.freeze({
   len: Object.freeze([0.22, 0.5]), // s: each burst
 });
 
+// Beauty pass 3: the part of the day (0 morning .. 1 evening, setPart) shapes the square's sounds, and the
+// stalls' hanging lanterns chime as she brushes past one. No new assets.
+//   * MORNING BIRDS: sparrows (roofssound.js CALLS.sparrow) chirp from the stalls' awnings, every `every` s
+//     while the part is below `until`, the gap longer toward it, heard within `ear`;
+//   * EVENING: the stalls' murmur is louder (x up to 1 + `murmur`) and more often (gap / (1 + `quick`));
+//   * THE CHIME: two quiet high tones when she comes within `near` of a stall's middle, at most once in `gap` s.
+export const DAYPART = Object.freeze({ every: Object.freeze([2.2, 5]), until: 0.45, ear: 11, murmur: 0.8, quick: 0.5 });
+export const CHIME = Object.freeze({ near: 2.3, gap: 7, gain: 0.014, f: Object.freeze([1760, 2637]), ring: 0.5 });
+const BIRD_N = 40;
 const LOOKAHEAD = 0.1; // s: a note is made this far ahead of its time
 const LATE = 0.2; // s: a note this late (a long frame) is skipped, not played
 const NOISE_S = 0.6; // s of noise in the chatter's one buffer
@@ -100,7 +109,7 @@ const dist = (a, b) => Math.hypot(a.x - b.x, (a.y ?? 0) - (b.y ?? 0), a.z - b.z)
 // with `pos` or `group.position`, skipped while `flying` or `fleeing`;
 // `musician` their pitch ({ x, z }) or null; `stalls` the four treat stalls'
 // middles ({ x, z }). `t` (the walk's seconds) is not read: the clocks run on dt.
-export function createMarketSound(audio, { pigeons = [], musician = null, stalls = [] } = {}) {
+export function createMarketSound(audio, { pigeons = [], musician = null, stalls = [], chimes = [] } = {}) {
   let walk = 0;
   let ac = null;
   let master = null;
@@ -116,6 +125,11 @@ export function createMarketSound(audio, { pigeons = [], musician = null, stalls
   const stallCount = stalls.map(() => 0);
   const gapOf = (n, k, every) => every[0] + (every[1] - every[0]) * hash01(n, k, MARKET_SOUND_SALT);
   const stallDue = stalls.map((_, j) => gapOf(STALL_N + j, 0, CHATTER.every));
+  let part = 0.35;
+  let birdCount = 0;
+  let birdDue = gapOf(BIRD_N, 0, DAYPART.every);
+  const chimeNext = chimes.map(() => 0);
+  const chimeIn = chimes.map(() => false);
   const pigeonCount = [];
   const pigeonDue = [];
 
@@ -253,6 +267,14 @@ export function createMarketSound(audio, { pigeons = [], musician = null, stalls
     });
   }
 
+  function chirp(call, l) {
+    const amp = call.gain * l;
+    if (amp < QUIET) return;
+    withBus((c, now) => {
+      for (const n of call.notes) tone(c, n.type, n.f, n.to, now + n.at, n.dur, n.attack, amp * n.gain);
+    });
+  }
+
   function stepTune(quiet, catPos) {
     const notes = MUSIC.notes;
     // a long frame (or a walk picked up a long way in): no backlog of plays
@@ -289,11 +311,31 @@ export function createMarketSound(audio, { pigeons = [], musician = null, stalls
         if (walk < stallDue[j]) continue;
         if (!quiet) {
           const l = loudness(dist(catPos, stalls[j]), CHATTER.ear);
-          if (l > 0) murmur(j, stallCount[j], l);
+          if (l > 0) murmur(j, stallCount[j], l * (1 + DAYPART.murmur * Math.max(0, part - 0.5) * 2));
         }
         stallCount[j]++;
-        stallDue[j] += gapOf(STALL_N + j, stallCount[j], CHATTER.every);
+        stallDue[j] += gapOf(STALL_N + j, stallCount[j], CHATTER.every) / (1 + DAYPART.quick * Math.max(0, part - 0.5) * 2);
         if (stallDue[j] <= walk) stallDue[j] = walk + gapOf(STALL_N + j, stallCount[j], CHATTER.every);
+      }
+      // the morning's sparrows, and the lanterns' chime as she passes a stall
+      if (walk >= birdDue) {
+        if (!quiet && part < DAYPART.until) {
+          const at = chimes.length ? chimes[birdCount % chimes.length] : null;
+          const l = at ? loudness(dist(catPos, at), DAYPART.ear) * (1 - part / DAYPART.until) : 0;
+          if (l > 0) chirp(CALLS.sparrow, l);
+        }
+        birdCount++;
+        birdDue = walk + gapOf(BIRD_N, birdCount, DAYPART.every) * (1 + 2 * part);
+      }
+      for (let j = 0; j < chimes.length; j++) {
+        const close = !quiet && dist(catPos, chimes[j]) < CHIME.near;
+        if (close && !chimeIn[j] && walk >= chimeNext[j]) {
+          chimeNext[j] = walk + CHIME.gap;
+          withBus((c, now) => {
+            for (let n = 0; n < CHIME.f.length; n++) tone(c, 'sine', CHIME.f[n], CHIME.f[n], now + n * 0.09, CHIME.ring, 0.004, CHIME.gain);
+          });
+        }
+        chimeIn[j] = close;
       }
       // the pigeons' coos
       const list = pigeons ?? [];
@@ -325,6 +367,10 @@ export function createMarketSound(audio, { pigeons = [], musician = null, stalls
           tone(c, 'sine', BELL.f * BELL.over, BELL.f * BELL.over, t0, BELL.ring * 0.7, 0.004, BELL.gain * BELL.overGain * l);
         }
       });
+    },
+    // the part of the day: 0 morning .. 1 evening (marketlife.js)
+    setPart(p) {
+      if (Number.isFinite(p)) part = Math.min(1, Math.max(0, p));
     },
     dispose() {
       hush();

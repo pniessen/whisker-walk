@@ -44,6 +44,15 @@
 // motion the cloth holds still (amplitude 0) and the smoke runs at its half speed; on the lite rung
 // (no shadows, or rung 3 and up) neither is drawn.
 //
+// THE SQUARE REACTS AND LIVES (beauty pass 3, world/marketreact.js). Each frame the life drives the
+// shared uniforms (area.react): the part of the day (the cobbles' and paint's tone: cool morning,
+// bright midday, warm evening, over DAY_PERIOD walk seconds; a dusk walk stays warm), a drifting
+// cloud's shadow, the rings her paws send over a puddle, the wishing-coins' glint (more as she
+// nears the fountain), the pool's glints, and how hard the awnings and bunting sway as she brushes
+// past; now and then a gust lifts the whole breeze. Under reduced motion the clock for all this
+// stands still (no cloud, no gust, no rings, no sway; the glints are steady); on the lite rung
+// only the tone remains. The part of the day also goes to the sounds (marketsound.js setPart).
+//
 // THE SIX FINDS (V6, world/marketfinds.js findAt). Every frame it fills one
 // spot from her paws (catPos), the session (rest, perched, the cat's heading),
 // her paws' own speed over the frame (a perch snap or a respawn not counted:
@@ -82,7 +91,7 @@
 // and the apples write into their one InstancedMesh.
 // =============================================================================
 import { setMarketDusk } from './market.js';
-import { MARKET_REGISTRATION, marketArea, MUSICIAN, PIGEON_PATCH, TREAT_STALLS, stallById } from './marketplan.js';
+import { MARKET_REGISTRATION, marketArea, MUSICIAN, PIGEON_PATCH, TREAT_STALLS, STALLS, stallById } from './marketplan.js';
 import { applePaths, createApples, createPetals, createBucketBlooms, rollPaths, createRollers, WOOL, WOOL_COLOURS, MARKET_WOOL_SALT } from './marketfruit.js';
 import { inWatchZone } from '../marketrules.js';
 import { createMusician } from './marketfolk.js';
@@ -91,6 +100,7 @@ import { loudness } from './roofssound.js';
 import { findAt, noteMarketFind, MARKET_FIND_ANCHORS } from './marketfinds.js';
 import { createErrands } from './marketerrandlive.js';
 import { createRoofsSmoke } from './roofsair.js';
+import { dayPart, toneAt } from './marketreact.js';
 
 export const MARKET_BUCKET_ID = 'market-bucket-1';
 const CRATE_KIND = 'applecrate';
@@ -157,6 +167,9 @@ export function createMarketLife(area, ctx = {}) {
   const lite = !!ctx.tier && (ctx.tier.shadows === false || ctx.tier.name === 'low' || (ctx.tier.rung ?? 0) >= 3);
   const flutter = area?.flutter ?? [];
   for (const u of flutter) u.uMkAmp.value = reducedMotion || lite ? 0 : 1;
+  const react = area?.react ?? null;
+  let rip = 0;
+  const still = reducedMotion || lite;
   const smoke = scene && !lite && area?.chimneys?.length ? createRoofsSmoke(scene, area.chimneys, { reducedMotion }) : null;
   const people = typeof ctx.people === 'function' ? ctx.people : null;
   let musician = scene && people
@@ -166,7 +179,7 @@ export function createMarketLife(area, ctx = {}) {
   const pigeons = (ctx.critters?.list ?? []).filter((c) => c?.type === 'bird' && c.def?.labelAs === 'pigeon');
   const pigeonWas = pigeons.map((c) => !!c.fleeing);
   let sound = ctx.audio
-    ? createMarketSound(ctx.audio, { pigeons: pigeons.length ? pigeons : [PIGEON_PATCH], musician: MUSICIAN, stalls: TREAT_STALLS.map((id) => stallById(id).at) })
+    ? createMarketSound(ctx.audio, { pigeons: pigeons.length ? pigeons : [PIGEON_PATCH], musician: MUSICIAN, stalls: TREAT_STALLS.map((id) => stallById(id).at), chimes: STALLS.filter((st) => st.w > 0).map((st) => st.at) })
     : null;
 
   // finding
@@ -318,6 +331,24 @@ export function createMarketLife(area, ctx = {}) {
         if (here && !found.has(here)) {
           found.add(here);
           if (log && progression) noteMarketFind(here, { log, progression });
+        }
+      }
+      if (react) {
+        const part = ctx.dusk ? 0.8 : reducedMotion ? 0.35 : dayPart(t);
+        toneAt(part, react.uMkTone.value);
+        sound?.setPart(part);
+        if (!reducedMotion) react.uMkR.value = t;
+        if (catPos) react.uMkCat.value.set(catPos.x, catPos.y, catPos.z);
+        react.uMkSpark.value = lite ? 0 : reducedMotion ? 0.5 : 1;
+        if (!still) {
+          const moving = catPos ? spot.speed > 0.4 : false;
+          const k = moving ? 1 : 0;
+          rip += (k - rip) * Math.min(1, dt * (k > rip ? 10 : 2.5));
+          react.uMkRip.value = rip;
+          react.uMkCloud.value = 1;
+          react.uMkSway.value = moving ? 1 : 0.4;
+          const gust = Math.max(0, Math.sin(t * 0.23) * Math.sin(t * 0.37 + 1.1));
+          for (const u of flutter) u.uMkAmp.value = 1 + 0.9 * gust * gust;
         }
       }
       if (!apples && scene && crateAt) {
