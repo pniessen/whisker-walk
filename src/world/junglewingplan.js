@@ -51,7 +51,8 @@ export const WINDOWS = Object.freeze([
 ]);
 export const WINDOW_COUNT = WINDOWS.length;
 // The plates on the table (the supper's candle-glows stand over them): the table's own three fruit slots.
-export const PLATES = Object.freeze(TABLE.slots.map((s) => f({ x: s.x, y: r2(s.y + 0.15), z: s.z })));
+// Built from the plan alone (the same sums as junglestory.js's TABLE.slots), so this top level never reads junglestory.js's exports while it may still be loading.
+export const PLATES = Object.freeze([[-0.28, 0.12], [0.02, -0.14], [0.3, 0.1]].map(([dx, dz]) => f({ x: P.KITCHEN_TABLE.x + dx, y: r2(P.LODGE.deck + 0.66 + 0.15), z: P.KITCHEN_TABLE.z + dz })));
 // She may ask Mossy for the supper this near (Mossy sits at the veranda's back; the table is 3.8 m from her).
 export const BEGIN_REACH = 3.2;
 // The strings of lights (they come on when the table is set, and stay): along the log bridge's rope rail, and swung along the eave.
