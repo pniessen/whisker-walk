@@ -435,6 +435,7 @@ export function createJungleBeauty2({ scene, tier = null, reducedMotion = false,
   const mMat = new THREE.PointsMaterial({ map: dotTexture(), alphaTest: 0.01, size: 1, sizeAttenuation: true, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: true });
   mMat.onBeforeCompile = (sh) => { // each point's own size
     sh.vertexShader = sh.vertexShader.replace('void main() {', 'attribute float aSize;\nvoid main() {').replace('gl_PointSize = size;', 'gl_PointSize = size * aSize;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <fog_fragment>', '#ifdef USE_FOG\n gl_FragColor.rgb *= 1.0 - smoothstep( fogNear, fogFar, vFogDepth );\n#endif'); // pass 11: additive light fades into the haze, it never ADDS the haze colour (that was the dawn blow-out: every far mote glowed fog-white)
   };
   const motes = new THREE.Points(mGeo, mMat);
   motes.name = 'jungle:motes'; motes.frustumCulled = false;
@@ -558,7 +559,8 @@ export function createJungleBeauty2({ scene, tier = null, reducedMotion = false,
       mCol[i * 3] = p.rgb[0] * g; mCol[i * 3 + 1] = p.rgb[1] * g; mCol[i * 3 + 2] = p.rgb[2] * g;
     }
     const load = glowLoad(mCol, mPos, mSize, nP, catAt.x, catAt.z); capK = easeScale(capK, glowScale(load), dtNow); motes.userData.glow = { load, k: capK }; // pass 10: ONE shared glow budget for all the pooled lights
-    for (let k = 0; k < nP * 3; k++) { const v = mCol[k] * capK; mCol[k] = v > 1 ? 1 : v; }
+    const dk = capK * (1 - 0.55 * day.dawn); // pass 11: at dawn the banks, haze and halos stack on the low sun's shafts: soften every pooled light a little more there
+    for (let k = 0; k < nP * 3; k++) { const v = mCol[k] * dk; mCol[k] = v > 1 ? 1 : v; }
     mGeo.attributes.position.needsUpdate = true; mGeo.attributes.color.needsUpdate = true; mGeo.attributes.aSize.needsUpdate = true;
   }
   function draw(t, rain, camera, day) {
@@ -663,7 +665,7 @@ export function createJungleBeauty2({ scene, tier = null, reducedMotion = false,
       weatherVoice(t, day, rain);
       clothTint(ev, clothC); vistaCloth(vst, clothC);
       sway.material.color.setRGB(SE.tint[0] * (1 - 0.1 * day.noon) * (0.86 + 0.28 * zc[0]) * clothC[0], SE.tint[1] * (1 - 0.06 * day.noon) * (0.86 + 0.28 * zc[1]) * clothC[1], SE.tint[2] * (1 - 0.1 * day.noon) * (0.86 + 0.28 * zc[2]) * clothC[2]); sway.material.color.r *= 1 - 0.6 * day.night; sway.material.color.g *= 1 - 0.45 * day.night; sway.material.color.b *= 1 - 0.25 * day.night; // pass 4: the saturated blossoms ease a little in the noon glare
-      if (shafts) { shafts.material.opacity = SHAFT.opacity * Math.min(1.35, day.shaft * shaftBoost(ev) * vistaShaft(vst)) * (0.85 + 0.15 * Math.sin(t * 0.27)) * (1 - 0.7 * Math.min(1, rain)); const st = shaftTint(ev); shafts.material.color.setRGB(day.warm[0] * st[0], day.warm[1] * st[1], day.warm[2] * st[2]).lerp(tintC, 0.75 * (1 - 0.5 * ev.gold)); shafts.material.color.lerp(tintC.setRGB(0.55, 0.72, 1), 0.85 * day.night); shafts.material.opacity *= (1 - 0.35 * day.night) * (0.55 + 0.45 * capK); } // moonbeams: silver blue
+      if (shafts) { shafts.material.opacity = SHAFT.opacity * Math.min(1.35, day.shaft * shaftBoost(ev) * vistaShaft(vst)) * (1 - 0.6 * day.dawn) * (0.85 + 0.15 * Math.sin(t * 0.27)) * (1 - 0.7 * Math.min(1, rain)); const st = shaftTint(ev); shafts.material.color.setRGB(day.warm[0] * st[0], day.warm[1] * st[1], day.warm[2] * st[2]).lerp(tintC, 0.75 * (1 - 0.5 * ev.gold)); shafts.material.color.lerp(tintC.setRGB(0.55, 0.72, 1), 0.85 * day.night); shafts.material.opacity *= (1 - 0.35 * day.night) * (0.55 + 0.45 * capK); } // moonbeams: silver blue
     },
     dispose() {
       if (base.sunC) { sun.color.copy(base.sunC); sun.intensity = base.sunI; } if (fill && base.fillI) { fill.color.copy(base.fillC); fill.intensity = base.fillI; } if (base.env !== null) { scene.environmentIntensity = base.env; scene.backgroundIntensity = 1; }
