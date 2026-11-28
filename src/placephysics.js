@@ -15,8 +15,15 @@ export const PLACE_PHYSICS = Object.freeze({
 export const physicsFor = (place) => (typeof place === 'string' && Object.hasOwn(PLACE_PHYSICS, place) ? PLACE_PHYSICS[place] : null);
 
 // The pounce arc of a place: taller and longer on the Moon (the pose window and the landing thump follow `.time`).
-export function placeArc(arc, place) {
+// Hagrid the chicken hops gentler on the Moon: the arc's height and the drawn hang of a perch hop scale by these.
+// Reach rules (canReach, the budgets) never read them, and no other breed or place does either.
+export const GENTLE_HOP = Object.freeze({ height: 0.6, hang: 0.85 });
+export const gentleHop = (place, breed) => (place === 'moon' && breed === 'hagrid' ? GENTLE_HOP : null);
+
+export function placeArc(arc, place, breed) {
   const p = physicsFor(place);
+  const g = gentleHop(place, breed);
+  if (p && g) return Object.freeze({ height: arc.height * (p.hopHeightMul ?? 1) * g.height, time: arc.time * (p.hopTimeMul ?? 1) });
   return p ? Object.freeze({ height: arc.height * (p.hopHeightMul ?? 1), time: arc.time * (p.hopTimeMul ?? 1) }) : arc;
 }
 

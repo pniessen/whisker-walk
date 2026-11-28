@@ -225,7 +225,7 @@ export function createMoonLife({ scene, reducedMotion = false, tier, progression
       const tilt = launch.tilt(); // a rocket climbing: the view tips up with it (none in reduced motion), before the sky is placed on the camera
       if (tilt) camera.rotateX(tilt);
       sky.update(camera, t);
-      const arc = placeArc(pounceArc(progression.state, { reducedMotion }), 'moon');
+      const arc = placeArc(pounceArc(progression.state, { reducedMotion }), 'moon', session.cat?.userData?.breed);
       const left = session.pounceTime ?? 0;
       // the camera ease: the hop's height she is at, less what the camera follows
       const lift = hopNow(arc, left);

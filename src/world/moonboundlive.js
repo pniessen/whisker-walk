@@ -42,7 +42,7 @@ export function createBoundLive({ scene, reducedMotion = false, ground, collider
   let allLit = false;
   let hinted = false;
   // the walk's pounce window for the Moon (placephysics.js); the bound's own arc is the same parabola whatever the reduced-motion setting says
-  const logicalArc = () => placeArc(pounceArc(progression?.state, { reducedMotion: false }), 'moon');
+  const logicalArc = (breed) => placeArc(pounceArc(progression?.state, { reducedMotion: false }), 'moon', breed);
   const world = { bounds: P.MOON_BOUNDS, colliders, rifts: P.RIFTS, canStep: ground?.canStep ? (ax, az, bx, bz) => ground.canStep(ax, az, bx, bz) : null };
 
   let st = null; // the flight
@@ -97,7 +97,7 @@ export function createBoundLive({ scene, reducedMotion = false, ground, collider
       if (!(session.pounceTime > 0)) { decided = false; return; }
       if (decided || session.perched || session.chasing || session.fight || session.freezeTime > 0) return;
       decided = true; // one look per press: the frames after it would read the speed the press's own lunge gave her
-      const arc = logicalArc();
+      const arc = logicalArc(session.cat?.userData?.breed);
       if (session.pounceTime < arc.time - FRESH) return; // not a press made since the last frame
       if (!boundWanted({ lastSpeed, inputHeld: player.inputActive, stalking: player.stalking, perched: session.perched, swimming: player.swimming })) return;
       const d = player.inputDirection();
