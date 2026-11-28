@@ -31,6 +31,7 @@ import * as THREE from 'three';
 import * as P from './treehouseplan.js';
 import { talesPlan, TALE_SLOTS } from './treehousetales.js';
 
+const HOLLOW_P = (() => { const r = (P.OAK.r - (P.OAK.r * 0.38 * 1.7) / P.OAK.h) * 0.97 + 0.04; return { x: P.OAK.x - 0.5 * r, y: 1.7, z: P.OAK.z + 0.866 * r }; })(); // the oak's knothole (the night stage's HOLLOW, copied)
 export const LAMP_RADIUS = 4.2; // metres a lantern's pool reaches
 export const LAMP_SLOTS = 6; // the shader's lamp array (the live count is lower on LOW and LITE)
 export const LIVE = Object.freeze({ high: 6, low: 4, lite: 3 });
@@ -213,6 +214,7 @@ uniform vec4 uWx;
 uniform vec2 uWx2;
 uniform vec4 uVz;
 uniform vec4 uVz2;
+uniform float uNt;
 varying vec3 vTw;
 varying vec3 vNw;
 varying float vGf;
@@ -229,6 +231,8 @@ const EMISSIVE_FRAG = (leaves) => `#include <emissivemap_fragment>
   }
   totalEmissiveRadiance += (base * 1.1 + vec3(0.05, 0.025, 0.0)) * vec3(1.0, 0.62, 0.26) * pool * (1.5 + 1.1 * uWx.x + 0.5 * uWx.z + 0.4 * uWx.y);
   totalEmissiveRadiance += base * talGlow * 0.9; // the lantern-lit board lights itself
+  // NIGHT (the real clock, treehouseliving.js): a silver rim of moonlight on the edges that face the camera, strongest on the high leaves, and a cool wash on what faces up
+  if (uNt > 0.001) { float rm = pow(1.0 - clamp(dot(normalize(vNw), normalize(cameraPosition - vTw)), 0.0, 1.0), 2.2); totalEmissiveRadiance += vec3(0.55, 0.7, 1.0) * rm * uNt * ${leaves ? '0.5 * smoothstep(3.0, 9.0, vTw.y)' : '0.09'} * (0.75 + 0.25 * sin(uTime * 0.4 + vTw.x * 0.3)) + base * vec3(0.2, 0.3, 0.55) * clamp(vNw.y, 0.0, 1.0) * uNt * ${leaves ? '0.35' : '0.2'}; }
   // WINTER GLINTS: tiny frost sparkles on what faces up
   vec2 gp = vTw.xz * 6.0; vec2 gc = floor(gp); float gh = fract(sin(dot(gc, vec2(12.9898, 78.233))) * 43758.5453);
   float gl = step(0.88, gh) * smoothstep(0.3, 0.0, length(fract(gp) - 0.5)) * pow(0.5 + 0.5 * sin(uTime * 2.3 + gh * 80.0), 6.0); // a few round specks at a time, each on its own beat
@@ -271,8 +275,9 @@ float talGlow = 0.0;
   diffuseColor.rgb *= mix(vec3(1.0), ${leaves ? 'vec3(0.9, 1.1, 0.86)' : 'vec3(1.02, 1.03, 0.96)'}, su * 0.7);
   ${leaves ? 'diffuseColor.rgb *= mix(vec3(1.0), vec3(1.0, 1.08, 0.92), sp * 0.6) * mix(vec3(1.0), vec3(1.1, 0.95, 0.78), au * 0.5);' : ''}
   // FLOOR MIST: a pale haze low round the stilts, trunk feet and the undersides of the decks, thickest on the ground
-  float mst = (1.0 - smoothstep(0.0, 1.25, vTw.y)) * (1.0 - 0.85 * clamp(vNw.y, 0.0, 1.0)) * (0.8 + 0.2 * sin(vTw.x * 0.5 + vTw.z * 0.4 + uTime * 0.3));
-  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.72, 0.8, 0.82), 0.32 * mst);
+  float mst = (1.0 - smoothstep(0.0, 1.25 + 2.4 * uNt, vTw.y)) * (1.0 - 0.85 * clamp(vNw.y, 0.0, 1.0)) * (0.8 + 0.2 * sin(vTw.x * 0.5 + vTw.z * 0.4 + uTime * 0.3));
+  diffuseColor.rgb *= mix(vec3(1.0), vec3(0.8, 0.88, 1.12), uNt); // night: the moon's blue
+  mst *= 1.0 + 0.9 * uNt; diffuseColor.rgb = mix(diffuseColor.rgb, mix(vec3(0.72, 0.8, 0.82), vec3(0.34, 0.46, 0.8), uNt), 0.32 * mst);
   ${leaves ? `float n = sin(vTw.x * 0.21 + 1.3) * sin(vTw.z * 0.19 + 0.4) + 0.6 * sin(vTw.x * 0.07 + vTw.z * 0.11);
   float popK = au + 0.2 * wi + 0.08 * su;
   float pop = smoothstep(0.2 - 0.3 * au, 0.7 - 0.25 * au, n) * smoothstep(3.5, 8.0, vTw.y) * min(1.0, popK);
@@ -297,7 +302,9 @@ float talGlow = 0.0;
     diffuseColor.rgb *= 1.0 - ${leaves ? '0.36' : '0.2'} * ed;
     ${leaves ? 'diffuseColor.rgb *= mix(vec3(1.0), vec3(0.8, 0.96, 0.72), ed);' : ''}
   }
-  ${leaves ? '' : `// BARK: the big oak's trunk gets slow vertical furrows (it was one smooth brown slab close up)
+  ${leaves ? '' : `// KNOTHOLE: a dark hollow in the oak where a shy friend peeks out at night (treehousenight.js HOLLOW)
+  { float hd = length((vTw - vec3(${HOLLOW_P.x.toFixed(2)}, ${HOLLOW_P.y.toFixed(2)}, ${HOLLOW_P.z.toFixed(2)})) * vec3(1.0, 0.75, 1.0)); diffuseColor.rgb *= 1.0 - 0.92 * smoothstep(0.52, 0.34, hd) * step(vNw.y, 0.5); }
+  // BARK: the big oak's trunk gets slow vertical furrows (it was one smooth brown slab close up)
   { vec2 oc = vTw.xz - vec2(0.0, -6.0); float orad = length(oc); if (orad < 3.5 && vTw.y > 0.3 && vTw.y < 16.0 && vNw.y < 0.5) { float oa = atan(oc.y, oc.x); float fur = sin(oa * 34.0 + sin(vTw.y * 0.8 + oa * 4.0) * 1.7) * 0.5 + 0.5; diffuseColor.rgb *= 0.78 + 0.34 * smoothstep(0.15, 0.85, fur); } }`}
   if (uTale > 0.5) { vec4 tl = tale(vTw, talGlow); diffuseColor.rgb = mix(diffuseColor.rgb, tl.rgb, tl.a); talGlow *= tl.a; }
 }`;
@@ -309,7 +316,7 @@ function patch(material, uniforms, leaves) {
     shader.vertexShader = shader.vertexShader.replace('#include <common>', COMMON_VERT).replace('#include <begin_vertex>', BEGIN_VERT(leaves));
     shader.fragmentShader = shader.fragmentShader.replace('#include <common>', COMMON_FRAG).replace('#include <color_fragment>', COLOR_FRAG(leaves)).replace('#include <emissivemap_fragment>', EMISSIVE_FRAG(leaves));
   };
-  material.customProgramCacheKey = () => (leaves ? 'treehouse-sky-leaves-v5' : 'treehouse-sky-paint-v5');
+  material.customProgramCacheKey = () => (leaves ? 'treehouse-sky-leaves-v6' : 'treehouse-sky-paint-v6');
 }
 // The lit windows (the glow material, unlit): only the tales are painted on them.
 function patchGlow(material, uniforms) {
@@ -328,7 +335,7 @@ export function skyPatch(M) {
   const decA = Array.from({ length: TALE_SLOTS }, (_, i) => { const d = decals[i]; return d ? new THREE.Vector4(d.x, d.y, d.z, d.yaw) : new THREE.Vector4(0, -100, 0, 0); });
   const decB = Array.from({ length: TALE_SLOTS }, (_, i) => { const d = decals[i]; return d ? new THREE.Vector4(d.hw, d.hh, d.kind, d.tol) : new THREE.Vector4(0, 0, 0, 0); });
   const rd = new THREE.Vector3(RAIN_DIR.x, RAIN_DIR.y, RAIN_DIR.z).normalize();
-  const uniforms = { uSeason: { value: new THREE.Vector4(0, 0, 1, 0) }, uRain: { value: 0 }, uRainDir: { value: rd }, uWx: { value: new THREE.Vector4() }, uWx2: { value: new THREE.Vector2() }, uVz: { value: new THREE.Vector4() }, uVz2: { value: new THREE.Vector4() }, uTale: { value: 1 }, uDecA: { value: decA }, uDecB: { value: decB }, uTime: { value: 0 }, uSway: { value: 1 }, uCat: { value: new THREE.Vector4(0, -100, 0, 0) }, uReact: { value: new THREE.Vector3() }, uLamp: { value: Array.from({ length: LAMP_SLOTS }, () => new THREE.Vector4(0, -100, 0, 0)) } };
+  const uniforms = { uSeason: { value: new THREE.Vector4(0, 0, 1, 0) }, uRain: { value: 0 }, uRainDir: { value: rd }, uWx: { value: new THREE.Vector4() }, uWx2: { value: new THREE.Vector2() }, uNt: { value: 0 }, uVz: { value: new THREE.Vector4() }, uVz2: { value: new THREE.Vector4() }, uTale: { value: 1 }, uDecA: { value: decA }, uDecB: { value: decB }, uTime: { value: 0 }, uSway: { value: 1 }, uCat: { value: new THREE.Vector4(0, -100, 0, 0) }, uReact: { value: new THREE.Vector3() }, uLamp: { value: Array.from({ length: LAMP_SLOTS }, () => new THREE.Vector4(0, -100, 0, 0)) } };
   patch(M.paint, uniforms, false);
   patch(M.leaves, uniforms, true);
   if (M.glow) patchGlow(M.glow, uniforms);
@@ -349,6 +356,7 @@ export function skyPatch(M) {
     setWx(rain, mist, gold, storm, steam, flash, bow) { uniforms.uWx.value.set(rain, mist, gold, storm); uniforms.uWx2.value.set(steam, flash); sky.storm = storm; sky.bow = bow; uniforms.uRain.value = Math.max(sky.rk, bow); },
     // the vista's look (treehousevista.js): the focal point (x, y, z), the grade and haze, the edge dimming, the focal glow (0 = off)
     setVista(fx, fy, fz, grade, edge, focal) { uniforms.uVz.value.set(0, fx, fy, fz); uniforms.uVz2.value.set(grade, edge, focal, 0); },
+    setNight(k) { uniforms.uNt.value = k; }, // the real clock's night, 0..1 (treehouseliving.js)
     rk: 0, bow: 0, storm: 0,
     fx: { flare: 0, sway: 0, flex: 0, shake: 0 }, lampList: lamps, // beauty pass 8: her voice and moves (treehousereact.js) set the lamps' flare and sway, the planks' flex and the canopy's shiver
     season: [0, 0, 1, 0],
