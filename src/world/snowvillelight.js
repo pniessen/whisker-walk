@@ -85,8 +85,8 @@ const _pink = new THREE.Color(CHEEK_PINK);
 const _fw = new THREE.Vector3();
 
 // createSnowvilleLight({ scene, tier, reducedMotion }) -> { flakes, glints, light, cold, update(dt, t, catPos, camera, session), dispose() }
-export function createSnowvilleLight({ scene, tier = null, reducedMotion = false, audio = null, season = null, sun = null, fill = null, now = null }) {
-  const { createWonder, createLiving, createWeather, createVista, createReactions, createAlive, waveAt, chase, glowNear, SHARED } = ST.story;
+export function createSnowvilleLight({ scene, tier = null, reducedMotion = false, audio = null, season = null, sun = null, fill = null, now = null, force = false }) {
+  const { createWonder, createLiving, createWeather, createVista, createReactions, createFestival, createAlive, waveAt, chase, glowNear, SHARED } = ST.story;
   const low = isLowTier(tier);
   const nFlakes = reducedMotion ? P.FLAKES.reduced : low ? P.FLAKES.low : P.FLAKES.count;
 
@@ -143,6 +143,7 @@ export function createSnowvilleLight({ scene, tier = null, reducedMotion = false
   const weather = createWeather({ scene, sun, fill, audio, reducedMotion, low, now }); // beauty pass 6: the hour's weather and the rare events (the halos below glow with it)
   const vista = createVista({ scene, sun, fill, audio, reducedMotion, low }); // beauty pass 7: five photo spots (haze bands, a glowing focus, a warm grade, the golden moment)
   const rx = createReactions({ scene, audio, rung: (tier?.rung ?? 0) >= 3 ? 'lite' : low ? 'low' : 'high', motion: !reducedMotion, targets: [{ x: P.STALL.x - 0.8, z: P.STALL.z, y: P.snowY(P.STALL.x, P.STALL.z) + 1.4 }, { x: 11, z: 1, y: P.snowY(11, 1) + 1.7 }] }); // beauty pass 8: the village answers her voice and her moves
+  const festival = createFestival({ scene, audio, rung: (tier?.rung ?? 0) >= 3 ? 'lite' : low ? 'low' : 'high', motion: !reducedMotion, now, force }); // beauty pass 9: the winter lantern festival (the festival evenings only)
   const living = createLiving({ scene, tier, reducedMotion, audio, low, sun }); // beauty pass 5: creatures, the arrival, the shared breath, hour and wind
   const smallL = haloLayer(smalls, HALO.bulb, 'snowville:halos');
   const bigL = haloLayer(bigs, HALO.big, 'snowville:glows');
@@ -197,6 +198,7 @@ export function createSnowvilleLight({ scene, tier = null, reducedMotion = false
     weather,
     vista,
     rx,
+    festival,
     update(dt, t, catPos, _camera, session) {
       const cx = catPos?.x ?? P.SNOWVILLE_SPAWN.x;
       const cz = catPos?.z ?? P.SNOWVILLE_SPAWN.z;
@@ -206,6 +208,7 @@ export function createSnowvilleLight({ scene, tier = null, reducedMotion = false
       alive.update(dt, t, catPos, _camera, session);
       weather.update(dt, t, catPos, _camera);
       if (_camera?.getWorldDirection) { _camera.getWorldDirection(_fw); rx.step(dt, t, catPos ?? { x: cx, y: P.snowY(cx, cz), z: cz }, session, _fw); } else rx.step(dt, t, catPos ?? { x: cx, y: P.snowY(cx, cz), z: cz }, session);
+      festival.step(dt, t, catPos ?? { x: cx, y: P.snowY(cx, cz), z: cz });
       vista.update(dt, t, catPos, _camera, session); // (after the weather: it sets the fog and the fill each frame, the vista's grade goes on top)
       wonder.update(dt, t, catPos, _camera);
       if (weather.night > 0.8 && !wonder.state.kind && t >= auroraAt) { auroraAt = t + 200; wonder.trigger('aurora'); } // a clear night: the aurora of pass 4 every few minutes
@@ -229,6 +232,7 @@ export function createSnowvilleLight({ scene, tier = null, reducedMotion = false
       weather.dispose();
       vista.dispose();
       rx.dispose();
+      festival.dispose();
       scene.remove(flakes, glints, smallL.pts, bigL.pts, steam);
       for (const L of [smallL, bigL]) { L.g.dispose(); L.pts.material.dispose(); }
       stGeo.dispose(); steam.material.dispose();
