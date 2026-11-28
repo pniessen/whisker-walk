@@ -14,6 +14,7 @@
 import { coop } from '../coopseam.js';
 import { coopReady } from './table.js';
 import { createPadHub, padForWalk } from './padhub.js';
+import { createSplitControl, orbitFor, zoomFor, turnsHeading } from './padsplit.js';
 import { createHeading, neededLevel, catPoints, maxSeparation, easeLevel, offsetAt, inBox, SAFE_W, SAFE_H, CAT_TOP } from './framing.js';
 import { createMarkers } from './markers.js';
 import { bandFactor, createFollow, edgeMarker, createToastQueue, FOLLOW_STOP } from './rules.js';
@@ -114,6 +115,7 @@ export function start(ctx) {
   };
   const hub = createPadHub();
   const heading = createHeading();
+  const splitCtl = createSplitControl(); // S4: shared couch view or a camera each (docs/split-screen-s4.md)
   const doc = ctx.doc ?? (typeof document !== 'undefined' && document.body ? document : null);
   const cards = doc ? createCards({ doc }) : null;
   const view = () => ctx.view?.() ?? { w: doc?.defaultView?.innerWidth ?? globalThis.innerWidth ?? 1920, h: doc?.defaultView?.innerHeight ?? globalThis.innerHeight ?? 1080 };
@@ -129,7 +131,7 @@ export function start(ctx) {
     emit: (it) => {
       const merge = it.key ? { merge: `coop:${it.key}`, mergeText: () => it.both ?? it.text } : undefined;
       if (merge) ctx.toast?.(it.text, 0, merge); else ctx.toast?.(it.text);
-      hud?.chipShow(it.slots, [nameOne(), nameTwo()], tvToastTiming.life(it.text));
+      hud?.chipShow(it.slots, [nameOne(), nameTwo()], tvToastTiming.life(it.text), it.text);
     },
   });
   const profile = ctx.profile ?? getProfile;
@@ -210,6 +212,7 @@ export function start(ctx) {
     if (tag) { tag.parent?.remove(tag); tag.material?.map?.dispose(); tag.material?.dispose(); if (s?.cat?.userData?.ownTag === tag) delete s.cat.userData.ownTag; tag = null; }
     hub.release(1);
     state.joined = false;
+    splitCtl.reset();
     state.second = null;
     cards?.hideLost();
     if (toast && pick) toasts.push({ slot: 1, one: phrase('coop.left', nameTwo()), found: false });
@@ -325,7 +328,13 @@ export function start(ctx) {
     else if (ev.type === 'leave') { if (ev.slot === 1 && state.joined) leave(true); } // pad two held Select: cat two waves and steps out; A on that pad brings it back
     else if (ev.type === 'hop') { if (state.joined && engaged) hopFriend(ev.slot); }
     else if (ev.type === 'groom') { if (state.joined && engaged && !fights.on && mover) groom.start(state.apart, calm()); }
-    else if (ev.type === 'turn') { if (state.joined && engaged && !fights.on) turn(ev.dir); }
+    else if (ev.type === 'turn') {
+      if (state.joined && engaged && !fights.on) {
+        const z = zoomFor(splitCtl.ctl, ev, mover?.player.cameraZoomStep ?? 1, maxZoomStep(cur?.areaId));
+        if (z !== null) mover.player.setCameraZoom(z); // split: L1 / R1 on pad two zoom cat two's own camera (pad one's reach the walk's pad code whole)
+        else if (turnsHeading(splitCtl.ctl)) turn(ev.dir);
+      }
+    }
     else if (ev.type === 'start') {
       if (engaged) { menuOwner = ev.slot; if (ev.slot === 1) ctx.act?.('pause'); } // pad one's own Start is the walk's
       else if (ev.slot === ownerSlot() && ctx.canResume?.()) ctx.resume?.(); // the owner pad only: the other pad's Start does nothing in a menu
@@ -511,7 +520,18 @@ export function start(ctx) {
       else if (!state.seats[1].lost && state.seats[0] && !state.seats[0].lost) join();
     }
     if (state.joined && mover) {
+      const sc = splitCtl.step(coop.splitRes);
+      if (sc.changed) {
+        if (sc.ctl === 'split') mover.player.setCameraZoom(ctx.player.cameraZoomStep ?? 1, { instant: true }); // cat two's camera starts at cat one's zoom
+        else { // merged: the shared heading starts from where cat one's camera was and eases to a quarter; held sticks keep their world direction through it
+          if (ctx.player.inputActive && !heldOne) { ctx.player.setInputYaw(ctx.player.viewYaw()); heldOne = true; }
+          if (mover.player.inputActive && !heldTwo) { mover.player.setInputYaw(mover.player.viewYaw()); heldTwo = true; }
+          heading.yaw = ctx.player.viewYaw(); heading.square(heading.yaw);
+        }
+      }
       if (pad2) {
+        const orb = orbitFor(splitCtl.ctl, pad2);
+        if (orb) mover.player.addOrbit(orb.dx, orb.dy);
         if (pad2.move !== undefined) mover.player.setTouchMove(pad2.move);
         if (pad2.kick !== undefined) mover.player.setKick(pad2.kick); // the Reef's kick: A held (does nothing where nothing floats)
         for (const a of pad2.actions) {
@@ -523,8 +543,10 @@ export function start(ctx) {
         }
       }
       heading.step(dt, !!s.reducedMotion);
-      ctx.player.setViewYaw(heading.yaw);
-      mover.player.setViewYaw(heading.yaw);
+      if (splitCtl.ctl !== 'split') { // in the split mapping each camera keeps its own yaw (the orbit)
+        ctx.player.setViewYaw(heading.yaw);
+        mover.player.setViewYaw(heading.yaw);
+      }
       if (heldOne && !ctx.player.inputActive) { ctx.player.setInputYaw(null); heldOne = false; }
       if (heldTwo && !mover.player.inputActive) { mover.player.setInputYaw(null); heldTwo = false; }
       state.yaw = heading.target;
@@ -550,7 +572,7 @@ export function start(ctx) {
     const own0 = ownerSlot();
     state.owner = own0;
     const owner = !live2 && own0 === 1 && p1 ? p1 : p0;
-    const walkPad = owner ? padForWalk(owner, live2 && state.joined) : null;
+    const walkPad = owner ? padForWalk(owner, live2 && state.joined, splitCtl.ctl === 'split') : null;
     coop.pad = state.joined ? fights.padFor(p0, p1, walkPad) : walkPad; // while a fight sheet is up the challenger's pad is the one read
     if (ready && state.joined && coop.pad) coop.pad = { ...coop.pad, buttons: (coop.pad.buttons ?? []).map((b, i) => (i === PAD_BUTTONS.Y ? false : b)) }; // Y swaps the cats here: it is not also a button of the card
     if (owner) padKindNow = padKind(owner.id);
@@ -635,6 +657,7 @@ export function start(ctx) {
   };
 
   // After cat one's player.update: cat two's step, the leash, the picture of both.
+  coop.secondPos = () => (state.joined && mover ? mover.body.position : null); // where cat two stands (the split HUD's second corner map)
   coop.second = () => (state.joined && mover ? mover.cam : null); // cat two's own follow camera (the split view draws through it)
   coop.frame = (dt) => {
     const s = cur;
@@ -655,7 +678,8 @@ export function start(ctx) {
     // then holds the cats no farther apart than they are (the plan's tight-place rule, in its first form).
     const top = maxZoomStep(s.areaId); // the Den stops at the default step: the leash is the room's own
     const wide = maxSeparation(lens, top) * LEASH_MARGIN;
-    const split = !!ctx.split?.(); // ?split=1 (the S0 spike): each cat has its own camera, so the shared picture and its leash are off
+    const splitNow = ctx.split?.(); // ?split=1 (docs/split-screen-s1.md): null = flag off; true while the split picture is (even partly) up, so each cat has its own camera and the shared picture and its leash are off
+    const split = !!splitNow;
     const limit = split ? 1e6 : tight ? Math.min(wide, Math.max(state.apart, 2)) : wide;
     state.leash = limit;
     const ride = rides.busy || s.fair?.riding || s.fair?.hopping || s.traversal?.busy; // a ride runs or cat one is on a crossing: the ride or the move carries the cat, so no leash holds it
@@ -668,6 +692,10 @@ export function start(ctx) {
     prev.a.set(cat.position.x, cat.position.z);
     prev.b.set(body.position.x, body.position.z);
     state.apart = Math.hypot(cat.position.x - body.position.x, cat.position.z - body.position.z);
+    if (splitNow !== null && splitNow !== undefined) { // the inputs of the dynamic split rule (src/coop/splitrule.js), read by splitview.js after this frame
+      const lv = !s.ground.flat && !s.ground.sameLevel(cat.position.x, cat.position.z, body.position.x, body.position.z);
+      coop.splitInfo = { gap: state.apart, maxSep: maxSeparation(lens, top), top: level >= top - 0.05, sameLevel: !lv };
+    }
     verbs(s, dt);
     // Pushing on at the stretch of the band: this cat's own hint says how to hop to the friend.
     const pushing = [ctx.player.inputActive && !trotting[0], mover.player.inputActive && !trotting[1]];
@@ -769,7 +797,7 @@ export function start(ctx) {
       leave(false);
       cards?.dispose();
       hud?.dispose();
-      coop.poll = null; coop.two = false; coop.pad = null; coop.frame = null; coop.late = null; delete coop.second;
+      coop.poll = null; coop.two = false; coop.pad = null; coop.frame = null; coop.late = null; delete coop.second; delete coop.secondPos; delete coop.splitInfo; delete coop.splitRes;
     },
   };
   if (import.meta.env?.DEV) globalThis.__coop = handle; // the browser pane's handle (development server only; not in a build)

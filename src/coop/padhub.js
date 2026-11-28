@@ -118,8 +118,8 @@ export function createPadHub() {
  * view has a fixed heading and turns in quarters), so they are taken out; in a
  * menu the pad is whole. A new object, so the browser's snapshot is untouched.
  */
-export function padForWalk(pad, engaged) {
-  if (!pad || !engaged) return pad;
+export function padForWalk(pad, engaged, split = false) {
+  if (!pad || !engaged || split) return pad; // split (docs/split-screen-s4.md): each cat has its own camera, so the right stick and L1/R1 are whole
   const a = pad.axes ?? [];
   return { ...pad, axes: [a[0] || 0, a[1] || 0, 0, 0], buttons: (pad.buttons ?? []).map((b, i) => (i === PAD_BUTTONS.L1 || i === PAD_BUTTONS.R1 ? false : b)) };
 }
