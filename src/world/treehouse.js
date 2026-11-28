@@ -69,8 +69,10 @@ export function build(scene) {
         const prompts = createTreehousePrompts(nutmeg, wing, errand);
         const finds = ST.branches?.finds?.life(ctx); // the six discoveries (milestone T3)
         const critters = ST.branches?.critters?.(ctx); // the songbirds, owl, fireflies, leaves, creak and chime (milestone T4)
+        const treeCats = ST.branches?.cats?.(ctx); // the tree's own cats: a cushion, a rail, a limb and a hollow
         return {
           light,
+          treeCats,
           spottable: critters?.spottable ?? [],
           nutmeg,
           wing,
@@ -78,8 +80,8 @@ export function build(scene) {
           interact: () => prompts.interact(),
           // a step done by anyone in the room (a `th-` event): a round done by a partner is credited to ours, a supper begun by a partner starts ours, any other step is Nutmeg's
           credit: (ev) => errand?.credit(ev) ?? wing?.credit(ev) ?? nutmeg.credit(ev),
-          update(dt, t, catPos, camera, session) { light.update(dt, t); nutmeg.update(dt, t, catPos, camera, session); wing?.update(dt, t); errand?.update(dt, t, catPos, camera, session); finds?.update(dt, t, catPos); critters?.update(dt, t, catPos); },
-          dispose() { errand?.dispose(); critters?.dispose(); finds?.dispose(); wing?.dispose(); nutmeg.dispose(); light.dispose(); },
+          update(dt, t, catPos, camera, session) { light.update(dt, t); nutmeg.update(dt, t, catPos, camera, session); wing?.update(dt, t); errand?.update(dt, t, catPos, camera, session); finds?.update(dt, t, catPos); critters?.update(dt, t, catPos); treeCats?.update(dt, t, catPos); },
+          dispose() { treeCats?.dispose(); errand?.dispose(); critters?.dispose(); finds?.dispose(); wing?.dispose(); nutmeg.dispose(); light.dispose(); },
         };
       },
     };

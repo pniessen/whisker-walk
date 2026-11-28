@@ -268,7 +268,7 @@ describe('the two stage slots', () => {
     const a = loadTreehouseStages();
     expect(loadTreehouseStages()).toBe(a);
     expect(await a).toBe(ST);
-    expect(Object.keys(ST.branches)).toEqual(['finds', 'critters', 'colliders', 'perches', 'story', 'draw', 'wing', 'errand']);
+    expect(Object.keys(ST.branches)).toEqual(['finds', 'critters', 'colliders', 'perches', 'story', 'draw', 'cats', 'wing', 'errand']);
     expect(Object.keys(ST.lift)).toEqual(['draw']); // the beauty round (T8)
     const area = build(new THREE.Scene());
     // every plan perch stands on a deck, a bridge or the landing, which is ground in the walk now (0 over it): none is offered as a hop
