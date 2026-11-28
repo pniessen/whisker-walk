@@ -37,9 +37,21 @@ export function createReefSealsLife({ scene, reducedMotion = false, tier = null 
   const dolSpots = dolphins.map(() => mk('rfdolphin', phrase('reef.life.dolphin'), 12));
 
   const seals = new D.Soup(); const octo = new D.Soup(); const dol = new D.Soup(); const rocks = new D.Soup(20000);
+  // The rides (world/reefsealride.js): who holds each swimmer ('me' or 'friend'), the point a ridden seal circles instead (her steering moves it; after the hop
+  // off it eases back to the walk's own over a few seconds), and where each swimmer is as drawn this frame.
+  const held = swimmers.map(() => null);
+  const own = swimmers.map(() => ({ x: 0, z: 0, k: 0, x0: 0, z0: 0 }));
+  const seen = swimmers.map(() => ({ x: 0, y: 0, z: 0, yaw: 0, size: 1 }));
+  const mixed = { x: 0, z: 0 };
   const drawSeals = () => {
     seals.begin();
-    swimmers.forEach((s, i) => { S.sealPose(s, clock, anchor, cat, pose); D.drawSeal(seals, s, pose); sealSpots[i].pos.set(pose.x, pose.y, pose.z); });
+    swimmers.forEach((s, i) => {
+      const o = own[i];
+      const a = o.k > 0 ? (mixed.x = anchor.x + (o.x - anchor.x) * o.k, mixed.z = anchor.z + (o.z - anchor.z) * o.k, mixed) : anchor;
+      S.sealPose(s, clock, a, held[i] === 'me' ? null : cat, pose, held[i] === 'me');
+      D.drawSeal(seals, s, pose); sealSpots[i].pos.set(pose.x, pose.y, pose.z);
+      const v = seen[i]; v.x = pose.x; v.y = pose.y; v.z = pose.z; v.yaw = pose.yaw; v.size = s.size;
+    });
     if (sleeper) { S.sleeperPose(sleeper, clock, pose); D.drawSeal(seals, sleeper, pose, true); sleepSpot.pos.set(pose.x, pose.y, pose.z); }
   };
   const drawOctos = () => {
@@ -65,14 +77,57 @@ export function createReefSealsLife({ scene, reducedMotion = false, tier = null 
     const m = S.denMouth(o);
     return S.smooth((2.0 - Math.hypot(cat.x - m.x, cat.z - m.z)) / 0.7); // all the way back by 1.3 m, not at all past 2 m
   };
+  const MAX_DRIFT = 9; // how far her steering may take a seal's circle from where the ride began
+  const ride = {
+    count: swimmers.length,
+    pose: (i) => seen[i],
+    holder: (i) => held[i],
+    // the free seal nearest to her within `reach` (horizontal) and 3 m (up or down), or -1
+    near(c, reach) {
+      let best = -1; let bd = reach;
+      for (let i = 0; i < swimmers.length; i++) {
+        if (held[i]) continue;
+        const v = seen[i];
+        if (Math.abs(c.y - v.y) > 3) continue;
+        const d = Math.hypot(c.x - v.x, c.z - v.z);
+        if (d <= bd) { best = i; bd = d; }
+      }
+      return best;
+    },
+    hold(i, who) {
+      if (i < 0 || i >= swimmers.length || held[i]) return false;
+      held[i] = who;
+      if (who === 'me') { const o = own[i]; o.x = o.x0 = anchor.x; o.z = o.z0 = anchor.z; o.k = 1; }
+      return true;
+    },
+    release(i, who) {
+      if (i < 0 || i >= swimmers.length || !held[i] || (who && held[i] !== who)) return false;
+      held[i] = null;
+      return true;
+    },
+    steer(i, ix, iz, dt) {
+      if (held[i] !== 'me') return;
+      const o = own[i];
+      o.x += ix * 2.2 * dt; o.z += iz * 2.2 * dt;
+      const dx = o.x - o.x0; const dz = o.z - o.z0; const d = Math.hypot(dx, dz);
+      if (d > MAX_DRIFT) { o.x = o.x0 + dx * MAX_DRIFT / d; o.z = o.z0 + dz * MAX_DRIFT / d; }
+    },
+    get busy() { return held.some((h) => h === 'me') || own.some((o) => o.k > 0); },
+  };
   const counts = { rung, seals: swimmers.length + (sleeper ? 1 : 0), octopuses: octos.length, dolphins: dolphins.length, meshes: 4 };
   return {
     counts,
+    ride,
     spottable,
     update(dt, t, catPos) {
       const d = dt > 0 ? Math.min(dt, 1) : 0;
       if (catPos) cat = catPos;
       if (!started && cat) { started = true; anchor.x = anchor2.x = cat.x; anchor.z = anchor2.z = cat.z; }
+      for (let i = 0; i < own.length; i++) {
+        if (held[i] === 'me' || own[i].k <= 0) continue;
+        own[i].k = Math.max(0, own[i].k - d / 3); // after the hop off its circle eases back to the walk's
+      }
+      if (reducedMotion && ride.busy) { clock += d; drawSeals(); commit(0, seals); return; } // a ridden seal moves even then; the rest stay a picture
       if (reducedMotion) {
         // one picture: drawn once on the first frame she is known, then only the octopus's step back when she is near
         let changed = false;

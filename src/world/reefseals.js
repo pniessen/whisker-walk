@@ -138,14 +138,15 @@ const SWIM_DISCS = swimAvoid();
 // ---- the swimming seals -------------------------------------------------------------------------------------------------
 // sealPose(seal, t, anchor, cat, out): where a swimming seal is at time t and how it holds itself. `anchor` is the point it circles (the walk's life lags it
 // behind her), `cat` her real place (a seal is never nearer than SEAL_KEEP). { x, y, z, yaw, pitch (nose up), roll, paddle, beat, look }.
-export function sealPose(s, t, anchor, cat = null, out = {}) {
+// `calm` (a seal with a rider): no drifting in to look, no loop and no roll, so her seat stays level.
+export function sealPose(s, t, anchor, cat = null, out = {}, calm = false) {
   const T = Math.max(0, t);
   const id = s.id;
   const ph = hash01(id, SALTS.seal) * TAU;
   const ph2 = hash01(id + 10, SALTS.seal);
   const a = s.dir * s.w * T + ph;
   const per = 26 + 8 * hash01(id + 20, SALTS.seal);
-  const look = bump((wrap1(T / per + ph2) - 0.6) / 0.24); // now and then it drifts in to look at her, and away again
+  const look = calm ? 0 : bump((wrap1(T / per + ph2) - 0.6) / 0.24); // now and then it drifts in to look at her, and away again
   const r = (s.r0 + 0.7 * Math.sin(T * 0.31 + ph)) * (1 - 0.42 * look);
   const tx = -Math.sin(a) * s.dir; const tz = Math.cos(a) * s.dir;
   const px = anchor.x + Math.cos(a) * r; const pz = anchor.z + Math.sin(a) * r;
@@ -156,8 +157,8 @@ export function sealPose(s, t, anchor, cat = null, out = {}) {
   const bob = T * 0.42 + ph;
   let h = 1.25 + 0.8 * Math.sin(bob);
   let pitch = 0.28 * Math.cos(bob);
-  const loopU = smooth((wrap1(T / (17 + 3 * id) + ph2) - 0.82) / 0.16); // a loop, nose up and over, once in a while
-  const rollU = smooth((wrap1(T / (23 + 2 * id) + ph2 * 0.7) - 0.84) / 0.12); // and a roll
+  const loopU = calm ? 0 : smooth((wrap1(T / (17 + 3 * id) + ph2) - 0.82) / 0.16); // a loop, nose up and over, once in a while
+  const rollU = calm ? 0 : smooth((wrap1(T / (23 + 2 * id) + ph2 * 0.7) - 0.84) / 0.12); // and a roll
   if (loopU > 0 && loopU < 1) { pitch += TAU * loopU; h += 0.85 * Math.sin(Math.PI * loopU); }
   out.x = x; out.z = z;
   out.y = reefY(x, z) + Math.max(0.5, h);
