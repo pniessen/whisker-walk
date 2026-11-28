@@ -47,7 +47,7 @@ function camp(H, stone, glow, light) {
   // the bedroll (a rolled mat and its blanket laid flat) and a satchel with a strap
   const roll = H.tone(new THREE.CylinderGeometry(0.12, 0.12, 0.8, 6).rotateZ(Math.PI / 2).translate(0, 0.12, 0), 0x6a4a3a, 0xb08a68, 0.24);
   stone.push(F(roll, -0.2, 0.75, 0));
-  stone.push(F(box(H, 0.62, 0.035, 0.95, 0x4a6a78, 0x6a8a98), 0.55, 0.3, 0).rotateY(0));
+  stone.push(F(box(H, 0.62, 0.035, 0.95, 0x5a86a0, 0x9cc4d8), 0.55, 0.3, 0).rotateY(0));
   stone.push(F(box(H, 0.3, 0.07, 0.2, 0xcab894, 0xe8dcc0), 0.55, 0.62, 0.04));
   stone.push(F(box(H, 0.24, 0.18, 0.12, 0x5a3e2c, 0x8a6446), -0.55, -0.15, 0));
   stone.push(F(box(H, 0.24, 0.04, 0.13, 0x3e2a1e, 0x6a4a34), -0.55, -0.15, 0.17));
@@ -55,10 +55,10 @@ function camp(H, stone, glow, light) {
   stone.push(F(box(H, 0.3, 0.06, 0.3, 0x6a5c6c, 0x8c7c90), 0.05, -0.62, 0));
   stone.push(F(box(H, 0.13, 0.2, 0.13, 0x3a3030, 0x6a5848), 0.05, -0.62, 0.06));
   stone.push(F(H.tone(H.cone(0.1, 0.1, 5).translate(0, 0.06, 0), 0x4a3a30, 0x7a6450, 0.16), 0.05, -0.62, 0.27));
-  glow.push(F(H.tone(new THREE.OctahedronGeometry(0.07, 0), 0xffa838, 0xfff0b0, 0.14).scale(1, 1.4, 1), 0.05, -0.62, 0.17));
-  light.push(H.tag(H.disc(CAMP.x, CAMP.z, 3.0, 1, (t) => { const k = 0.26 * (1 - t) ** 1.7; return [1 * k, 0.62 * k, 0.24 * k]; }, 3, 12), 2, 0.8));
+  glow.push(F(H.tone(new THREE.OctahedronGeometry(0.07, 0), 0xffb848, 0xffffd8, 0.14).scale(1.5, 2.0, 1.5), 0.05, -0.62, 0.17));
+  light.push(H.tag(H.disc(CAMP.x, CAMP.z, 3.4, 1, (t) => { const k = 0.4 * (1 - t) ** 1.7; return [1 * k, 0.62 * k, 0.24 * k]; }, 3, 12), 2, 0.8));
   // a tiny sparkle on the lantern glass
-  light.push(F(H.glint(0, 0, 0, 0.1, 0xffd890, 0.3), 0.05, -0.62, 0.3));
+  light.push(F(H.glint(0, 0, 0, 0.18, 0xffd890, 0.3), 0.05, -0.62, 0.3));
 }
 // the fire ring's last ember: a small warm disc
 function ember(H) { return H.disc(CAMP.x, CAMP.z, 0.42, 2, (t) => { const k = 0.5 * (1 - t) ** 1.4; return [k, 0.34 * k, 0.1 * k]; }, 2, 8); }
@@ -76,11 +76,11 @@ function statue(H, stone) {
 // ---- the toppled wheel ------------------------------------------------------------------------------------------------------
 function wheel(H, stone, glow, light) {
   const F = frame(WHEEL);
-  const wood = (g) => H.tone(g, 0x7a5a42, 0xd0a070, 1.2); // (lighter wood: the dark wheel was lost against the dark floor)
-  const rim = wood(new THREE.TorusGeometry(0.5, 0.045, 4, 12).rotateX(0)); // a ring in the XY plane, its centre 0.5 m up
+  const wood = (g) => H.tone(g, 0xc89a60, 0xffe4b0, 1.2); // (pass 7: lighter again; lighter wood: the dark wheel was lost against the dark floor)
+  const rim = wood(new THREE.TorusGeometry(0.5, 0.075, 4, 12).rotateX(0)); // a ring in the XY plane, its centre 0.5 m up
   rim.translate(0, 0.5, 0);
   const hub = wood(new THREE.CylinderGeometry(0.08, 0.08, 0.12, 6).rotateX(Math.PI / 2).translate(0, 0.5, 0));
-  const spokes = [0, 1, 2].map((k) => wood(new THREE.BoxGeometry(0.95, 0.035, 0.035).rotateZ((k / 3) * Math.PI).translate(0, 0.5, 0)));
+  const spokes = [0, 1, 2].map((k) => wood(new THREE.BoxGeometry(0.95, 0.06, 0.06).rotateZ((k / 3) * Math.PI).translate(0, 0.5, 0)));
   for (const g of [rim, hub, ...spokes]) { g.scale(2.1, 2.1, 2.1); g.rotateX(-0.95); stone.push(F(g, 0, 0, 0)); } // it lies tipped over, one edge on the floor, leaning on a rock
   stone.push(F(H.tone(new THREE.OctahedronGeometry(0.2, 0).scale(1, 0.8, 1.1), 0x6a5a70, 0x9a8a9c, 0.2), 0.1, -0.5, 0.04));
   stone.push(F(box(H, 0.7, 0.05, 0.14, 0x4a3224, 0x7a5a3c), -0.2, 0.95, 0).rotateY(0)); // a splintered plank
@@ -88,13 +88,13 @@ function wheel(H, stone, glow, light) {
   [[-0.55, -0.45, 0xffc65a], [-0.3, -0.62, 0xff6fa8], [0.1, -0.75, 0xffc65a], [0.45, -0.52, 0x62b8ff]].forEach(([lx, lz, hex], i) => {
     glow.push(F(H.tone(new THREE.OctahedronGeometry(0.07 + 0.015 * (i % 2), 0), 0x7a5a30, hex, 0.12).scale(1, 1.3, 1), lx, lz, 0.04));
   });
-  light.push(F(H.glint(0, 0, 0, 0.12, 0xffc65a, 0.8), -0.3, -0.62, 0.22));
+  light.push(F(H.glint(0, 0, 0, 0.22, 0xffc65a, 0.8), -0.3, -0.62, 0.22));
 }
 
 // ---- the collector's workbench ----------------------------------------------------------------------------------------------
 function bench(H, stone, glow, light) {
   const F = frame(BENCH);
-  const wood = (w, h, d, a = 0x5a4030, b = 0x8c6c4a) => box(H, w, h, d, a, b);
+  const wood = (w, h, d, a = 0x7c5c3c, b = 0xc8a070) => box(H, w, h, d, a, b); // (pass 7: lighter wood, so the bench reads against the floor)
   stone.push(F(wood(1.1, 0.06, 0.5), 0, 0, 0.5));
   for (const [lx, lz] of [[-0.48, -0.2], [0.48, -0.2], [-0.48, 0.2], [0.48, 0.2]]) stone.push(F(wood(0.06, 0.5, 0.06, 0x3e2a1e, 0x6a4c34), lx, lz, 0));
   stone.push(F(wood(0.95, 0.04, 0.4, 0x4a3426, 0x7a5c40), 0, 0, 0.16));
@@ -116,15 +116,15 @@ const PIGMENTS = [[1, 0.72, 0.28], [1, 0.42, 0.66], [0.3, 0.9, 0.82], [0.7, 0.5,
 function mural(H, stone, light) {
   const F = frame(MURAL);
   // the slab: a wide grey-violet stone, a little taller in the middle, leaning back a touch
-  stone.push(F(box(H, MURAL.w, MURAL.h, 0.5, 0x4c3e58, 0x8c7c9c), 0, 0, 0));
+  stone.push(F(box(H, MURAL.w, MURAL.h, 0.5, 0x2e2440, 0x5e4e74), 0, 0, 0)); // (pass 7: a darker slab, so the bright paint reads from the main path)
   stone.push(F(box(H, MURAL.w * 0.8, 0.4, 0.45, 0x4c3e58, 0x7c6c8c), 0, 0, MURAL.h));
   // the paint: a faint moon, a row of sitting cats (one different each), pawprints along the foot, a border
   const y0 = P.crystalY(MURAL.x, MURAL.z); const ca = Math.cos(MURAL.yaw); const sa = Math.sin(MURAL.yaw);
-  const K = 1.5; // the paint is drawn at 1.5 times the sketch's size and set up high on the slab, so it clears the rim rocks in front
+  const K = 1.72; // the paint is drawn at 1.72 times the sketch's size and set up high on the slab, so it clears the rim rocks in front
   const D = decal((u, v) => [MURAL.x + u * K * ca, y0 + 0.85 + v * K, MURAL.z - u * K * sa + 0.27]);
   D.fan(0.7, 1.4, 0.55, 0.55, 12, [0.24, 0.2, 0.12], [0.03, 0.02, 0.01]);
   const kitty = (u, v, s, c, flip = 1, tail = 1) => {
-    const hot = sc(c, 0.6); const rim = sc(c, 0.3);
+    const hot = sc(c, 0.8); const rim = sc(c, 0.42); // (pass 7: brighter cats with a lighter rim: a glow outline)
     D.fan(u, v + 0.2 * s, 0.17 * s, 0.22 * s, 7, hot, rim);
     D.fan(u + 0.1 * s * flip, v + 0.46 * s, 0.1 * s, 0.09 * s, 6, hot, rim);
     D.tri([u + 0.03 * s * flip, v + 0.5 * s, ...rim], [u + 0.07 * s * flip, v + 0.64 * s, ...hot], [u + 0.1 * s * flip, v + 0.52 * s, ...rim]);
@@ -135,8 +135,11 @@ function mural(H, stone, light) {
   };
   [[-1.5, 0.35, 1.2, 0, 1, 1], [-0.7, 0.3, 1.0, 1, 1, 0.4], [0.05, 0.4, 1.35, 2, -1, 1], [0.8, 0.28, 0.95, 3, 1, 0.2], [1.45, 0.34, 1.15, 4, -1, 0.8], [-0.35, 1.2, 0.75, 5, 1, 0.6]]
     .forEach(([u, v, s, ci, flip, tail]) => kitty(u, v, s, PIGMENTS[ci], flip, tail));
-  // pawprints in a row along the foot: a pad and two toes each
-  for (let i = 0; i < 5; i++) { const u = -1.6 + i * 0.8; D.fan(u, 0.08, 0.05, 0.04, 5, [0.5, 0.42, 0.28], [0.1, 0.08, 0.05]); D.fan(u - 0.04, 0.15, 0.02, 0.02, 3, [0.4, 0.34, 0.22], [0, 0, 0]); D.fan(u + 0.04, 0.15, 0.02, 0.02, 3, [0.4, 0.34, 0.22], [0, 0, 0]); }
+  // pawprints in a row along the foot (a pad each, larger now), and a thin gold frame round the whole picture (pass 7: it outlines the mural from the main path)
+  for (let i = 0; i < 5; i++) { const u = -1.6 + i * 0.8; D.fan(u, 0.08, 0.08, 0.06, 5, [0.8, 0.66, 0.4], [0.3, 0.24, 0.14]); }
+  const fr = [0.8, 0.52, 0.16]; const fl = sc(fr, 0.55); const fu = 1.78; const fb = -0.28; const ft = 2.2; const fw = 0.05;
+  D.quad([-fu, fb, ...fl], [fu, fb, ...fl], [-fu, fb + fw, ...fr], [fu, fb + fw, ...fr]); D.quad([-fu, ft - fw, ...fr], [fu, ft - fw, ...fr], [-fu, ft, ...fl], [fu, ft, ...fl]);
+  D.quad([-fu, fb, ...fl], [-fu + fw, fb, ...fr], [-fu, ft, ...fl], [-fu + fw, ft, ...fr]); D.quad([fu - fw, fb, ...fr], [fu, fb, ...fl], [fu - fw, ft, ...fr], [fu, ft, ...fl]);
   light.push(H.raw(D.pos, D.colr));
 }
 

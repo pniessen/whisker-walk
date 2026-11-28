@@ -161,7 +161,7 @@ function lights(d, out) {
   d.pools.forEach((p, i) => out.push(disc(p.x, p.z, p.r, i, fade(HUE[p.hue], (0.3 * p.k + 0.12) * tame(p.hue)), 3, 14)));
   d.moss.forEach((m, i) => {
     const c = [[0.22, 0.62, 0.34], [0.3, 0.7, 0.4], [0.18, 0.55, 0.5]][i % 3];
-    out.push(disc(m.x, m.z, m.r, m.wob, (t) => { const f = 0.55 * (1 - t) ** 1.2 * (0.8 + 0.2 * Math.sin(t * 17 + m.wob)); return [c[0] * f, c[1] * f, c[2] * f]; }, 3, 9));
+    out.push(disc(m.x, m.z, m.r, m.wob, (t) => { /* pass 7: was 0.55 / 1.2, a blown-out mint blob with a hard edge */ const f = 0.17 * (1 - t) ** 1.5 * (0.8 + 0.2 * Math.sin(t * 17 + m.wob)); return [c[0] * f, c[1] * f, c[2] * f]; }, 3, 9));
   });
 }
 
@@ -275,6 +275,7 @@ function animate(mat, uT, U, key = 'cat') {
         vTint *= mix(vec3(1.0), vec3(1.2, 0.65, 1.3), uMood.x * 0.9);
         vTint += uMood.y * 0.38 * (cos(6.2832 * (db * 0.03 - uT * 0.05 + vec3(0.0, 0.33, 0.67))));
         if (kd > 3.5 && kd < 4.5 && aMove.y > 0.5) kk = min(kk, 1.3);
+        if (kd < 0.5 || (kd > 3.5 && kd < 4.5)) kk *= (1.0 - 0.8 * smoothstep(8.0, 1.5, distance(position.xz, vec2(22.0, -22.0))) * (1.0 - 0.5 * uMood.z)) * (1.0 - 0.6 * smoothstep(7.0, 1.5, distance(position.xz, vec2(-12.5, -19.5)))); // pass 7: the Heart's and the Gold great's floors stack pool, pockets, washes and the cat's glow: ease them near the great crystal so the floor keeps its colour
         vKk = kk;`)
     ;
     sh.fragmentShader = `varying float vKk;\nvarying vec3 vTint;\nvarying float vBand;\nvarying vec3 vPrism;\n${sh.fragmentShader}`.replace('#include <color_fragment>', '#include <color_fragment>\n        float lum = dot(diffuseColor.rgb, vec3(0.333)); diffuseColor.rgb = mix(diffuseColor.rgb * vKk * vTint, vPrism * lum * 2.0 * vKk, vBand * 0.8);');
