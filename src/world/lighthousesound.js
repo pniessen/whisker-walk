@@ -38,6 +38,9 @@ export const ECHO = Object.freeze({ delays: Object.freeze([0.5, 1.0, 1.5]), gain
 export const GULL = Object.freeze({ gain: 0.035, parts: Object.freeze([Object.freeze({ at: 0, dur: 0.22, f: 1500, to: 1000 }), Object.freeze({ at: 0.24, dur: 0.22, f: 1000, to: 1400 })]) });
 export const SURF = Object.freeze({ gain: 0.03, rise: 2.1, dur: 5.2, from: 240, to: 520 });
 export const MEW = Object.freeze({ gain: 0.05, f: 700, to: 1050, dur: 0.3 });
+// pass five: the sound beds (always faint, cross-faded by where she stands: surf at the shore, wind up at the tower and on the plateau, a creak of
+// rope and wood at the quay and the harbour post, a gull now and then over the cliffs). A bed never starts while muted or before the context runs.
+export const BEDS = Object.freeze({ surf: 0.016, wind: 0.011, creak: 0.007, shore: Object.freeze({ east: 36, west: -40 }), tower: Object.freeze({ x: -22, z: -20 }), quays: Object.freeze([[35, -12], [35, 21], [11.6, 32.6]]), glide: 0.9 });
 export const PURR = Object.freeze({ gain: 0.035, f: 48, dur: 1.6, tremolo: 22 });
 
 export function createLighthouseSound(audio) {
@@ -135,5 +138,45 @@ export function createLighthouseSound(audio) {
   const mew = () => play((c, master, now) => voice(c, master, { type: 'triangle', ...MEW, now }));
   const purr = () => play((c, master, now) => voice(c, master, { type: 'sawtooth', f: PURR.f, dur: PURR.dur, gain: PURR.gain, attack: 0.2, tremolo: PURR.tremolo, now }));
 
-  return { horn, bell, echo, gull, surf, mew, purr, dispose() { dead = true; hush(); } };
+  // ---- the beds: one looping noise, three filtered voices whose gains follow her position (setTargetAtTime: a smooth blend, never a jump)
+  // the ambient sounds (the beds, the arrival's call and wash) belong to the game's own audio only (it has playBuffer and setVolume); a bare stub never has them asked of it
+  const ambient = typeof audio?.playBuffer === 'function' && typeof audio?.setVolume === 'function';
+  let bed = null; let bedAcc = 0; let nextCliffGull = 6; let bedClock = 0;
+  const clamp01 = (v) => Math.min(1, Math.max(0, v));
+  // [filter type, Hz, Q, gain, zone(cat) -> 0..1]: surf by the nearest shore, wind by height and the tower, creak by the quays and the post
+  const ZONES = [
+    ['lowpass', 380, 0.7, BEDS.surf, (c) => clamp01(1 - Math.max(0, Math.min(BEDS.shore.east - c.x, c.x - BEDS.shore.west)) / 40)],
+    ['bandpass', 760, 0.6, BEDS.wind, (c) => clamp01(0.25 + 0.5 * clamp01(((c.y ?? 0) - 4) / 9) + 0.4 * clamp01(1 - Math.hypot(c.x - BEDS.tower.x, c.z - BEDS.tower.z) / 22))],
+    ['bandpass', 250, 9, BEDS.creak, (c) => clamp01(1 - Math.min(...BEDS.quays.map(([x, z]) => Math.hypot(c.x - x, c.z - z))) / 14)],
+  ];
+  function makeBed() {
+    const c = audio.getContext();
+    if (!c || c.state === 'suspended' || c.state === 'closed' || typeof c.createBuffer !== 'function' || typeof c.createBufferSource !== 'function' || typeof c.createBiquadFilter !== 'function') return null;
+    const buf = c.createBuffer(1, c.sampleRate * 2, c.sampleRate);
+    const d = buf.getChannelData(0);
+    let seed = 20261129;
+    for (let i = 0; i < d.length; i++) { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; d[i] = seed / 2147483648 - 1; }
+    const src = c.createBufferSource();
+    src.buffer = buf; src.loop = true;
+    const voices = ZONES.map(([type, f, q]) => { const fl = c.createBiquadFilter(); fl.type = type; fl.frequency.value = f; fl.Q.value = q; const g = c.createGain(); g.gain.value = 0; src.connect(fl); fl.connect(g).connect(audio.getMaster()); return { fl, g }; });
+    src.start(c.currentTime);
+    live.add(src);
+    return { c, voices };
+  }
+  // dt s; cat { x, y, z }: the gains ease toward her zone's values (setTargetAtTime: a smooth blend, never a jump)
+  function beds(dt, cat) {
+    if (dead || !ambient || !cat) return;
+    bedAcc += dt > 0 ? dt : 0;
+    if (bedAcc < 0.2) return;
+    bedClock += bedAcc; bedAcc = 0;
+    try {
+      const on = audio.isMuted?.() === false;
+      if (!bed && on) bed = makeBed();
+      if (!bed) return;
+      ZONES.forEach(([, , , gain, zone], i) => bed.voices[i].g.gain.setTargetAtTime(on ? gain * zone(cat) : 0, bed.c.currentTime, BEDS.glide));
+      if (on && cat.x < -4 && bedClock > nextCliffGull) { nextCliffGull = bedClock + 14 + 9 * ((bedClock * 7.31) % 1); gull(); } // (gulls over the cliffs, now and then)
+    } catch { dead = true; }
+  }
+
+  return { horn, bell, echo, gull, surf, mew, purr, beds, ambient, dispose() { dead = true; hush(); bed = null; } };
 }

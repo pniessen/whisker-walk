@@ -91,6 +91,7 @@ export function build(scene) {
         const light = createCrystalLight(ctx);
         const decor = createCrystalDecor(ctx);
         const alive = ST.story.createCrystalAlive({ scene: ctx.scene, decor, tier: ctx.tier, reducedMotion: ctx.reducedMotion });
+        const mood = ST.story.createCrystalMood({ scene: ctx.scene, decor, audio: ctx.audio, tier: ctx.tier, reducedMotion: ctx.reducedMotion });
         const cave = ST.story.createCaveLife(ctx);
         const lumi = createLumi({ scene: ctx.scene, progression: ctx.progression, audio: ctx.audio, reducedMotion: ctx.reducedMotion });
         const wingLife = createWing({ scene: ctx.scene, lumi, progression: ctx.progression, log: ctx.log, audio: ctx.audio, tier: ctx.tier, reducedMotion: ctx.reducedMotion, send: ctx.sendEvent });
@@ -118,6 +119,7 @@ export function build(scene) {
         return {
           light,
           alive,
+          mood,
           critters,
           sound,
           lumi,
@@ -136,8 +138,8 @@ export function build(scene) {
             if (typeof ev?.kind === 'string' && ev.kind.startsWith('wd-')) return ST.deep?.credit?.(ev); // the Echo Deep (second story): its steps, never Lumi's
             return lumi.credit(ev);
           },
-          update(dt, t, catPos, camera, session) { light.update(dt, t); decor.update(dt); alive.update(dt, t, catPos, camera); sound.cue?.(alive.cues); lumi.update(dt, t, catPos, camera, session); wingLife.update(dt, t, catPos, camera, session); finds.update(dt, t, catPos, camera, session); critters.update(dt); cave.update(dt, t); sound.update(dt, catPos); errand.update(dt, t, catPos, camera, session); river?.update(dt, t, catPos, camera, session); cart?.update(dt, t, catPos, camera, session); forgeJob?.update(dt, t, catPos, camera, session); grotto?.update(dt); deep?.update(dt, t, catPos); song?.update(dt, t, catPos); intro.update(dt); guide.update(dt, t, catPos, camera); },
-          dispose() { deep?.dispose(); song?.dispose(); forgeJob?.dispose(); cart?.dispose(); grotto?.dispose(); river?.dispose(); cave.dispose(); alive.dispose(); decor.dispose(); guide.dispose(); intro.dispose(); errand.dispose(); sound.dispose(); critters.dispose(); finds.dispose(); wingLife.dispose(); lumi.dispose(); light.dispose(); },
+          update(dt, t, catPos, camera, session) { light.update(dt, t); decor.update(dt); alive.update(dt, t, catPos, camera); mood.update(dt, t, catPos, camera); sound.cue?.(alive.cues); lumi.update(dt, t, catPos, camera, session); wingLife.update(dt, t, catPos, camera, session); finds.update(dt, t, catPos, camera, session); critters.update(dt); cave.update(dt, t); sound.update(dt, catPos); errand.update(dt, t, catPos, camera, session); river?.update(dt, t, catPos, camera, session); cart?.update(dt, t, catPos, camera, session); forgeJob?.update(dt, t, catPos, camera, session); grotto?.update(dt); deep?.update(dt, t, catPos); song?.update(dt, t, catPos); intro.update(dt); guide.update(dt, t, catPos, camera); },
+          dispose() { deep?.dispose(); song?.dispose(); forgeJob?.dispose(); cart?.dispose(); grotto?.dispose(); river?.dispose(); cave.dispose(); mood.dispose(); alive.dispose(); decor.dispose(); guide.dispose(); intro.dispose(); errand.dispose(); sound.dispose(); critters.dispose(); finds.dispose(); wingLife.dispose(); lumi.dispose(); light.dispose(); },
         };
       },
     };
