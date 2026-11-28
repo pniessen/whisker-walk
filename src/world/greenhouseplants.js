@@ -47,6 +47,16 @@ export function shade(g, { foot = 0.78, crown = 1.1, ribs = 0, ribDepth = 0.12 }
   }
   return g;
 }
+// Beauty pass (greenhouse 1): drop the underside cap of a cylinder (nobody sees it), saving its triangles for detail that shows.
+export function noBottom(g) {
+  const gr = g.groups.find((x) => x.materialIndex === 2);
+  if (!gr) return g;
+  const idx = Array.from(g.index.array);
+  idx.splice(gr.start, gr.count);
+  g.setIndex(idx);
+  g.clearGroups();
+  return g;
+}
 export function tint(g, hex) {
   _c.set(hex);
   const n = g.attributes.position.count;
@@ -439,8 +449,12 @@ const BENCH_WOOD = 0xa07a52;
 // (`benches` and `name` are the stage-B Orchid Room's: its two benches.)
 export function orchids({ benches = P.ORCHID_BENCHES, name = 'ghOrchids' } = {}) {
   const col = collector();
-  const pot = shade(tint(new THREE.CylinderGeometry(0.15, 0.11, 0.2, 8), 0xb8613c), { foot: 0.74, crown: 1.12 });
-  const soil = tint(new THREE.CylinderGeometry(0.14, 0.14, 0.02, 8), 0x3a2a1a);
+  // beauty pass: the pot stands ON the bench (it was half sunk), open at both ends (the soil covers the top, nobody sees the foot), soil without its underside
+  const pot = shade(tint(new THREE.CylinderGeometry(0.15, 0.11, 0.2, 8, 1, true), 0xb8613c), { foot: 0.74, crown: 1.12 });
+  const soil = noBottom(tint(new THREE.CylinderGeometry(0.14, 0.14, 0.02, 8), 0x3a2a1a));
+  const label = tint(new THREE.PlaneGeometry(0.07, 0.05), 0xfaf3dc);
+  const stick = tint(new THREE.PlaneGeometry(0.012, 0.1), 0x8a6642);
+  const moss = tint(new THREE.CircleGeometry(1, 5).rotateX(-Math.PI / 2), 0x5a8a3e);
   benches.forEach((b, bi) => {
     // the bench: a slab on four legs, a shelf under it
     col.add(tint(new THREE.BoxGeometry(b.w, 0.07, b.d), BENCH_WOOD), b.x, b.h - 0.035, b.z, {});
@@ -450,8 +464,12 @@ export function orchids({ benches = P.ORCHID_BENCHES, name = 'ghOrchids' } = {})
       const x = b.x - b.w / 2 + 0.4 + i * ((b.w - 0.8) / 4);
       const z = b.z + (i % 2 ? 0.1 : -0.08);
       const y = b.h;
-      col.add(pot, x, y, z, { k: lerp(0.9, 1.1, h01(x, z, 111)), warm: (h01(x, z, 112) - 0.5) * 0.2 });
+      col.add(pot, x, y + 0.1, z, { k: lerp(0.9, 1.1, h01(x, z, 111)), warm: (h01(x, z, 112) - 0.5) * 0.2 });
       col.add(soil, x, y + 0.19, z, {});
+      // a name stick with a pale card in front of each pot, and a mat of moss on the wood beside it
+      col.add(stick, x + 0.08, y + 0.05, z + 0.19, { yaw: 0.3 });
+      col.add(label, x + 0.08, y + 0.11, z + 0.19, { yaw: 0.3, k: lerp(0.9, 1.05, h01(x, z, 113)), warm: (h01(x, z, 114) - 0.5) * 0.6 });
+      col.add(moss, x - 0.22, y + 0.004, z + 0.14, { yaw: i, scale: lerp(0.05, 0.1, h01(x, z, 115)), k: lerp(0.8, 1.15, h01(x, z, 116)) });
       for (let l = 0; l < 3; l++) col.add(ORCHID_LEAF(), x, y + 0.2, z, { yaw: -((l / 3) * TAU + i), scale: 1 });
       // an arching flower stem with five blooms
       const colour = ORCHID_COLOURS[(i + bi * 2) % ORCHID_COLOURS.length];

@@ -155,3 +155,72 @@ export function groundDetail(col) {
     col.add(PEBBLE(), P.POND.x + Math.cos(a) * r, s * 0.4, P.POND.z + Math.sin(a) * r, { yaw: a * 5, scale: s, sy: s * 0.6, k: lerp(0.75, 1.15, h(i, 16, 43)) });
   }
 }
+
+// ---------------------------------------------------------------------------------------------
+// BEAUTY PASS 1 (greenhouse, 2026-11-28): the pots, the bench, the lamps' hanging baskets, the shed's ivy and moss. Everything folds into
+// merged noCast meshes that already exist (ghPots, ghBench, ghStreet); no clock, no random draw; static, so reduced motion and the lite tier
+// need nothing. Paid for by the caps nobody sees (see noBottom and the open-ended pots), so the area's triangles go down.
+// ---------------------------------------------------------------------------------------------
+const SAUCER = memo(() => tint(new THREE.CircleGeometry(0.34, 8).rotateX(-Math.PI / 2), 0xd8a07a));
+const WET = memo(() => tint(new THREE.CircleGeometry(0.26, 8).rotateX(-Math.PI / 2), 0x6d4a34));
+const STICK = memo(() => tint(new THREE.PlaneGeometry(0.014, 0.3), 0x8a6642));
+const CARD = memo(() => tint(new THREE.PlaneGeometry(0.1, 0.075), 0xffffff));
+const CARDS = [0xfaf3dc, 0xf6c4d4, 0xc4e4f4, 0xf8e08a];
+
+// each of the garden pots: a saucer with a damp ring in it, and a plant label on a stick, each a different colour
+export function potDetail(col, x, z, i) {
+  col.add(SAUCER(), x, 0.014, z, { k: lerp(0.9, 1.1, h(i, 1, 60)) });
+  col.add(WET(), x, 0.02, z, {});
+  const a = h(i, 2, 61) * TAU;
+  col.add(STICK(), x + Math.cos(a) * 0.2, 0.52, z + Math.sin(a) * 0.2, { yaw: a, tilt: 0.12 });
+  col.add(tint(new THREE.PlaneGeometry(0.1, 0.075), CARDS[i % CARDS.length]), x + Math.cos(a) * 0.2, 0.65, z + Math.sin(a) * 0.2, { yaw: a, tilt: 0.12 });
+}
+
+// the potting bench: a sack of compost with a folded top, a ball of twine, three seed cards propped on the back edge, a mossy shelf
+export function benchDetail(col) {
+  const B = P.POTTING;
+  const sack = tint(new THREE.BoxGeometry(0.34, 0.3, 0.2), 0xc9b48a);
+  col.add(sack, B.x + 0.95, B.h + 0.15, B.z + 0.1, { yaw: 0.25 });
+  col.add(tint(new THREE.BoxGeometry(0.34, 0.06, 0.1), 0xa8935e), B.x + 0.95, B.h + 0.32, B.z + 0.12, { yaw: 0.25, tilt: 0.2 });
+  col.add(tint(new THREE.OctahedronGeometry(0.07, 0), 0xd6b25a), B.x + 0.4, B.h + 0.07, B.z + 0.25, {});
+  for (let i = 0; i < 3; i++) col.add(tint(new THREE.PlaneGeometry(0.14, 0.2), CARDS[i]), B.x - 0.3 + i * 0.2, B.h + 0.1, B.z - 0.36, { tilt: -0.25, yaw: (i - 1) * 0.12 });
+  col.add(MOSS(), B.x + 0.4, 0.33, B.z + 0.2, { scale: 0.18, k: 1 });
+  col.add(MOSS(), B.x - 0.5, 0.33, B.z - 0.18, { scale: 0.12, k: 0.9 });
+}
+
+// a hanging basket from a bracket on each court lamp: a bowl, two chains, flowers in the lamp's own colours, vines trailing
+const BOWL = memo(() => tint(new THREE.SphereGeometry(0.2, 6, 3, 0, TAU, Math.PI / 2, Math.PI / 2), 0x6a5a48));
+const VINE = memo(() => tint(new THREE.ConeGeometry(0.035, 0.34, 3).rotateX(Math.PI), 0x4f9a46));
+const LEAFB = memo(() => tint(new THREE.OctahedronGeometry(0.1, 0), 0x5aa84a));
+export function basketDetail(col, l) {
+  const dir = l.x < 0 ? 1 : -1; // the arm points in to the court
+  col.add(tint(new THREE.BoxGeometry(0.7, 0.04, 0.04), 0x3a3a40), l.x + dir * 0.35, 2.3, l.z, {});
+  const bx = l.x + dir * 0.66, by = 1.82;
+  col.add(tint(new THREE.CylinderGeometry(0.008, 0.008, 0.46, 3), 0x5a5a60), bx - 0.07, 2.07, l.z, {});
+  col.add(tint(new THREE.CylinderGeometry(0.008, 0.008, 0.46, 3), 0x5a5a60), bx + 0.07, 2.07, l.z + 0.05, {});
+  col.add(BOWL(), bx, by, l.z, {});
+  for (let k = 0; k < 4; k++) col.add(LEAFB(), bx + Math.cos(k * 1.57) * 0.12, by + 0.04, l.z + Math.sin(k * 1.57) * 0.12, { sy: 0.7, k: lerp(0.85, 1.15, h(k, l.x | 0, 62)) });
+  [0xf27ab8, 0xf5d042, 0xffffff, 0xe84a7a].forEach((hex, k) => col.add(flowerGeometry({ r: 0.1, n: 4, petal: hex, centre: 0xf4c93a, lift: 0.2 }), bx + Math.cos(k * 1.57 + 0.7) * 0.09, by + 0.12, l.z + Math.sin(k * 1.57 + 0.7) * 0.09, { yaw: k }));
+  for (let k = 0; k < 3; k++) col.add(VINE(), bx + Math.cos(k * 2.1) * 0.19, by - 0.12, l.z + Math.sin(k * 2.1) * 0.19, { tilt: 0.1 * k, scale: lerp(0.9, 1.5, h(k, l.x | 0, 63)), sy: lerp(0.9, 1.6, h(k, l.x | 0, 64)) });
+}
+
+// the potting shed: moss on its stone footing, ivy climbing the north wall, a puddle and drip rings under the rain barrel
+export function shedDetail(col) {
+  const S = P.SHED, R = P.RAIN_BARREL;
+  for (let i = 0; i < 9; i++) {
+    const side = i % 2 ? 1 : -1, t = h(i, 3, 65);
+    col.add(MOSS(), S.x + (t - 0.5) * S.w, 0.126, S.z + side * (S.d / 2 + 0.1), { yaw: i, scale: lerp(0.08, 0.16, h(i, 4, 66)), k: lerp(0.85, 1.15, h(i, 5, 67)) });
+  }
+  // ivy: strands of leaf-triangles up the +z wall, near the barrel, each strand longer than the one beside it
+  const wallZ = S.z + S.d / 2 + 0.06;
+  const leaf = tint(new THREE.ConeGeometry(0.1, 0.16, 3), 0x3f8a3e);
+  for (let s = 0; s < 4; s++) {
+    const x = S.x + S.w / 2 - 0.4 - s * 0.45;
+    const n = 4 + ((s * 3) % 4);
+    for (let j = 0; j < n; j++) col.add(leaf, x + (h(s, j, 68) - 0.5) * 0.18, 0.5 + j * 0.2, wallZ, { yaw: h(s, j, 69) * TAU, tilt: 1.57, k: lerp(0.8, 1.25, h(s, j, 70)), warm: (h(s, j, 71) - 0.4) * 0.5 });
+  }
+  const puddle = tint(new THREE.CircleGeometry(1, 8).rotateX(-Math.PI / 2), 0x6c9fb4);
+  col.add(puddle, R.x + 0.9, 0.034, R.z + 0.25, { scale: 0.34, sy: 1 });
+  col.add(tint(new THREE.RingGeometry(0.4, 0.5, 8).rotateX(-Math.PI / 2), 0xa9d2e2), R.x + 0.9, 0.036, R.z + 0.25, { scale: 0.55 });
+  col.add(tint(new THREE.RingGeometry(0.4, 0.5, 8).rotateX(-Math.PI / 2), 0xa9d2e2), R.x + 0.9, 0.036, R.z + 0.25, { scale: 0.34 });
+}
