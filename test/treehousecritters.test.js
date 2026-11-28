@@ -138,13 +138,13 @@ describe('the sound', () => {
     l.update(0.1, 3.2, { x: 0, y: 2.8, z: 5 }); // up a deck: a jump, nothing
     for (let i = 1; i <= 20; i++) l.update(0.1, 3.2 + i * 0.1, { x: 0, y: 2.8, z: 5 - i * 0.5 }); // 10 m on a deck
     expect(a.log.flt).toBe(Math.floor(10 / C.STEP_METRES));
-    expect(a.log.osc).toBe(a.log.flt); // no chime yet
+    expect(a.log.osc).toBe(a.log.flt + 4); // no timed chime yet, only the arrival chime (pass 5: her first step onto a platform; two notes, a partial each)
     const before = a.log.flt;
     l.update(0.1, C.CHIME_GAP.first + 0.5, { x: 30, y: 0, z: -20 }); // time to chime (and a jump)
     expect(a.log.flt).toBe(before);
-    expect(a.log.osc).toBe(before + 4); // two notes, a partial each
+    expect(a.log.osc).toBe(before + 8); // the arrival chime and now the timed one, two notes and a partial each
     l.update(0.1, C.CHIME_GAP.first + 1, { x: 30, y: 0, z: -20 });
-    expect(a.log.osc).toBe(before + 4); // the next is a long while off
+    expect(a.log.osc).toBe(before + 8); // the next is a long while off
     l.dispose();
   });
   it('without a height the bridge itself creaks', () => {

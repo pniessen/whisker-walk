@@ -356,7 +356,7 @@ export function skyPatch(M) {
         const near = cat ? Math.max(0, 1 - Math.hypot(l.x - cat.x, l.z - cat.z) / 3.2) : 0; // a lantern she passes close to swings, and its pool with it
         swing[best] = still || rung === 'lite' ? 0 : Math.max(swing[best] * 0.985, near * (0.5 + reaction.moving * 0.5));
         const sw = swing[best] * 0.55 * Math.sin(t * 2.6 + best * 1.7);
-        slot.set(l.x + sw, l.y - Math.abs(sw) * 0.1, l.z + sw * 0.6, l.w * (still ? 1 : 0.9 + 0.1 * Math.sin(t * 3.1 + best * 2.3) * Math.sin(t * 1.3 + best)));
+        slot.set(l.x + sw, l.y - Math.abs(sw) * 0.1, l.z + sw * 0.6, l.w * (sky.lampK ?? 1) * (still ? 1 : 0.9 + 0.1 * Math.sin(t * 3.1 + best * 2.3) * Math.sin(t * 1.3 + best)));
       }
     },
   };
