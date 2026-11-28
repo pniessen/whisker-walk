@@ -1,7 +1,7 @@
 // =============================================================================
 // THE FAIRGROUND: BEAUTY PASS 5, LIVING CREATURES AND A WORLD THAT AGREES WITH ITSELF. All pooled THREE.Points (no mesh, no triangle, no caster, no collider, never a perch or a rule):
 //   * PIGEONS AND SPARROWS hop and peck for crumbs by the stalls and fly up (and away, and home again) when she runs by or comes close;
-//   * A STRAY (a ginger cat or a scruffy dog, by the day) sits and watches the merry-go-round, flicks its tail, and edges off if she comes near;
+//   * A STRAY (a ginger cat) sits and watches the merry-go-round, flicks its tail, and edges off if she comes near;
 //   * MOTHS flit round the stall bulbs at dusk; LADYBIRDS crawl on the hay bales;
 //   * ARRIVAL: a ticket-bell and a puff of confetti as she walks in under the gate's arch; the big wheel sparkles round its rim as she first comes near;
 //   * ONE WIND (WIND) for the bunting's confetti, steam, lanterns and the balloon; ONE BEAT (the calliope's bar) for the pennants' flutter and the lights' pulse;
@@ -50,11 +50,11 @@ export function bedWeights(x, z, mgrNear = 0) {
 }
 
 // a sitting stray, front on, two frames side by side (watching; tail flick and a blink or a tongue). Drawn on a canvas; none where there is no document.
-function strayTexture(dog) {
+function strayTexture() {
   if (typeof document === 'undefined') return null;
   const c = document.createElement('canvas'); c.width = 128; c.height = 64;
   const g = c.getContext('2d'); if (!g) return null;
-  const fur = dog ? '#b98a5a' : '#e08a36'; const dark = dog ? '#6e4a2c' : '#a85a1a'; const light = dog ? '#f0e2c6' : '#fbefd8';
+  const fur = '#e08a36'; const dark = '#a85a1a'; const light = '#fbefd8';
   for (let f = 0; f < 2; f++) {
     const o = f * 64; g.lineWidth = 2; g.strokeStyle = dark;
     const ell = (x, y, rx, ry, col) => { g.beginPath(); g.ellipse(o + x, y, rx, ry, 0, 0, 7); g.fillStyle = col; g.fill(); g.stroke(); };
@@ -63,14 +63,12 @@ function strayTexture(dog) {
     g.moveTo(o + 40, 58); g.quadraticCurveTo(o + (f ? 58 : 54), f ? 52 : 60, o + (f ? 56 : 52), f ? 38 : 46); g.stroke(); g.lineWidth = 2;
     ell(32, 44, 15, 17, fur); ell(32, 50, 7, 10, light); // body, chest
     ell(25, 60, 5, 3, fur); ell(39, 60, 5, 3, fur); // paws
-    if (dog) { ell(19, 24, 5, 10, dark); ell(45, 24, 5, 10, dark); } // floppy ears
     ell(32, 24, 12, 11, fur); // head
-    if (!dog) { for (const s of [-1, 1]) { g.beginPath(); g.moveTo(o + 32 + s * 12, 20); g.lineTo(o + 32 + s * 9, 5); g.lineTo(o + 32 + s * 2, 15); g.closePath(); g.fillStyle = fur; g.fill(); g.stroke(); } }
+    for (const s of [-1, 1]) { g.beginPath(); g.moveTo(o + 32 + s * 12, 20); g.lineTo(o + 32 + s * 9, 5); g.lineTo(o + 32 + s * 2, 15); g.closePath(); g.fillStyle = fur; g.fill(); g.stroke(); }
     ell(32, 29, 6, 4.5, light); // muzzle
     g.fillStyle = '#2a1a10';
-    for (const s of [-1, 1]) { if (f && !dog) { g.fillRect(o + 32 + s * 5 - 2, 21, 4, 1.5); } else { g.beginPath(); g.arc(o + 32 + s * 5, 21, 2, 0, 7); g.fill(); } }
+    for (const s of [-1, 1]) { if (f) { g.fillRect(o + 32 + s * 5 - 2, 21, 4, 1.5); } else { g.beginPath(); g.arc(o + 32 + s * 5, 21, 2, 0, 7); g.fill(); } }
     g.beginPath(); g.arc(o + 32, 27, 1.7, 0, 7); g.fillStyle = '#d9788a'; g.fill();
-    if (dog && f) { g.fillStyle = '#e8566e'; g.fillRect(o + 30, 31, 4, 5); }
   }
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.magFilter = t.minFilter = THREE.LinearFilter; t.generateMipmaps = false;
   t.repeat.set(0.5, 1); t.needsUpdate = true;
@@ -78,14 +76,13 @@ function strayTexture(dog) {
 }
 
 // createFairPals({ scene, reducedMotion, scale, makePoints, hub, onEvent, puff, day }) -> { update(dt, T, catPos, lit, speed), counts, dispose() }
-export function createFairPals({ scene, reducedMotion = false, scale = 1, makePoints, hub = null, onEvent = () => {}, puff = () => {}, day = 0 }) {
+export function createFairPals({ scene, reducedMotion = false, scale = 1, makePoints, hub = null, onEvent = () => {}, puff = () => {} }) {
   const k = Math.max(0.25, Math.min(1, Number.isFinite(scale) ? scale : 1));
   const nBirds = reducedMotion ? 0 : Math.max(3, Math.round(PALS.birds * k));
   const nMoths = reducedMotion || k < 0.5 ? 0 : PALS.moths;
   const nLady = Math.max(2, Math.round(PALS.ladybirds * k));
   const nSpark = reducedMotion || k < 0.5 ? 0 : PALS.sparkle;
-  const dog = day % 2 === 1;
-  const tex = strayTexture(dog);
+  const tex = strayTexture();
   const body = makePoints(Math.max(1, nBirds), 0.45, false, 'fair:birds');
   const parts = makePoints(Math.max(1, nBirds * 3), 0.22, false, 'fair:birdparts');
   const lady = makePoints(nLady, 0.12, false, 'fair:ladybirds');
@@ -157,14 +154,12 @@ export function createFairPals({ scene, reducedMotion = false, scale = 1, makePo
     }
     const o = b.i * 3; const o3 = b.i * 9;
     if (y === undefined) { y = -999; x = z = 0; }
-    const sp = b.sparrow; const sky = 0.62;
-    const fade = b.st === 1 ? 1 - smooth(0.55, 1, b.t / PALS.flight) : 1;
+    const sp = b.sparrow;
     const cr = (sp ? 0.34 : 0.3) * dim; const cg = (sp ? 0.2 : 0.32) * dim; const cb = (sp ? 0.1 : 0.38) * dim;
-    const mix = (v, s) => v * fade + s * (1 - fade) * dim;
     body.pos[o] = x; body.pos[o + 1] = y < -900 ? -999 : y + 0.04; body.pos[o + 2] = z;
-    body.col[o] = mix(cr, sky); body.col[o + 1] = mix(cg, 0.78); body.col[o + 2] = mix(cb, 0.95);
+    body.col[o] = cr; body.col[o + 1] = cg; body.col[o + 2] = cb;
     const px = -b.dz; const pz = b.dx; const hid = y < -900;
-    const slot = (j, ox, oy, oz, r, g, bl) => { const q = o3 + j * 3; parts.pos[q] = x + ox; parts.pos[q + 1] = hid ? -999 : y + oy; parts.pos[q + 2] = z + oz; parts.col[q] = mix(r * dim, sky); parts.col[q + 1] = mix(g * dim, 0.78); parts.col[q + 2] = mix(bl * dim, 0.95); };
+    const slot = (j, ox, oy, oz, r, g, bl) => { const q = o3 + j * 3; parts.pos[q] = x + ox; parts.pos[q + 1] = hid ? -999 : y + oy; parts.pos[q + 2] = z + oz; parts.col[q] = r * dim; parts.col[q + 1] = g * dim; parts.col[q + 2] = bl * dim; };
     if (fl) {
       const f = Math.sin(T * 26 + b.i * 2) * 0.2;
       slot(0, px * 0.25 - b.dx * 0.0, 0.08 + f, pz * 0.25, cr / dim * 0.8, cg / dim * 0.8, cb / dim * 0.8);

@@ -112,7 +112,7 @@ export function createFairAlive({ scene, reducedMotion = false, scale = 1, area 
   const kick = Array.from({ length: nBits }, () => ({ age: 99, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, r: 1, g: 1, b: 1 }));
   let slot = 0; let n = 0; let walked = 0; let last = null;
   const tint = new THREE.Color();
-  const pals = createFairPals({ scene, reducedMotion, scale: k, makePoints, hub: area?.anchors?.wheelHub ? hub : null, onEvent, puff: (x, z) => { for (let i = 0; i < 16; i++) spawn(x, z, 9, 0); }, day: Math.floor(Date.now() / 864e5) });
+  const pals = createFairPals({ scene, reducedMotion, scale: k, makePoints, hub: area?.anchors?.wheelHub ? hub : null, onEvent, puff: (x, z) => { for (let i = 0; i < 16; i++) spawn(x, z, 9, 0); } });
 
   function spawn(x, z, speed, yaw) {
     const s = kick[slot]; slot = (slot + 1) % kick.length; n++;
