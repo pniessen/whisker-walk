@@ -122,9 +122,24 @@ export function createHouseAir(scene, { windows, rooms, levels, dusk = false, re
     layers.push(layer);
   }
 
+  // beauty pass 3: a mote near the cat is swept round her as she walks (cat { x, y, z }, energy 0..1; none when she is still or motion is reduced)
+  let cx = 0, cy = 0, cz = 0, ce = 0, tone = 1;
   function place(L, t) {
     const { base, phase, rate, mp, n } = L;
     for (let j = 0; j < n * 3; j++) mp[j] = base[j] + AMP * Math.sin(t * rate[j] + phase[j]);
+    if (ce > 0.02) {
+      for (let m = 0; m < n; m++) {
+        const o = m * 3;
+        const dx = mp[o] - cx, dz = mp[o + 2] - cz, dy = mp[o + 1] - cy - 0.5;
+        const d2 = dx * dx + dz * dz;
+        if (d2 > 1.9 || dy > 1.4 || dy < -1.4) continue;
+        const k = ce * (1 - d2 / 1.9);
+        const a = t * 2.2 + m;
+        mp[o] += -dz * 0.4 * k + Math.cos(a) * 0.1 * k;
+        mp[o + 1] += 0.16 * k;
+        mp[o + 2] += dx * 0.4 * k + Math.sin(a) * 0.1 * k;
+      }
+    }
     L.points.geometry.attributes.position.needsUpdate = true;
     L.placed = true;
   }
@@ -135,11 +150,14 @@ export function createHouseAir(scene, { windows, rooms, levels, dusk = false, re
   return {
     beams,
     setCalm(on) { calm = !!on; },
-    update(dt, t0, full) {
+    // the day's light (houseglow.js dayPart): the shafts and motes take its sun colour and strength
+    setTone(rgb, k) { beamMat.color.setRGB(rgb[0], rgb[1], rgb[2]); moteMat.color.setRGB(1.0 * (0.4 + 0.6 * rgb[0]), 0.94 * (0.4 + 0.6 * rgb[1]), 0.78 * (0.4 + 0.6 * rgb[2])); tone = k; },
+    update(dt, t0, full, cat = null, energy = 0) {
+      if (cat) { cx = cat.x; cy = cat.y; cz = cat.z; ce = reducedMotion ? 0 : energy; } else ce = 0;
       if (calm && !reducedMotion) lost += dt * 0.5;
       const t = t0 - lost;
       // beauty pass 2: the shafts breathe a little, as a high cloud passes (still under reduced motion)
-      beamMat.opacity = SUNBEAM.opacity * (reducedMotion ? 1 : 1 + 0.18 * Math.sin(t * 0.45) * Math.sin(t * 0.17 + 1));
+      beamMat.opacity = SUNBEAM.opacity * tone * (reducedMotion ? 1 : 1 + 0.18 * Math.sin(t * 0.45) * Math.sin(t * 0.17 + 1));
       for (let i = 0; i < layers.length; i++) {
         const L = layers[i];
         const show = full.has(L.level);

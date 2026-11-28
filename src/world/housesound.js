@@ -16,7 +16,14 @@ export const POP_R = 6;
 export const POP_GAPS = Object.freeze([0.8, 2.1, 0.5, 3.0, 1.3, 0.6, 2.6]);
 export const SETTLE_S = 41;
 
-export function createHouseSound(audio, { clock, stairs, attic, fire = null }) {
+// beauty pass 3 (2026-11-28): the boards creak softly under her paws every WOOD_EVERY_M she walks on a wooden room's floor (`wood`: rects, none by default); rain pattering on the
+// glass (`rain`: tiny ticks at fixed gaps, louder in the attic under the roof); by morning a small bird's peep every MORNING_S, and at night the old boards settle twice as often.
+// The hearth's pops raise `burst` (1, falling away in about 0.35 s) so the firelight brightens with the crackle (houseglow.js uBurst).
+export const WOOD_EVERY_M = 2.3;
+export const RAIN_GAPS = Object.freeze([0.11, 0.07, 0.19, 0.09, 0.14, 0.06, 0.17]);
+export const MORNING_S = 17;
+
+export function createHouseSound(audio, { clock, stairs, attic, fire = null, wood = null, rain = false, part = null }) {
   // each stair's footprint as numbers: x and z ranges
   const rects = stairs.map((s) => {
     const hw = s.width / 2;
@@ -26,10 +33,13 @@ export function createHouseSound(audio, { clock, stairs, attic, fire = null }) {
       : { x0: Math.min(s.x0, s.x1), x1: Math.max(s.x0, s.x1), z0: s.z0 - hw, z1: s.z0 + hw };
   });
   let seen = false, px = 0, pz = 0;
+  let burst = 0, woodM = 0, rainIn = 0.3, rainK = 0, morningIn = 6;
   let tickIn = 0, stairM = 0, atticS = 0, popIn = 1, popK = 0, settleIn = SETTLE_S;
 
   return {
+    get burst() { return burst; },
     update(dt, t, catPos, calm = false) {
+      burst = Math.max(0, burst - dt * 2.8);
       if (!audio || !(dt > 0)) return;
       const x = catPos.x, z = catPos.z;
       const step = seen ? Math.hypot(x - px, z - pz) : 0;
@@ -48,11 +58,24 @@ export function createHouseSound(audio, { clock, stairs, attic, fire = null }) {
         const f = Math.hypot(x - fire.x, z - fire.z);
         if (f < POP_R) {
           popIn -= dt;
-          if (popIn <= 0) { audio.tick(0.9 * (1 - f / POP_R) * (calm ? 0.5 : 1)); popIn += POP_GAPS[popK++ % POP_GAPS.length]; }
+          if (popIn <= 0) { audio.tick(0.9 * (1 - f / POP_R) * (calm ? 0.5 : 1)); popIn += POP_GAPS[popK++ % POP_GAPS.length]; burst = Math.max(burst, 1 - 0.7 * (f / POP_R)); }
         }
       }
-      settleIn -= dt;
+      settleIn -= dt * (part?.night ? 2 : 1);
       if (settleIn <= 0) { audio.creak(0.22); settleIn += SETTLE_S; }
+      if (wood) {
+        let on = false;
+        for (let i = 0; i < wood.length; i++) { const r = wood[i]; if (x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ) { on = true; break; } }
+        if (on) { woodM += moved; if (woodM >= WOOD_EVERY_M) { audio.creak(0.12); woodM -= WOOD_EVERY_M; } } else woodM = 0;
+      }
+      if (rain) {
+        rainIn -= dt;
+        while (rainIn <= 0) { audio.tick(attic && x >= attic.minX && x <= attic.maxX && z >= attic.minZ && z <= attic.maxZ ? 0.55 : 0.28); rainIn += RAIN_GAPS[rainK++ % RAIN_GAPS.length]; }
+      }
+      if (part && !part.night && part.lampK < 0.45 && part.sunK < 0.9 && !rain && audio.peep) {
+        morningIn -= dt;
+        if (morningIn <= 0) { audio.peep(0.25); morningIn += MORNING_S; }
+      }
 
       let onStair = false;
       for (let i = 0; i < rects.length; i++) {
