@@ -1,6 +1,6 @@
 import { DEN_ITEMS, DEN_SPOTS } from './den.js';
 import { isPlainObject } from './plainobject.js';
-import { note } from './diagnostics.js';
+import { note, crumb } from './diagnostics.js';
 import { useCatKeyBackup, dropCatKeyBackup, applyKeyState } from './catkey.js';
 import { sanitizeCustomCats, sanitizeLook, CUSTOM_IDS, CUSTOM_MAX, CUSTOM_BASE, MORE_SLOTS_PRICE, CUSTOM_PERSONALITIES } from './customcats.js';
 import { sanitizeOutfits, wornNow, canSaveOutfit, nextOutfitId, OUTFIT_SLOTS } from './outfits.js';
@@ -123,6 +123,8 @@ export const JOURNAL_TYPES = ['bird', 'squirrel', 'butterfly', 'duck', 'seagull'
   ...[['sv', 'sw'], ['th', 'tl'], ['jl', 'jw']].flatMap(([a, b]) => [...Array(9)].map((_, i) => a + (i + 1)).concat([...Array(8)].map((_, i) => b + (i + 1)))),
   // The Crystal Cave's second story (src/crystalpages.js CRYSTAL_DEEP_PAGES; ids reserved in its milestone C0): the wall, the Deep, the prisms, Tink, the chime charms.
   'ccwall', 'ccdeep', 'ccprism', 'cctink', 'ccchimes'];
+// The animals at the front of the list (everything from the first fair page on is a place's page: a ride, find, job or mission step).
+const CRITTER_TYPES = JOURNAL_TYPES.slice(0, Math.max(0, JOURNAL_TYPES.indexOf('gamecans')));
 
 // Golden-mouse id shape, e.g. 'gm-neigh-1'. The brief called for validating
 // state.golden against a KNOWN_GOLD set imported from src/goldmice.js, but
@@ -2300,6 +2302,8 @@ export function createProgression(storage) {
     // state.journal with keys sanitizeState would strip on next load.
     recordSighting(type) {
       if (!JOURNAL_TYPES.includes(type)) return;
+      // A crash breadcrumb for the pages that are missions, rides and finds (the animals come first in the list and would crowd the trail out).
+      if (!CRITTER_TYPES.includes(type)) crumb(`see:${type}`);
       state.journal[type] = (state.journal[type] ?? 0) + 1;
       save();
     },

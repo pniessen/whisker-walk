@@ -16,6 +16,7 @@
 // has resumed, so the hint shows over the walk (game/tips.js).
 //
 // Nothing here is random or reads the clock.
+import { crumb } from '../diagnostics.js';
 import { CATALOG } from '../progression.js';
 import { activeCat, scarKey } from '../customcats.js';
 import { herCatPortrait } from '../thumbnails.js';
@@ -109,6 +110,7 @@ export function createFindCard({
 
   function show(s, id) {
     if (!s || s.findCard) return;
+    crumb('card:find');
     const item = catalog.accessories?.[id];
     if (!item) return;
     const state = progression.state;

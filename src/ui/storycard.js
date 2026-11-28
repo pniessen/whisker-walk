@@ -5,6 +5,7 @@
 // whether to show it by itself comes from state.walks[place] (the first two walks there). No clock and no random number: its 30 seconds are the walk's own dt.
 // The chapter rules are pure (chapterFor) and read only the save. They repeat the missions' step repairs on purpose, so the mission files stay out of this chunk
 // (test/storycards.test.js checks the two agree on many saves).
+import { crumb } from '../diagnostics.js';
 import { onTv } from '../tvseam.js';
 import { chapterLines, STORY_TEXT, BUTTONS } from './storycardwords.js';
 
@@ -193,6 +194,7 @@ export function createStoryCard({ doc = globalThis.document, win = globalThis.wi
   function hideOthers() { for (const e of [...(doc.querySelectorAll?.('[data-arrival-card]') ?? [])]) e.style.display = 'none'; }
   function open() {
     if (gone) return;
+    crumb('card:story');
     paint();
     t = 0;
     live.open = true;

@@ -96,12 +96,14 @@ export function createBadgeStrip({ root, hud, setTimer = setTimeout, clearTimer 
       const r = o.getBoundingClientRect();
       return { l: r.left, r: r.right, t: r.top - base.top, b: r.bottom - base.top };
     };
+    // --hud-gap: the TV sheet asks for a roomier gap under the goals pill (px; 6 elsewhere).
+    const gap = parseFloat((doc.defaultView?.getComputedStyle?.(el)?.getPropertyValue('--hud-gap') ?? '')) || 6;
     let top = me.top - base.top;
     const goals = box('#hud-goals');
-    if (goals) top = Math.max(top, goals.b + 6);
+    if (goals) top = Math.max(top, goals.b + gap);
     const others = ['#hud-objective', '#hud-hint'].map(box).filter(Boolean).sort((x, y) => x.t - y.t);
     for (const o of others) {
-      if (o.l < me.right && o.r > me.left && o.t < top + h && o.b > top) top = o.b + 6;
+      if (o.l < me.right && o.r > me.left && o.t < top + h && o.b > top) top = o.b + gap;
     }
     el.style.top = `${Math.round(top)}px`;
   }

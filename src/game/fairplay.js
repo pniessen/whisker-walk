@@ -10,6 +10,7 @@
 // count the ride twice.
 // =============================================================================
 import { RIDE_PAGE, RIDE_TOASTS, BOAT_PAID, GAME_WORDS, GAME_AGAIN, PRIZE_WEAR, VISITOR_HELLO, FAIR_FIND_WORDS } from '../fairwords.js';
+import { crumb } from '../diagnostics.js';
 import { FAIR_GAME_IDS, gameJournalId, fairFindJournalId } from '../fairprizes.js';
 
 export const rideKey = (ride) => `fair-ride-${ride}`;
@@ -131,6 +132,7 @@ export function handleFairEvent(e, ctx) {
   switch (e.type) {
     case 'note': audio.musicBoxNote?.(e.freq, e.volume); break;
     case 'ride':
+      crumb(`ride:${e.ride}`);
       if (e.ride === 'boat') once('fair-boat', RIDE_TOASTS.boat());
       else noteRide(e.ride, ctx);
       break;
@@ -139,7 +141,7 @@ export function handleFairEvent(e, ctx) {
     case 'boat-whoosh': audio.pounceWhoosh?.(); break;
     case 'boat-creak': audio.creak?.(e.volume); break;
     case 'slide-end': audio.landThump?.(); break;
-    case 'dismount': session?.fx?.burst(session.cat.position, 0xcbb8a0, 8); break;
+    case 'dismount': crumb('dismount'); session?.fx?.burst(session.cat.position, 0xcbb8a0, 8); break;
     // ---- the games ----
     case 'game-start': if (!e.auto) hud.toast(GAME_WORDS[e.game].start()); break;
     case 'tins-down':
