@@ -7,6 +7,7 @@ import { createLighthouseAlive } from './lighthousealive.js';
 import { createLighthouseSound } from './lighthousesound.js';
 import { createLighthouseWeather } from './lighthouseweather.js';
 import { createLighthouseVistas } from './lighthousebeauty7.js';
+import { createLighthouseVoice } from './lighthousevoice.js';
 import './lighthousewords.js';
 import { TOWER, GALLERY_Y, LAMP_ROOM, LEVER, LEVER_KIND, BELL_KIND, BELL, GULL_ROCK, POOLS } from './lighthouseplan.js';
 import { findAt, noteLighthouseFind } from './lighthousefinds.js';
@@ -172,6 +173,7 @@ export function createLighthouseLife(ctx = {}) {
   // the five photogenic vistas (lighthousebeauty7.js, beauty pass 7): a grade, haze and a golden moment where she stands still
   const vistas = withLocalUuids('lighthouse-vistas', () => createLighthouseVistas({ scene, ground, reducedMotion: !!ctx.reducedMotion, lite: lowTier }));
   const alive = withLocalUuids('lighthouse-alive', () => createLighthouseAlive({ scene, reducedMotion: !!ctx.reducedMotion, tier, sound, seed, wonder: ctx.wonder ?? null, tone: ctx.tone ?? null, night: ctx.night ?? 0, wx: wx.state }));
+  const voice = withLocalUuids('lighthouse-voice', () => createLighthouseVoice({ scene, ground, audio, sound, crit: alive.critters, reducedMotion: !!ctx.reducedMotion, lite: lowTier })); // beauty pass 9: the coast answers her voice and moves
   const looks = createFindLooks({ scene, ground, reducedMotion: !!ctx.reducedMotion });
   const cats = createKeeperCats({ scene, ground, colliders: ctx.colliders, waters: ctx.waters, sound, log, progression, roomSeed: seed, visits: ctx.visits, reducedMotion: !!ctx.reducedMotion });
   // her own meow button (game/interactions.js doMeow tells the bus): the cave's echo answers it
@@ -329,6 +331,7 @@ export function createLighthouseLife(ctx = {}) {
       placeBeam(glowK, catPos, camera);
       alive.update(dt, t, camera, beamAngle(t, seed), glowK, catPos);
       sound.beds?.(dt, catPos);
+      voice.update(dt, t, catPos, camera, session);
 
       if (shipDue !== null && !shipDone && t >= shipDue) {
         shipDone = true;
@@ -361,6 +364,7 @@ export function createLighthouseLife(ctx = {}) {
       sound.dispose();
       alive.dispose();
       vistas.dispose();
+      voice.dispose();
       wx.dispose();
       offMeow?.();
       looks.dispose();

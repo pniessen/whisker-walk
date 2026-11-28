@@ -48,6 +48,7 @@
   import { LANDINGS, POOL, SPIKE_TRAVERSAL } from '/src/world/lighthousespike.js';
   import { LIGHTHOUSE_TRAVERSAL } from '/src/world/lighthouseplan.js';
   import { flashAt } from '/src/world/lighthouseweather.js';
+  import { bus } from '/src/events.js';
 
   const params = new URLSearchParams(location.search);
   const rm = params.get('rm') === '1';
@@ -82,7 +83,7 @@
   let tippables = null;
   let lamp = null;
   let lever = null;
-  const lifeSession = { tippables: null };
+  const lifeSession = { tippables: null, pounceTime: 0, sniffTime: 0, idleTime: 0, wasZooming: false };
   let visitsNow = 0; // milestone 3: which hiding place the kitten has (see lighthousecats.kittenSpotIndex)
   let mice = null;
   let critters = null;
@@ -116,6 +117,7 @@
   function remakeLife() {
     lamp?.dispose();
     lamp = PLACE ? area.life({ scene, sun, fill, wx: params.get('wx'), ground: area.ground, audio: null, log: null, progression: {}, reducedMotion: rm, tier: { name: 'high' }, roomSeed: undefined, visits: visitsNow, critters, wonder: params.get('wonder') }) : null;
+    if (params.get('novoice') === '1') scene.traverse((o) => { if (o.name?.startsWith('lighthouse:voice')) Object.defineProperty(o, 'visible', { get: () => false, set() {} }); }); // the BEFORE pictures: pass 9's points never drawn
     if (bellRope) { bellRope.tipped = false; bellRope.anim = 0; bellRope.group.rotation.z = 0; bellRope.group.position.y = bellRope.gy; }
     if (lever) { lever.tipped = false; lever.anim = 0; lever.group.rotation.z = 0; lever.group.position.y = lever.gy; lever.group.getObjectByName('lever-arm').rotation.z = 0; }
   }
@@ -387,6 +389,12 @@
     lb7_cliff_g: { at: [-10, 16], face: [0.9, 0.4], secs: 0, lit: true, warm: 4.8 },
     lb7_pools: { at: [18, 28.5], face: [0.4, -1], secs: 0, lit: true, warm: 2 },
     lb7_pools_g: { at: [18, 28.5], face: [0.4, -1], secs: 0, lit: true, warm: 4.8 },
+    lv_meow: { at: [32, 25], face: [1, 0.2], secs: 0, lit: true, warm: 2, react: 'meow', rsecs: 1.1 },
+    lv_meow_pools: { at: [20, 30], face: [0.5, -0.8], secs: 0, lit: true, warm: 2, react: 'meow', rsecs: 1.0 },
+    lv_pounce: { at: [31, 22], face: [1, 0.1], secs: 0, lit: true, warm: 2, react: 'pounce', rsecs: 0.3 },
+    lv_sniff: { at: [14, 36], face: [0.4, -1], secs: 0, lit: true, warm: 2, react: 'sniff', rsecs: 1.2 },
+    lv_still: { at: [11, 30], face: [0, 1], secs: 0, lit: true, warm: 2, react: 'still', rsecs: 3.2 },
+    lv_zoom: { at: [18, 30], face: [0.2, -1], secs: 0, lit: true, warm: 2, react: 'zoom', rsecs: 1.3 },
     lb7_door: { at: [-14, -12], face: [-0.8, -0.7], secs: 0, lit: true, warm: 2 },
     lb7_door_g: { at: [-14, -12], face: [-0.8, -0.7], secs: 0, lit: true, warm: 4.8 },
     card1: { at: [-6, 14], face: [-1, 0], secs: 0, keepCat: true, cam: { pos: [6, 7, 20], look: [-22, 10, -14], fov: 55 } },
@@ -464,6 +472,16 @@
     // run the lamp's own clock on to the walk second the picture wants (the cat stands still)
     if (s.flash) { s.warm = 0; for (let n = 1; n < 1800; n++) if (flashAt(n * DT, 0, 0) === 1) { s.warm = n * DT; break; } }
     for (let k = 0; k < (s.warm ?? 0) / DT; k++) frame(DT);
+    if (s.react) { // beauty pass 9: set one reaction off, then run on to its mid-point
+      const r = s.react; Object.assign(lifeSession, { pounceTime: 0, sniffTime: 0, idleTime: 0, wasZooming: false }); frame(DT);
+      if (r === 'meow') bus.emit('tip:did', { id: 'call' });
+      if (r === 'pounce') { bus.emit('pounce:land'); lifeSession.pounceTime = 0.4; }
+      if (r === 'sniff') lifeSession.sniffTime = 1;
+      if (r === 'still') lifeSession.idleTime = 3;
+      if (r === 'zoom') lifeSession.wasZooming = true;
+      if (r === 'zoom') { push(s.face[0], s.face[1]); for (let k = 0; k < (s.rsecs ?? 1) / DT; k++) frame(DT); stick(0, 0); } else for (let k = 0; k < (s.rsecs ?? 1) / DT; k++) frame(DT);
+      Object.assign(lifeSession, { pounceTime: 0, sniffTime: 0, wasZooming: false });
+    }
     if (s.cam) {
       camera.fov = s.cam.fov ?? camera.fov;
       camera.updateProjectionMatrix();
