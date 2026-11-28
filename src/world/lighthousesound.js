@@ -109,7 +109,8 @@ export function createLighthouseSound(audio) {
   }
   const bell = () => play((c, master, now) => { for (const [mul, k] of BELL.partials) voice(c, master, { f: BELL.f * mul, dur: BELL.dur / (1 + (mul - 1) * 0.25), gain: BELL.gain * k, attack: BELL.attack, now }); });
   const echo = () => play((c, master, now) => { ECHO.delays.forEach((d, i) => voice(c, master, { type: 'triangle', f: ECHO.f, to: ECHO.to, at: d, dur: ECHO.dur, gain: ECHO.gains[i], now })); });
-  const gull = () => play((c, master, now) => { for (const p of GULL.parts) voice(c, master, { type: 'sawtooth', ...p, gain: GULL.gain, attack: 0.02, now }); });
+  let hushGulls = false; // fog: the gulls fall silent (lighthouseweather.js)
+  const gull = () => !hushGulls && play((c, master, now) => { for (const p of GULL.parts) voice(c, master, { type: 'sawtooth', ...p, gain: GULL.gain, attack: 0.02, now }); });
   // a swell of surf as a foam row lands (lighthousealive.js times it): deterministic noise (a small LCG, never Math.random) through a
   // low-pass that opens as the wave comes in and closes as it drains; k (0..1) is how near she is to the water
   const surf = (k = 1) => play((c, master, now) => {
@@ -139,6 +140,7 @@ export function createLighthouseSound(audio) {
   const purr = () => play((c, master, now) => voice(c, master, { type: 'sawtooth', f: PURR.f, dur: PURR.dur, gain: PURR.gain, attack: 0.2, tremolo: PURR.tremolo, now }));
 
   // ---- the beds: one looping noise, three filtered voices whose gains follow her position (setTargetAtTime: a smooth blend, never a jump)
+  let stormK = 0; let fogK = 0; // the weather's (lighthouseweather.js): the wind bed rises into a howl in a storm
   let bed = null; let bedAcc = 0; let nextCliffGull = 6; let bedClock = 0;
   const clamp01 = (v) => Math.min(1, Math.max(0, v));
   // [filter type, Hz, Q, gain, zone(cat) -> 0..1]: surf by the nearest shore, wind by height and the tower, creak by the quays and the post
@@ -171,10 +173,12 @@ export function createLighthouseSound(audio) {
       const on = audio.isMuted?.() === false;
       if (!bed && on) bed = makeBed();
       if (!bed) return;
-      ZONES.forEach(([, , , gain, zone], i) => bed.voices[i].g.gain.setTargetAtTime(on ? gain * zone(cat) : 0, bed.c.currentTime, BEDS.glide));
+      ZONES.forEach(([, , , gain, zone], i) => { const wxk = i === 1 ? 1 + 6 * stormK + 1.5 * fogK : i === 0 ? 1 + 2.2 * stormK : 1; bed.voices[i].g.gain.setTargetAtTime(on ? gain * zone(cat) * wxk : 0, bed.c.currentTime, BEDS.glide); if (i === 1) bed.voices[i].fl.frequency.setTargetAtTime?.(760 + 520 * stormK, bed.c.currentTime, 1.2); });
       if (on && cat.x < -4 && bedClock > nextCliffGull) { nextCliffGull = bedClock + 14 + 9 * ((bedClock * 7.31) % 1); gull(); } // (gulls over the cliffs, now and then)
     } catch { dead = true; }
   }
 
-  return { horn, bell, echo, gull, surf, mew, purr, beds, dispose() { dead = true; hush(); bed = null; } };
+  const weather = (storm = 0, fog = 0) => { stormK = storm; fogK = fog; };
+  const quiet = (on) => { hushGulls = !!on; };
+  return { weather, quiet, horn, bell, echo, gull, surf, mew, purr, beds, dispose() { dead = true; hush(); bed = null; } };
 }

@@ -5,6 +5,7 @@ import { phrase } from '../clanphrases.js';
 import { bus } from '../events.js';
 import { createLighthouseAlive } from './lighthousealive.js';
 import { createLighthouseSound } from './lighthousesound.js';
+import { createLighthouseWeather } from './lighthouseweather.js';
 import './lighthousewords.js';
 import { TOWER, GALLERY_Y, LAMP_ROOM, LEVER, LEVER_KIND, BELL_KIND, BELL, GULL_ROCK, POOLS } from './lighthouseplan.js';
 import { findAt, noteLighthouseFind } from './lighthousefinds.js';
@@ -165,7 +166,9 @@ export function createLighthouseLife(ctx = {}) {
   });
   for (const m of parts.all) scene?.add(m);
   const sound = createLighthouseSound(audio);
-  const alive = withLocalUuids('lighthouse-alive', () => createLighthouseAlive({ scene, reducedMotion: !!ctx.reducedMotion, tier, sound, seed, wonder: ctx.wonder ?? null, tone: ctx.tone ?? null, night: ctx.night ?? 0 }));
+  // the weather as events (lighthouseweather.js, beauty pass 6): storm, fog, the golden sunset, a starry night; its state is read by the beam and the sea
+  const wx = withLocalUuids('lighthouse-weather', () => createLighthouseWeather({ scene, sun: ctx.sun ?? null, fill: ctx.fill ?? null, waterFx: ctx.waterFx ?? [], weather: ctx.weather ?? null, hour: ctx.hour, night: ctx.night ?? 0, seed, reducedMotion: !!ctx.reducedMotion, lite: lowTier, force: ctx.wx ?? (ctx.hour === undefined ? 'off' : null), waters: ctx.waters ?? [] }));
+  const alive = withLocalUuids('lighthouse-alive', () => createLighthouseAlive({ scene, reducedMotion: !!ctx.reducedMotion, tier, sound, seed, wonder: ctx.wonder ?? null, tone: ctx.tone ?? null, night: ctx.night ?? 0, wx: wx.state }));
   const looks = createFindLooks({ scene, ground, reducedMotion: !!ctx.reducedMotion });
   const cats = createKeeperCats({ scene, ground, colliders: ctx.colliders, waters: ctx.waters, sound, log, progression, roomSeed: seed, visits: ctx.visits, reducedMotion: !!ctx.reducedMotion });
   // her own meow button (game/interactions.js doMeow tells the bus): the cave's echo answers it
@@ -210,9 +213,12 @@ export function createLighthouseLife(ctx = {}) {
     const { beam, halo, glow, patch } = parts;
     beam.visible = glowK > 0;
     beam.rotation.y = -a;
+    const wk = wx.state; const murk = Math.min(1.4, wk.storm * 0.85 + wk.fog); // in rain and fog the cone shows
+    beam.scale.set(1, 1 + 0.45 * murk, 1 + 0.45 * murk);
     beam.children[0].visible = beam.visible;
-    for (const m of [beam, beam.children[0]]) m.material.opacity = glowK;
+    for (const m of [beam, beam.children[0]]) m.material.opacity = glowK * (1 + 1.1 * murk);
     halo.visible = glowK > 0;
+    halo.scale.setScalar(1 + 0.9 * murk);
     if (camera) halo.quaternion.copy(camera.quaternion);
     halo.material.opacity = glowK * (0.8 + (ctx.reducedMotion ? 0 : 0.08 * Math.sin(t * 2.1)));
     glow.visible = glowK > 0;
@@ -315,6 +321,7 @@ export function createLighthouseLife(ctx = {}) {
       }
       if (arm) arm.rotation.z = -ARM_SWING * smooth(lit ? (t - litAt) / ARM_TIME : 0);
       const glowK = lit ? smooth((t - litAt) / LIGHT_UP) : 0;
+      wx.update(dt, t, camera, catPos, sound, beamAngle(t, seed), lit);
       placeBeam(glowK, catPos, camera);
       alive.update(dt, t, camera, beamAngle(t, seed), glowK, catPos);
       sound.beds?.(dt, catPos);
@@ -349,6 +356,7 @@ export function createLighthouseLife(ctx = {}) {
       disposed = true;
       sound.dispose();
       alive.dispose();
+      wx.dispose();
       offMeow?.();
       looks.dispose();
       cats.dispose();

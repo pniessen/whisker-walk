@@ -140,6 +140,12 @@ const GOLD = new THREE.Color(0xffc870);
 const FOAM = new THREE.Color(0xdfeaf0);
 const WARM = new THREE.Color(0xffa850);
 const MISTC = new THREE.Color(0xe8d8c8);
+const MIST_STORM = new THREE.Color(0x8c98a8);
+const MIST_FOG = new THREE.Color(0xe6ebee);
+const GLINT_STAR = new THREE.Color(0x9fe8e0);
+const SAIL = new THREE.Color(0xe89440);
+const SAIL2 = new THREE.Color(0xff8a60);
+const mistNow = new THREE.Color();
 const SHIPW = new THREE.Color(0xfff2c8);
 const SHIPR = new THREE.Color(0xff5a40);
 const NEAR_ROCKS = (x, z) => {
@@ -147,7 +153,8 @@ const NEAR_ROCKS = (x, z) => {
   return r(P.GULL_ROCK, 2.2) || r(P.PINNACLE, 2.2);
 };
 
-export function createLighthouseAlive({ scene, reducedMotion = false, tier = null, sound = null, seed = null, wonder = null, tone = null, night = 0 } = {}) {
+export function createLighthouseAlive({ scene, reducedMotion = false, tier = null, sound = null, seed = null, wonder = null, tone = null, night = 0, wx = null } = {}) {
+  const W = wx ?? { storm: 0, fog: 0, sunset: 0, stars: 0 }; // the weather's state (lighthouseweather.js), read each frame
   const low = tier?.name === 'low';
   const TN = tone && tone.length === 3 ? tone : [1, 1, 1]; // the hour's colour (lighthouseday.js): the glints, sheen and lanterns follow the same clock as the sky
   const glintCol = new THREE.Color(GOLD.r * TN[0], GOLD.g * TN[1], GOLD.b * TN[2]);
@@ -288,7 +295,7 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
     const out = [];
     boatsMesh.userData.boats.forEach((b, bi) => {
       const ph = bi * 2.1;
-      const k = 1 + 2.2 * stir; // she nears the quay: the boats ride livelier
+      const k = (1 + 2.2 * stir) * (1 + 4.5 * W.storm); // she nears the quay: the boats ride livelier; in a storm they pitch hard
       const dy = still ? 0 : k * (0.05 * Math.sin(t * 1.05 + ph) + 0.02 * Math.sin(t * 1.9 + ph * 3));
       const roll = still ? 0 : k * 0.05 * Math.sin(t * 0.9 + ph + 1);
       const pitch = still ? 0 : k * 0.03 * Math.sin(t * 0.75 + ph * 2);
@@ -386,22 +393,23 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
     for (const f of foam) {
       const sea = f.sea;
       const s = (still ? f.row / foamRows : ((t / FOAM_PERIOD) + f.row / foamRows) % 1);
-      const x = sea.shoreX - sea.dir * tide * TIDE_RANGE * 0.7 + sea.dir * (FOAM_REACH * (1 - s) ** 1.4 + 0.6);
+      const x = sea.shoreX - sea.dir * tide * TIDE_RANGE * 0.7 + sea.dir * (FOAM_REACH * (1 + 0.55 * W.storm) * (1 - s) ** 1.4 + 0.6);
       const fade = Math.sin(Math.PI * Math.min(1, s * 1.05)) ** 0.7;
-      const w = 0.22 + 0.28 * s;
+      const w = (0.22 + 0.28 * s) * (1 + 1.1 * W.storm);
       const wob = Math.sin(t * 0.8 * (still ? 0 : 1) + f.wob * TAU) * 0.35;
       const skip = NEAR_ROCKS(x, (f.z0 + f.z1) / 2);
-      const bright = skip ? 0 : fade * (0.35 + 0.5 * f.amp) * 0.8;
+      const bright = skip ? 0 : fade * (0.35 + 0.5 * f.amp) * 0.8 * (1 + 0.9 * W.storm);
       const a = [x + wob, 0.1, f.z0]; const b = [x + wob + sea.dir * 0.3, 0.1, f.z1];
       quad(f.v, [a[0], 0.1, a[2]], [a[0] + sea.dir * w, 0.1, a[2]], [b[0], 0.1, b[2]], [b[0] + sea.dir * w, 0.1, b[2]]);
       tint(f.v, 6, FOAM, bright);
     }
-    // glints: each a flat diamond that flares and fades
+    // glints: each a flat diamond that flares and fades (gold and brighter at sunset, pale blue-green on a starry night)
+    glintCol.setRGB(GOLD.r * TN[0], GOLD.g * TN[1], GOLD.b * TN[2]).lerp(GLINT_STAR, W.stars * 0.85);
     for (const g of glints) {
       const k = still ? 0.35 : Math.max(0, Math.sin(t * g.rate + g.ph)) ** 3;
       const r = g.r * (0.55 + 0.6 * k);
       quad(g.v, [g.x - r, 0.095, g.z], [g.x, 0.095, g.z - r * 0.4], [g.x, 0.095, g.z + r * 0.4], [g.x + r, 0.095, g.z]);
-      tint(g.v, 6, glintCol, 0.2 + 0.9 * k);
+      tint(g.v, 6, glintCol, (0.2 + 0.9 * k) * (1 + 0.6 * W.sunset));
     }
     // sheens breathe
     for (const sh of sheens) {
@@ -423,7 +431,7 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
         const v = l.v + q * 3; const a0 = (q / HALO_FAN) * TAU; const a1 = ((q + 1) / HALO_FAN) * TAU;
         const rim = (a) => [cx + (right.x * Math.cos(a) + up.x * Math.sin(a)) * sz, cy + (right.y * Math.cos(a) + up.y * Math.sin(a)) * sz, cz + (right.z * Math.cos(a) + up.z * Math.sin(a)) * sz];
         put(v, 0, [cx, cy, cz]); put(v, 1, rim(a0)); put(v, 2, rim(a1));
-        tint(v, 1, WARM, 0.55 * flick * (1 + 0.6 * night)); tint(v + 1, 2, WARM, 0); // (the lanterns burn brighter as the night comes on)
+        tint(v, 1, WARM, 0.55 * flick * (1 + 0.6 * night + 1.3 * W.fog + 0.4 * W.storm)); tint(v + 1, 2, WARM, 0); // (the lanterns burn brighter as the night comes on)
       }
     }
     // the beam's glow on the clouds (only while the lamp is lit)
@@ -476,12 +484,13 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
         const fade = Math.sin(Math.PI * (zz + 50) / 100) ** 0.8;
         const cx = m.x + 2.5 * Math.sin((still ? 0 : t) * 0.07 + m.ph); const cyy = 1.3 + 0.2 * Math.sin((still ? 0 : t) * 0.11 + m.ph);
         const W = m.w;
-        const MIST = 0.8;
+        const MIST = 0.8 * (1 + 0.9 * W.fog + 0.5 * W.storm);
+        mistNow.copy(MISTC).lerp(MIST_STORM, W.storm).lerp(MIST_FOG, W.fog * 0.8);
         for (let q = 0; q < 6; q++) {
           const a0 = (q / 6) * TAU; const a1 = ((q + 1) / 6) * TAU;
           const rim = (a) => [cx + flatRight.x * Math.cos(a) * W, cyy + Math.sin(a) * 2.6, zz + flatRight.z * Math.cos(a) * W];
           put(m.v + q * 3, 0, [cx, cyy, zz]); put(m.v + q * 3, 1, rim(a0)); put(m.v + q * 3, 2, rim(a1));
-          tint(m.v + q * 3, 1, MISTC, MIST * fade); tint(m.v + q * 3 + 1, 2, MISTC, 0);
+          tint(m.v + q * 3, 1, mistNow, MIST * fade); tint(m.v + q * 3 + 1, 2, MISTC, 0);
         }
       }
       // a far ship's lights crossing the east horizon now and then (a white masthead and a red side-light); it is quiet in stillness
@@ -490,9 +499,18 @@ export function createLighthouseAlive({ scene, reducedMotion = false, tier = nul
       const k = ph / SHIP_SPAN;
       const sx = 104 - 54 * k; const fade = on ? Math.sin(Math.PI * k) ** 0.5 : 0;
       const dia = (v, cx0, cy0, cz0, r) => { put(v, 0, [cx0 - r * flatRight.x, cy0, cz0 - r * flatRight.z]); put(v, 1, [cx0, cy0 + r, cz0]); put(v, 2, [cx0 + r * flatRight.x, cy0, cz0 + r * flatRight.z]); };
-      dia(shipV, sx, 1.4, SHIP_Z, 0.7); tint(shipV, 3, SHIPW, 0.9 * fade);
-      put(shipV + 3, 0, [sx - 0.2 * flatRight.x, 0.8, SHIP_Z]); put(shipV + 3, 1, [sx + 1.6 * flatRight.x, 1.4, SHIP_Z]); put(shipV + 3, 2, [sx + 1.6 * flatRight.x, 0.5, SHIP_Z]);
-      tint(shipV + 3, 3, SHIPR, 0.8 * fade);
+      const sk = clamp01((W.sunset - 0.35) / 0.4); // at sunset the far sails are lit gold instead of the ship's lights
+      if (sk > 0) {
+        const k2 = ((t / 260) + 0.35) % 1; const x2 = 104 - 54 * k2; const f2 = Math.sin(Math.PI * k2) ** 0.5 * sk; const fr = flatRight;
+        put(shipV, 0, [x2 - 1.3 * fr.x, 0.6, SHIP_Z]); put(shipV, 1, [x2 - 0.1 * fr.x, 5.4, SHIP_Z]); put(shipV, 2, [x2 + 1.1 * fr.x, 0.6, SHIP_Z]);
+        tint(shipV, 3, SAIL, 0.85 * f2);
+        put(shipV + 3, 0, [x2 + 1.5 * fr.x, 0.6, SHIP_Z]); put(shipV + 3, 1, [x2 + 0.5 * fr.x, 3.8, SHIP_Z]); put(shipV + 3, 2, [x2 + 3.4 * fr.x, 0.6, SHIP_Z]);
+        tint(shipV + 3, 3, SAIL2, 0.7 * f2);
+      } else {
+        dia(shipV, sx, 1.4, SHIP_Z, 0.7); tint(shipV, 3, SHIPW, 0.9 * fade);
+        put(shipV + 3, 0, [sx - 0.2 * flatRight.x, 0.8, SHIP_Z]); put(shipV + 3, 1, [sx + 1.6 * flatRight.x, 1.4, SHIP_Z]); put(shipV + 3, 2, [sx + 1.6 * flatRight.x, 0.5, SHIP_Z]);
+        tint(shipV + 3, 3, SHIPR, 0.8 * fade);
+      }
     }
     // the rare surprise, in the pool at the tail
     const lt = moment && camera ? t - moment.at : -1;
