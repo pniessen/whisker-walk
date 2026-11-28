@@ -2,7 +2,7 @@
 // THE REEF (milestone R1: the water world). A real seabed: gently rolled dunes of sand (one vertex-coloured heightfield with ripples), 96 x 84 m,
 // the spawn arch with its ladder and ring buoy hanging from the shimmer ceiling, a Kelp Garden of swaying kelp (ONE InstancedMesh, the sway in its
 // vertex shader), the coral clumps and a few rocks (merged by material), a warm blue-green fog, a shimmer ceiling at y 9 and light shafts (the walk's
-// life, world/reeflife.js, which also holds the air gauge). No `waters` (the surface is a quad, never a water body). Her cat wears the dive suit here
+// life, world/reeflife.js, which also holds the soft line). No `waters` (the surface is a quad, never a water body). Her cat wears the dive suit here
 // (src/cat/suitkit.js, the registered kit's look of this place); the float and the camera's follow of it are the player's (src/player.js, the `reef` row of
 // src/placephysics.js). Behind ?reef=1 only: no catalog row, no map place, no gate. Draws no random number and reads no clock; builds in withLocalUuids.
 // docs/superpowers/plans/2026-11-26-reef.md.
@@ -109,14 +109,14 @@ export function build(scene, opts) {
       // daily goals: only the kinds she can finish here (the walk always draws three of them)
       goalTypes: Object.freeze(['collectible', 'photo', 'scenic']),
       ground: P.createReefGround(),
-      // the light, the kelp's sway, the air gauge, Marlo and chapter one (world/reefstorylife.js), with the finds on top
+      // the light, the kelp's sway, Marlo and chapter one (world/reefstorylife.js), with the finds on top
       life: (ctx) => {
-        const base = createReefStoryLife(ctx); // the light, the kelp, the gauge, Marlo and chapter one (milestone R2)
+        const base = createReefStoryLife(ctx); // the light, the kelp, Marlo and chapter one (milestone R2)
         const finds = createReefFindsLife(ctx); // the six discoveries (milestone R3)
         const deep = createReefDeepLife({ ...ctx, say: base.say }); // the plankton and the Deep's three soft lines (R8)
         const sea = createReefSealsLife(ctx); // the seals, octopuses and dolphin family (photo and journal subjects through `spottable`)
         const more = createReefMoreLife(ctx); // jellyfish, clownfish, seahorses, mantas, a whale, moray eels and squid
-        const lab = ST.lab.createLabLive({ scene: ctx.scene, reefY: P.reefY, look: P.WATER_LOOK, player: ctx.player, reducedMotion: ctx.reducedMotion, tier: ctx.tier, say: base.say, setPaused: base.setPaused, doc: ctx.doc ?? globalThis.document }); // the hatch and the inside (R13)
+        const lab = ST.lab.createLabLive({ scene: ctx.scene, reefY: P.reefY, look: P.WATER_LOOK, player: ctx.player, reducedMotion: ctx.reducedMotion, tier: ctx.tier, say: base.say, doc: ctx.doc ?? globalThis.document }); // the hatch and the inside (R13)
         const pr = ctx.progression;
         const story = ST.lab.createLabStory({ // the fuses, the aquarium's fish and the shy shark (R14); the save and the walk reach it only through `io`
           scene: ctx.scene, reefY: P.reefY, lab, player: ctx.player, reducedMotion: ctx.reducedMotion, tier: ctx.tier, say: base.say, audio: ctx.audio, Vec3: K.T3.Vector3,

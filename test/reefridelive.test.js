@@ -23,7 +23,6 @@ const { LINES } = await import('../src/world/reefridewords.js');
 const { phrase } = await import('../src/clanphrases.js');
 const { createProgression } = await import('../src/progression.js');
 const { placeFloat } = await import('../src/placephysics.js');
-const { stepAir } = await import('../src/world/reefair.js');
 const RP = await import('../src/reefpages.js');
 const { ST } = await import('../src/world/reefstages.js');
 
@@ -186,35 +185,6 @@ describe('on a walk', () => {
     m.player.kickHeld = false;
     m.tick(180);
     expect(sim.hold).toBeCloseTo(R.RIDES.scooter.seatY, 1);
-  });
-
-  it('the air gauge stands still while she rides and runs again the moment she hops off; a lift in progress keeps her from boarding', () => {
-    const m = make();
-    m.tick(2);
-    const air = m.life.air;
-    air.firstVisit = false;
-    m.tick(30);
-    const used0 = air.used;
-    expect(used0).toBeGreaterThan(0.5);
-    m.board();
-    const used1 = air.used;
-    m.player.inputActive = true; m.player.dir = { x: 1, z: 0 };
-    m.tick(30 * 12);
-    expect(air.used).toBe(used1);
-    expect(air.lifts).toBe(0);
-    m.player.inputActive = false;
-    m.hopOff();
-    m.tick(30);
-    expect(air.used).toBeGreaterThan(used1 + 0.5);
-    // a pure check of the gauge's own flag
-    const a = { t: 0, used: 0, lift: null, soft: false, firstVisit: false, lifts: 0 };
-    for (let i = 0; i < 4000; i++) stepAir(a, DT, true);
-    expect(a.used).toBe(0);
-    // lifting: no boarding
-    const k = make();
-    k.tick(2);
-    k.life.air.lift = 0.5;
-    expect(said(k.life.promptAt(k.cat.position))).not.toMatch(/Hop on/);
   });
 
   it('with the real player: the float is off while she rides (perchY), floatY stays 0, and the float is back after hop off', () => {

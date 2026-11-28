@@ -16,7 +16,7 @@ function draw(scene, kit, reefY, tier) {
 function live(kit, ctx, area, base, P) {
   return createRideLive({
     THREE: kit.THREE, scene: ctx.scene, reefY: P.reefY, ground: area.ground, colliders: area.colliders, keepOut: ST.wreck.rideKeepOut?.() ?? [], bounds: P.REEF_BOUNDS,
-    player: ctx.player, reducedMotion: ctx.reducedMotion, tier: ctx.tier, progression: ctx.progression, say: base.say, setPaused: base.setPaused, busy: () => base.air.lift !== null,
+    player: ctx.player, reducedMotion: ctx.reducedMotion, tier: ctx.tier, progression: ctx.progression, say: base.say,
   });
 }
 

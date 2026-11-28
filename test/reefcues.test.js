@@ -39,7 +39,7 @@ const tick = (r, cat, n = 1, dt = 0.05, lift = 0) => { for (let i = 0; i < n; i+
 const press = (r, cat, lift = 0) => { tick(r, cat, 1, 0.05, lift); const line = r.mar.promptAt(cat, lift); return { line, k: line ? r.mar.interact() : null }; };
 const nearMarlo = (r) => at(r.mar.marlo.x + 1.5, r.mar.marlo.z);
 
-// The actions the game offers for one step, with the cat's feet only (no skills; the float is the base kick, 1.1 m is under what it gives: AIR.lift 2.4).
+// The actions the game offers for one step, with the cat's feet only (no skills; the float is the base kick, 1.1 m is under what it gives: the float's peak is well above it).
 function bringShell(r, i) {
   const s = S.STORY_SHELLS[i];
   const spot = i === 1 ? at(s.x - 1.8, s.z) : at(s.x + 0.7, s.z);
@@ -175,7 +175,7 @@ describe('(b) every step\'s target exists, is in bounds, can be walked to with n
   });
   it('each is within reach of a floor cell she can walk to from the spawn (shells by their reach, the float only for the last metre of shell two)', () => {
     for (const t of TARGETS) expect(walkableNear(t.p, t.reach - 0.3), `step ${t.step}: ${t.name} is not reachable on foot`).toBe(true);
-    expect(S.STORY_SHELLS[1].minLift, 'shell two needs a float the base kick gives').toBeLessThan(P.AIR.lift);
+    expect(S.STORY_SHELLS[1].minLift, 'shell two needs a float the base kick gives').toBeLessThan(2.4);
     expect(S.STORY_SHELLS[0].minLift).toBe(0);
     expect(S.STORY_SHELLS[2].minLift).toBe(0);
   });

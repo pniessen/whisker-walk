@@ -21,9 +21,8 @@ const rigged = (reef = null) => {
   const scene = new THREE.Scene();
   const heard = [];
   const off = bus.on('discovery', (e) => heard.push(e));
-  let pockets = 0;
-  const mar = createMarlo({ scene, progression, reducedMotion: false, pocket: () => { pockets++; return true; } });
-  return { storage, progression, scene, mar, heard, off, pockets: () => pockets };
+  const mar = createMarlo({ scene, progression, reducedMotion: false });
+  return { storage, progression, scene, mar, heard, off };
 };
 const at = (x, z) => ({ x, z, y: P.reefY(x, z) });
 const tick = (r, cat, n = 1, lift = 0, dt = 0.05) => { for (let i = 0; i < n; i++) r.mar.update(dt, i * dt, cat, null, sess(), lift); };
@@ -192,33 +191,17 @@ describe('the draw budget', () => {
   });
 });
 
-describe('the first air pockets', () => {
-  it('swimming into a pocket calls the life once, then it rests for a while and gives its air again', () => {
+describe('the bubble columns', () => {
+  it('are scenery: they rise all the time, a cat standing in one changes nothing, and Marlo keeps no air record', () => {
     const r = rigged();
     const p = S.POCKETS[0];
-    tick(r, at(p.x + 5, p.z), 2);
-    expect(r.pockets()).toBe(0);
+    const col = r.scene.getObjectByName('reef:pockets');
     tick(r, at(p.x + 0.4, p.z), 3);
-    expect(r.pockets()).toBe(1); // used; the next frames do not call again
-    expect(r.mar.state.pocketLeft[0]).toBeGreaterThan(0);
-    tick(r, at(p.x + 0.4, p.z), 40);
-    expect(r.pockets()).toBe(1);
-    tick(r, at(p.x + 0.4, p.z), 300); // 15 s later it has air again and, with her still in it, gives it
-    expect(r.pockets()).toBeGreaterThanOrEqual(2);
+    const ys = () => Array.from(col.geometry.attributes.position.array).filter((_, i) => i % 3 === 1);
+    expect(ys().every((y) => y > -10)).toBe(true);
+    tick(r, at(p.x + 0.4, p.z), 300);
+    expect(ys().every((y) => y > -10)).toBe(true);
+    expect(r.mar.state.pocketLeft).toBeUndefined();
     r.mar.dispose(); r.off();
-  });
-  it('in the real life a pocket refills the gauge and a full gauge keeps the pocket\'s air', () => {
-    const progression = createProgression(memoryStorage());
-    const scene = new THREE.Scene(); build(scene);
-    const life = createReefLife({ scene, doc: null, progression, player: { floatY: 0, halt() {}, clearFloat() {} } });
-    const p = S.POCKETS[0];
-    const cat = at(p.x, p.z);
-    life.update(0.05, 0, cat, new THREE.PerspectiveCamera(), sess());
-    expect(life.marlo.state.pocketLeft[0]).toBe(0); // the gauge is full: nothing to fill, the pocket keeps its air
-    life.air.t = 30; life.air.used = 60;
-    life.update(0.05, 0.1, cat, new THREE.PerspectiveCamera(), sess());
-    expect(life.air.used).toBeLessThan(0.1);
-    expect(life.marlo.state.pocketLeft[0]).toBeGreaterThan(0);
-    life.dispose();
   });
 });

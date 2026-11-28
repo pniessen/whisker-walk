@@ -209,7 +209,7 @@ describe('the life notes a find while she stands still', () => {
     expect(r.progression.state.journal.rfoyster).toBe(1); // once a walk
     expect(r.heard.filter((e) => e.type === 'reeffind')).toHaveLength(1);
     expect(r.scene.getObjectByName('reef:findGlow').visible).toBe(false);
-    expect(r.life.air).toBeTruthy(); // R1's life is still returned whole
+    expect(r.life.say).toBeTypeOf('function'); // R1's life is still returned whole
   });
   it('walking through the ring finds nothing (the stillness starts again whenever she moves)', () => {
     r = make();

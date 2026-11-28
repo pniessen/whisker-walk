@@ -1,6 +1,6 @@
 // =============================================================================
 // THE REEF'S STORY: THE PLAN AND MARLO'S MOVES (milestone R2). Pure data and pure functions (no THREE, no clock, no Math.random): where Marlo
-// waits, where the two shells of chapter 1 lie, the coral ledge that holds the second, the first air pockets, how a shy crab follows her, and
+// waits, where the two shells of chapter 1 lie, the coral ledge that holds the second, the bubble columns, how a shy crab follows her, and
 // the picture each goal is shown with. world/reefmarlo.js draws and runs them; the tests read them. North is -z, heights are metres over the seabed.
 // docs/superpowers/plans/2026-11-26-reef.md sections 3.2 and 3.3. The numbers marked "start" are tuned from pictures.
 // =============================================================================
@@ -39,15 +39,15 @@ export const STORY_SHELLS = Object.freeze([...SHELLS, SHELL_THREE]);
 // What is solid in the story: the ledge and (milestone R5) the cave's boulders, the lantern corals and the wing's spires and larger clumps.
 export const storyColliders = () => [Object.freeze({ x: LEDGE.x, z: LEDGE.z, r: LEDGE.r }), ...wingColliders(), ...deepColliders()];
 
-// The first air pockets: columns of fresh bubbles; swimming into one fills the gauge (a pocket gives its air again after `again` seconds).
+// The bubble columns: scenery, rising bubbles that also keep the scatter and the dens clear of their spots.
 export const POCKETS = Object.freeze([
   Object.freeze({ x: 7, z: 29.5 }), // beside the ladder (the first, in sight of the spawn)
   Object.freeze({ x: -13, z: 22 }), // by the Kelp Garden's edge
   Object.freeze({ x: 11.5, z: 5.5 }), // by the coral ledge
-  Object.freeze({ x: CAVE_POCKET.x, z: CAVE_POCKET.z }), // milestone R5: ringing the cave floor where shell three lies (it teaches that a pocket gives air again)
+  Object.freeze({ x: CAVE_POCKET.x, z: CAVE_POCKET.z }), // milestone R5: ringing the cave floor where shell three lies (shell three's landmark)
   ...DEEP_POCKETS, // milestone R8: the third chain, out from the Sandy Flats to the Glow Cave's mouth
 ]);
-export const POCKET = Object.freeze({ r: 1.4, again: 14, height: 2.6 });
+export const POCKET = Object.freeze({ height: 2.6 });
 
 // The picture a goal is shown with: a shell, a question mark or a heart (never text).
 export const BUBBLE_ICON = Object.freeze({ shell: '🐚', question: '❓', heart: '💗' });

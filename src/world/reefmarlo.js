@@ -1,5 +1,5 @@
 // =============================================================================
-// MARLO AND CHAPTER ONE ON A WALK (milestone R2). The little hermit crab, the two shells of chapter 1, the coral ledge, the first air pockets and the
+// MARLO AND CHAPTER ONE ON A WALK (milestone R2). The little hermit crab, the two shells of chapter 1, the coral ledge, the first bubble columns and the
 // meow's ring of bubbles, all drawn here and run by the pure rules (src/reefmission.js for the steps, world/reefstory.js for the places and his moves).
 //   * MARLO waves on the sand by the ladder; the Interact button says hello (step 1). Then he follows her at a shy distance and waits. His
 //     talk is a picture over his head (a shell, a question mark, a heart), never text; the words below are only the toast line beside it.
@@ -7,10 +7,10 @@
 //     Interact picks one up (one at a time, in her mouth in front of her, like the Moon's power cells; it is the story's own item and never touches
 //     the walk's mouth, so it never goes to the den); Interact beside Marlo gives it. A carried shell is NEVER SAVED: however a walk ends (leaving
 //     through the arch, a resume, a warm bubble's lift, the cat's own end), the next walk finds it at its own spot, and nothing is lost.
-//   * SHELL THREE (milestone R5): the just-right one lies in the shallow cave behind the coral, ringed by an air pocket; given to Marlo, he steps into it by himself a
+//   * SHELL THREE (milestone R5): the just-right one lies in the shallow cave behind the coral, ringed by a column of bubbles; given to Marlo, he steps into it by himself a
 //     moment later (step 5, the wobble), his old shell comes off and is left as a sea snail's home. The lantern corals and the parade are world/reefhouse.js's.
 //   * THE MEOW calls him: he shows the next goal's picture and a ring of bubbles rises where it is (a column over the spot, a trail from him). No fail.
-//   * THE AIR POCKETS: columns of bubbles; swimming into one fills the gauge (the life says how); one gives its air again after a while.
+//   * THE BUBBLE COLUMNS: scenery only, always rising (there is no air to run out of).
 // Draws no random number and reads no clock of its own (the walk's dt only).
 // =============================================================================
 
@@ -201,7 +201,7 @@ function pointsOf(n, size, color, opacity) {
 }
 
 // createMarlo(ctx) -> { promptAt, interact, credit, update, goal, state, dispose }
-// ctx: { scene, progression, audio, reducedMotion, pocket: () => boolean (the life fills the gauge; true when it did), colliders }
+// ctx: { scene, progression, audio, reducedMotion, colliders }
 export function createMarlo(ctx) {
   const { scene, reducedMotion = false } = ctx;
   const progression = ctx.progression ?? null;
@@ -247,7 +247,6 @@ export function createMarlo(ctx) {
   const pockets = pointsOf(S.POCKETS.length * 8, 0.26, 0xfff0d0, 0.85);
   pockets.name = 'reef:pockets';
   pockets.visible = true;
-  const pocketLeft = S.POCKETS.map(() => 0); // seconds until a pocket has air again
   for (const o of [group, snail, ...shells, ...glints, bubble.sprite, ring, pockets]) scene.add(o);
 
   const shellMode = (i) => (M.shellBrought(progression?.state?.reef, i) ? 'given' : carrying === i ? 'carried' : 'home');
@@ -352,7 +351,6 @@ export function createMarlo(ctx) {
     let k = 0;
     S.POCKETS.forEach((p, i) => {
       for (let j = 0; j < 8; j++, k++) {
-        if (pocketLeft[i] > 0) { pos.setXYZ(k, p.x, -50, p.z); continue; }
         const ph = reducedMotion ? j / 8 : ((t * 0.35 + j / 8) % 1);
         const a = j * 2.4 + i;
         pos.setXYZ(k, p.x + Math.cos(a) * 0.35 * (0.4 + ph), reefY(p.x, p.z) + 0.2 + ph * S.POCKET.height, p.z + Math.sin(a) * 0.35 * (0.4 + ph));
@@ -390,7 +388,7 @@ export function createMarlo(ctx) {
   }
 
   return {
-    get state() { return { clock, carrying, marlo: { ...marlo }, record: rec(), shellModes: S.STORY_SHELLS.map((s) => shellMode(s.id)), bubble: bubble.icon, pocketLeft: pocketLeft.slice() }; },
+    get state() { return { clock, carrying, marlo: { ...marlo }, record: rec(), shellModes: S.STORY_SHELLS.map((s) => shellMode(s.id)), bubble: bubble.icon }; },
     get marlo() { return marlo; },
     get group() { return group; },
     get shells() { return shells; },
@@ -504,13 +502,7 @@ export function createMarlo(ctx) {
 
       placeRing(t, catPos);
 
-      // the air pockets
-      for (let i = 0; i < pocketLeft.length; i++) {
-        if (pocketLeft[i] > 0) pocketLeft[i] = Math.max(0, pocketLeft[i] - step);
-        else if (catPos && Math.hypot(catPos.x - S.POCKETS[i].x, catPos.z - S.POCKETS[i].z) < S.POCKET.r) {
-          if (ctx.pocket?.() !== false) pocketLeft[i] = S.POCKET.again;
-        }
-      }
+      // the bubble columns
       placePockets(t);
       if (clock - goalAt > 0.5) { goalCur = null; goalAt = clock; }
     },
