@@ -22,15 +22,21 @@ const hash = (n, s) => { let h = (Math.imul(n | 0, 0x9e3779b1) ^ Math.imul(s | 0
 export const isLowTier = (tier) => !!tier && (tier.name === 'low' || tier.shadows === false || (tier.rung ?? 0) >= 3);
 const say = (key, label) => bus.emit('discovery', { type: 'greenhousenote', key, label, points: 0, repeat: false });
 
+// A gust of wind: a slow swell now and then (0 most of the time, up to 1), so the flakes lean and swirl together before settling. Pure; reduced motion passes t = 0 (no gust).
+export const gustAt = (t) => { const g = Math.sin(t * 0.17) * Math.sin(t * 0.071 + 1.3); return g > 0.35 ? (g - 0.35) / 0.65 : 0; };
+// Each flake also has its own size of sway (the big slow ones drift wide, the small quick ones fall straighter), which is how the one dot size reads as two sorts of flake.
+
 // The flake `i` at time t over a cat at (cx, cz): wrapped into a box round her so there are always flakes near her, however far she walks. Pure.
 export function flakeAt(i, t, cx, cz, out = { x: 0, y: 0, z: 0 }) {
   const B = P.FLAKES.box;
   const hx = hash(i, 1) * 2 * B; const hz = hash(i, 2) * 2 * B;
   const wrap = (v, c) => ((((v - c) % (2 * B)) + 2 * B) % (2 * B)) - B + c;
-  const fall = (0.6 + 0.8 * hash(i, 3)) * P.FLAKES.fall;
+  const fall = (0.6 + 0.8 * hash(i, 3)) * P.FLAKES.fall * (hash(i, 5) < 0.3 ? 0.7 : 1);
   const y = P.FLAKES.top - ((hash(i, 4) * P.FLAKES.top + t * fall) % P.FLAKES.top);
-  out.x = wrap(hx - B, cx) + FLAKE_LOOK.sway * Math.sin(t * 0.5 + i * 1.9);
-  out.z = wrap(hz - B, cz) + FLAKE_LOOK.sway * Math.cos(t * 0.43 + i * 2.7);
+  const big = hash(i, 5) < 0.3; // the big soft flakes sway wider and fall slower
+  const g = gustAt(t) * (0.6 + 0.8 * hash(i, 6)) * (y / P.FLAKES.top) * 2.2; // a gust pushes the high flakes furthest
+  out.x = wrap(hx - B, cx) + FLAKE_LOOK.sway * (big ? 1.5 : 0.8) * Math.sin(t * (big ? 0.4 : 0.6) + i * 1.9) + g;
+  out.z = wrap(hz - B, cz) + FLAKE_LOOK.sway * (big ? 1.5 : 0.8) * Math.cos(t * 0.43 + i * 2.7) + g * 0.35;
   out.y = P.snowY(out.x, out.z) + y;
   return out;
 }
