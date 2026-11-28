@@ -1,6 +1,7 @@
 import { BUILD_STAMP } from '../buildstamp.js';
 import { escapeHtml } from '../game/util.js';
 import { CATALOG, rankFor, asFiniteNonNeg } from '../progression.js';
+import { listPlayers, addPlayer, setActive, MAX_PLAYERS } from '../players.js';
 import { menuThumbnails, fillFoundThumbs } from '../thumbnails.js';
 import { validPetName, goodNewPetName, safeRemoteName, safeRemoteBreed } from '../net.js';
 import { metOnly, deviceMetPlayers } from '../metplayers.js';
@@ -156,7 +157,7 @@ export function showEditionTitle(doc, edition) {
 //   nearby: game/nearby.js, the rooms the app found on the local network.
 //     Absent, or not available (Safari, desktop), nothing of it is drawn
 //   metPlayers: src/metplayers.js (the device's own list when absent)
-export function createHomeBase({ progression, album, onStartWalk, rooms, sync, onlineDelete = null, cloud, settings, onSettingsChange, onTvChange = null, onVisitDen, onOpenDen = null, colonySync, myId, toast, onCelebrate, onBirthdaySong, onAudioWake, onCardsClosed, haptics: canBuzz = false, nearby = null, metPlayers = null, getIsTouch = () => false, reload = () => globalThis.location?.reload?.() }) {
+export function createHomeBase({ players = null, progression, album, onStartWalk, rooms, sync, onlineDelete = null, cloud, settings, onSettingsChange, onTvChange = null, onVisitDen, onOpenDen = null, colonySync, myId, toast, onCelebrate, onBirthdaySong, onAudioWake, onCardsClosed, haptics: canBuzz = false, nearby = null, metPlayers = null, getIsTouch = () => false, reload = () => globalThis.location?.reload?.() }) {
   const met = () => metPlayers ?? deviceMetPlayers();
   const root = document.getElementById('homebase');
   let petNameError = null;
@@ -696,6 +697,26 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     .then((m) => m[back ? 'openBack' : 'open']({ ...catApi, progression, album, reload, doc: document, storage: () => globalThis.localStorage, rooms: () => rooms?.getState?.(), notice: showNotice, reduced: reducedNow }))
     .catch((err) => note('ui', err));
 
+  // More than one player on this device (src/players.js): New player keeps this player exactly as is and
+  // starts a brand-new one; Switch player lists everyone on the device, tap to switch. Both only write the
+  // small player list and reload. Hidden when the page could not set up its own storage per player.
+  const playerList = () => (players ? listPlayers(players.raw, { saveKey: players.saveKey, nameOf: (id) => CATALOG.cats[id]?.name ?? null }) : []);
+  function playersHtml() {
+    if (!players) return '';
+    const list = playerList();
+    const rows = list.length > 1 ? `<div class="hb-players" role="group" aria-label="Players on this device">`
+      + list.map((p) => `<button type="button" class="hb-row" data-switch-player="${escapeHtml(p.id)}"${p.active ? ' aria-current="true" disabled' : ''}>`
+        + `<span class="hb-row-name">${escapeHtml(p.label)}${p.active ? ' (playing now)' : ''}</span><span class="hb-row-go" aria-hidden="true">${p.points} 🐾</span></button>`).join('')
+      + '</div>' : '';
+    const room = list.length < MAX_PLAYERS;
+    return `<h3 class="hb-players-title">Players on this device</h3>${rows}`
+      + (room ? '<button id="btn-new-player" type="button">New player</button>' : '<p class="settings-note">This device has all the players it can hold.</p>');
+  }
+  function switchPlayerTo(id) {
+    if (!players || !setActive(players.raw, id)) { showNotice?.('Could not switch players here. Nothing was changed.'); return; }
+    reload();
+  }
+
   // The edition is not a look: say what switching does, so a grown-up does
   // not flip it like a colour (the save keeps everything either way).
   function renderSettings() {
@@ -730,7 +751,7 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
         </div>${usageHtml(progression.state.usage, { visits: progression.state.visits, walks: Object.values(progression.state.walks ?? {}).reduce((a, b) => a + asFiniteNonNeg(b, 0), 0) })}
         <p class="settings-note" id="hb-build">Build ${escapeHtml(BUILD_STAMP)}</p>
         <button id="btn-reset" class="danger">Start over</button>
-        <button id="btn-fresh" class="danger">Start a fresh cat</button>${freshSlot()}
+        <button id="btn-fresh" class="danger">Start a fresh cat</button>${freshSlot()}${playersHtml()}
       </section>`;
   }
 
@@ -2149,6 +2170,21 @@ export function createHomeBase({ progression, album, onStartWalk, rooms, sync, o
     }
     if (e.target.id === 'btn-fresh' || e.target.id === 'btn-fresh-back') {
       openFresh(e.target.id === 'btn-fresh-back');
+      return;
+    }
+    const swBtn = e.target.closest?.('[data-switch-player]');
+    if (swBtn && !swBtn.disabled) { switchPlayerTo(swBtn.getAttribute('data-switch-player')); return; }
+    if (e.target.id === 'btn-new-player') {
+      confirmCard.ask({
+        text: 'Start a new player?',
+        note: 'Your current player is saved and you can switch back.',
+        yes: 'Yes, new player',
+        returnFocus: () => root.querySelector('#btn-new-player')?.focus?.({ preventScroll: true }),
+        onYes: () => {
+          const r = players ? addPlayer(players.raw, { saveKey: players.saveKey }) : { ok: false };
+          if (r.ok) reload(); else showNotice?.('Could not start a new player. Your current player was not changed.');
+        },
+      });
       return;
     }
     if (e.target.id === 'btn-reset') {
