@@ -57,6 +57,7 @@ export const AWARDS = {
   reefstory: 40,
   reeflab: 40, // the Sealab dome show, once (R15; nothing pays it yet)
   reefwreck: 40, // the Captain's Chest, once (R17; nothing pays it yet)
+  reefchest: 10, // the Treasure Chest on the Sandy Flats, opened once ever (a few paws with the Pearl Crown)
   reefjob: 25,
   // The Crystal Cave (2026-11-26, ids reserved in milestone C0): one of its six finds, paid the first time ever; Lumi's glow errand of the
   // day, once a walk; and the story's end (the Heart Crystal wakes), once ever.

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reef lanterns and treasure chest picture page</title>
+<!-- The Reef (real build and real life): the three lantern corals (next one pulsing, one lit, all lit; far and near) and the Treasure Chest on the Sandy Flats
+     (shut, lid lifting, burst, the Pearl Crown rising, open afterwards). NOT in the game's page. URL params: size=WxH (default 960x540).
+     window.__shot(name) with scripts/record-page.mjs. Shots in order: lfar lnear lone lall cshut copen cburst ccrown cafter.
+     The lantern shots run on the pre-change build too (the chest ones only show a chest with its lid on, then nothing happens). -->
+<style>html,body{margin:0;background:#0b2a3a;overflow:hidden}canvas{position:fixed;left:0;top:0;display:block}body>*:not(canvas){display:none!important}</style>
+</head>
+<body>
+<script type="module">
+  import * as THREE from 'three';
+  import { loadReefStages } from '/src/world/reefstages.js';
+  const params = new URLSearchParams(location.search);
+  const [W, H] = (params.get('size') || '960x540').split('x').map(Number);
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H); renderer.setPixelRatio(1);
+  document.body.prepend(renderer.domElement);
+  await loadReefStages();
+  const { build } = await import('/src/world/reef.js');
+  const P = await import('/src/world/reefplan.js');
+  const WING = await import('/src/world/reefwing.js');
+  const { createProgression } = await import('/src/progression.js');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x1f6a80);
+  scene.fog = new THREE.FogExp2(0x1f6a80, 0.02);
+  scene.add(new THREE.HemisphereLight(0xcdeeff, 0x2a5a60, 1.6));
+  const sun = new THREE.DirectionalLight(0xfff2d0, 2.4); sun.position.set(-30, 60, 20); scene.add(sun);
+  const area = build(scene, { water: { quality: { name: 'high', shadows: true } } });
+  const memory = { _m: {}, getItem(k) { return this._m[k] ?? null; }, setItem(k, v) { this._m[k] = String(v); }, removeItem(k) { delete this._m[k]; } };
+  const progression = createProgression(memory);
+  progression.state.reef = { ...progression.state.reef, step: 5, shells: 7 }; // Marlo has tried the new shell: the lanterns are next
+  const camera = new THREE.PerspectiveCamera(55, W / H, 0.1, 300);
+  const cat = new THREE.Group(); cat.position.set(10, 0, -8);
+  const player = { perchY: 0, floatY: 0, inputActive: false, kickHeld: false, dir: { x: 0, z: 0 }, halt() {}, clearFloat() {}, inputDirection() { return { x: 0, z: 0 }; } };
+  const log = { awardOnce(kind, key, text) { this.last = [kind, key, text]; return 10; }, count() { return 0; }, mark() {}, startWalk() {} };
+  let life = null; let t = 0;
+  try { life = area.life({ scene, progression, log, audio: { chime() {} }, player, reducedMotion: false, visits: 1, doc: null }); } catch (e) { console.warn('no life', e); }
+  const session = { cat, perched: null, perchHold: null, idleTime: 0, fair: { riding: null } };
+  const step = (n) => { for (let i = 0; i < n; i++) { t += 1 / 30; life?.update(1 / 30, t, cat.position, camera, session); } };
+  const look = (pos, tgt, fov = 55) => { camera.fov = fov; camera.updateProjectionMatrix(); camera.position.set(...pos); camera.lookAt(...tgt); renderer.render(scene, camera); };
+  const Y = (x, z) => P.reefY(x, z);
+  const L = WING.LANTERNS;
+  const lanternView = (i, d = 5.5, up = 2.2) => { const l = L[i]; look([l.x - d * 0.6, Y(l.x, l.z) + up, l.z + d * 0.8], [l.x, Y(l.x, l.z) + 2.4, l.z], 55); };
+  const chest = { x: -6.5, z: -15.5 };
+  const chestView = (fov = 50) => look([chest.x + 2.2, Y(chest.x, chest.z) + 1.5, chest.z + 2.6], [chest.x, Y(chest.x, chest.z) + 0.6, chest.z], fov);
+  const stand = (x, z) => cat.position.set(x, Y(x, z), z);
+  const shots = {
+    lfar: () => { stand(8, -6); step(60); look([8, Y(8, -6) + 2.2, -6], [17, Y(17, -19) + 2.2, -18], 62); },
+    lnear: () => { stand(8, -6); step(10); lanternView(0); },
+    lone: () => { stand(L[0].x + 1.2, L[0].z); step(30); stand(L[0].x + 7, L[0].z + 4); step(40); lanternView(0, 6, 2.6); },
+    lall: () => { progression.state.reef = { ...progression.state.reef, step: 6 }; stand(14, -10); step(120); look([14, Y(14, -10) + 2.4, -10], [18, Y(18, -18) + 2.6, -18], 66); },
+    cshut: () => { stand(chest.x + 1.2, chest.z + 0.4); step(5); chestView(); },
+    copen: () => { stand(chest.x + 1.2, chest.z + 0.4); life?.promptAt?.(cat.position); life?.interact?.(); step(18); chestView(); },
+    cburst: () => { step(24); chestView(); },
+    ccrown: () => { step(18); chestView(); },
+    cafter: () => { step(150); chestView(); },
+  };
+  window.__shot = (name) => { shots[name]?.(); return name; };
+  window.__scene = scene; window.__area = area; window.__life = life; window.__step = step; window.__progression = progression;
+  window.__ready = true;
+</script>
+</body>
+</html>

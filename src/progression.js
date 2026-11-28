@@ -345,6 +345,8 @@ const BASE_ACCESSORIES = {
   moonbadge: { name: 'Moon Badge', slot: 'collar', price: 0, prize: true, moon: 'story' },
   // The Reef's Captain's Chest (a neckerchief, src/cat/foundneck.js FOUND_NECKS): owned once the galleon's hunt is done (reef.wreck bit 4); never found on the ground.
   piratebandana: { name: 'Pirate Bandana', slot: 'neck', price: 0, prize: true, reef: 'chest' },
+  // The Reef's Treasure Chest on the Sandy Flats (src/world/reefchestlive.js): given once when she opens it, and owning it IS the chest's open state; never found on the ground.
+  pearlcrown: { name: 'Pearl Crown', slot: 'head', price: 0, prize: true, reef: 'treasure' },
   // The Crystal Cave's forge (wing C): owned once the circlet is made (crystal.forge bit 3); never found on the ground.
   crystalcirclet: { name: 'Crystal Circlet', slot: 'head', price: 0, prize: true, crystal: 'forge' },
   // The Crystal Cave's second story (the Echo Deep): owned once Tink is home (crystal.deep bit 3); never found on the ground.

@@ -19,7 +19,7 @@ import { SKULL } from './torso.js';
 // the cat's head slot builds these.
 
 export const HAT_IDS = ['crown', 'tophat', 'beanie', 'wizard', 'partycrown', 'leafcrown', 'candlehat', 'papercrown', 'acorncap',
-  'paperboycap', 'buckethat', 'sailorcap', 'strawhat', 'stripedboater', 'starfishclip', 'featherplume', 'partyhat', 'birthdayhat', 'tradercap', 'keepercap', 'gardenerhat', 'crystalcirclet', 'canopycap', 'redcozyhat', 'snowcap', 'reindeerantlers', 'bluestarbeanie', 'snowhelmet'];
+  'paperboycap', 'buckethat', 'sailorcap', 'strawhat', 'stripedboater', 'starfishclip', 'featherplume', 'partyhat', 'birthdayhat', 'tradercap', 'keepercap', 'gardenerhat', 'crystalcirclet', 'pearlcrown', 'canopycap', 'redcozyhat', 'snowcap', 'reindeerantlers', 'bluestarbeanie', 'snowhelmet'];
 
 // Palette. The three shop hats' colours are model.js's own (it imports these
 // for Hagrid's hats); the prize colours are the same hexes as model.js's
@@ -1252,6 +1252,18 @@ function crystalcirclet(simple) {
   return finish('crystalcirclet', [band, backFace(band), ...gems]);
 }
 
+// Pearl Crown (the Reef's Treasure Chest prize): a thin gold band at the brow with a ring of round pearls standing on it, the front one larger and the others rising and falling a little like a crown's points.
+function pearlcrown(simple) {
+  const cols = simple ? 12 : 20, ring = (phi, h) => { const p = ringPoint(phi, 0.14), n = skullNormal(p); return p.addScaledVector(n, 0.003).add(new THREE.Vector3(0, h, 0)); };
+  const band = grid(cols, 2, { wrapU: true }, (i, j) => { const phi = (i / cols) * Math.PI * 2; return { p: ring(phi, j * 0.012), c: j ? 0xf4d27a : 0xc99a2e, out: new THREE.Vector3(Math.sin(phi), 0, -Math.cos(phi)) }; });
+  const n = simple ? 6 : 9;
+  const pearls = Array.from({ length: n }, (_, k) => {
+    const phi = (k / n) * Math.PI * 2 + (n % 2 ? 0 : 0.2), front = k === 0;
+    return blob(front ? 0.019 : 0.013, simple ? 4 : 6, simple ? 3 : 4, ring(phi, 0.022 + (k % 2 ? 0.0 : 0.01) + (front ? 0.008 : 0)).addScaledVector(new THREE.Vector3(Math.sin(phi), 0, -Math.cos(phi)), 0.004), [1, 1, 1], front ? 0xfffaf4 : 0xf6ecee);
+  });
+  return finish('pearlcrown', [band, backFace(band), ...pearls]);
+}
+
 // Reindeer Antlers (a Christmas shop item): a soft brown headband round the crown, two small antlers rising from it (a beam
 // curving up and out with two short tines), and a red ribbon bow tied at the front of the band. One vertex-coloured mesh.
 const ANTLER = 0xa5754a, ANTLER_TIP = 0xcfa06c, ANTLER_BAND = 0x6b4a2a, ANTLER_BOW = 0xd8303c;
@@ -1275,7 +1287,7 @@ function reindeerantlers(simple) {
   return finish('reindeerantlers', parts);
 }
 
-const BUILD = { crown, tophat, beanie, wizard, partycrown, leafcrown, candlehat, papercrown, acorncap, paperboycap, buckethat, sailorcap, strawhat, stripedboater, starfishclip, featherplume, partyhat, birthdayhat, tradercap, keepercap, gardenerhat, crystalcirclet, canopycap, redcozyhat, snowcap, reindeerantlers, bluestarbeanie, snowhelmet };
+const BUILD = { crown, tophat, beanie, wizard, partycrown, leafcrown, candlehat, papercrown, acorncap, paperboycap, buckethat, sailorcap, strawhat, stripedboater, starfishclip, featherplume, partyhat, birthdayhat, tradercap, keepercap, gardenerhat, crystalcirclet, pearlcrown, canopycap, redcozyhat, snowcap, reindeerantlers, bluestarbeanie, snowhelmet };
 
 // The clips' ground looks (src/foundwear/display.js): the clip as worn (the
 // simple build), turned so its face is up and propped toward -z, as if

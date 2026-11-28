@@ -8,7 +8,7 @@
 // docs/superpowers/plans/2026-11-26-reef.md.
 // =============================================================================
 
-import { BoxGeometry, CylinderGeometry, SphereGeometry, TorusGeometry, CircleGeometry, BufferGeometry, BufferAttribute, Mesh, MeshBasicMaterial, MeshStandardMaterial, DoubleSide, Vector3 } from 'three';
+import { BoxGeometry, CylinderGeometry, SphereGeometry, TorusGeometry, CircleGeometry, BufferGeometry, BufferAttribute, Mesh, MeshBasicMaterial, MeshStandardMaterial, DoubleSide, Vector3, Group, Points, PointsMaterial, Color, AdditiveBlending } from 'three';
 import * as b from './builder.js';
 import { withLocalUuids } from './localuuids.js';
 import { installSuitKit } from '../cat/suitkit.js';
@@ -36,7 +36,7 @@ import { ST, loadReefStages } from './reefstages.js';
 import { createPromptArbiter } from './reefprompt.js';
 
 // The few three.js classes the wreck stage uses, handed in (the stage imports nothing of three's: it would split three's core out of the start-up chunk).
-const THREE = { BoxGeometry, CylinderGeometry, SphereGeometry, TorusGeometry, CircleGeometry, BufferGeometry, BufferAttribute, Mesh, MeshBasicMaterial, MeshStandardMaterial, DoubleSide, Vector3 };
+const THREE = { BoxGeometry, CylinderGeometry, SphereGeometry, TorusGeometry, CircleGeometry, BufferGeometry, BufferAttribute, Mesh, MeshBasicMaterial, MeshStandardMaterial, DoubleSide, Vector3, Group, Points, PointsMaterial, Color, AdditiveBlending, mergeGeometries: K.mergeGeometries };
 
 // Under vitest the stages load here, so every test that imports this file gets the whole Reef; the game's own loader awaits them (areas.js).
 // (The flag is undefined in a build, so this line and its top-level await are dropped.)
@@ -131,9 +131,9 @@ export function build(scene, opts) {
         });
         const guide = createReefGuideLive({ doc: ctx.doc ?? globalThis.document, win: ctx.win ?? globalThis.window, marlo: base.marlo, errand: base.errand, progression: ctx.progression, lab: story }); // the written guide: goal line, arrow, chip, arrival card
         const ride = ST.ride.createRideLive(rideKit, ctx, area, base, P); // the two mounts (R12)
-        const prompt = createPromptArbiter([ride, base, story, lab]); // "Hop off" (and "Hop on" at a rack) come first; // Marlo's and the errand's offers win, then a fuse's, and the hatch is the lowest
-        const divers = ST.ride.createDiversLive([Soup, moreMesh, tube, ellipsoid, paddle, bodyMatrix, P.reefY], { scene: ctx.scene, Vec3: K.T3.Vector3, reducedMotion: ctx.reducedMotion, tier: ctx.tier, say: base.say }); // the divers, the research ship and the big spotted shark (R18)
         const wreck = ST.wreck.life?.({ ...ctx, say: base.say, THREE }); // the galleon's flag, journal spot and soft lines (R16)
+        const prompt = createPromptArbiter([ride, base, story, wreck?.chest, lab]); // "Hop off" (and "Hop on" at a rack) come first; // Marlo's and the errand's offers win, then a fuse's, and the hatch is the lowest
+        const divers = ST.ride.createDiversLive([Soup, moreMesh, tube, ellipsoid, paddle, bodyMatrix, P.reefY], { scene: ctx.scene, Vec3: K.T3.Vector3, reducedMotion: ctx.reducedMotion, tier: ctx.tier, say: base.say }); // the divers, the research ship and the big spotted shark (R18)
         return {
           ...base,
           promptAt: prompt.promptAt,

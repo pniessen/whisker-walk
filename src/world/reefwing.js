@@ -30,10 +30,13 @@ export const SHELL_THREE = Object.freeze({ id: 2, kind: 'right', x: 26, z: -20.4
 export const CAVE_POCKET = Object.freeze({ x: 26, z: -19.2 });
 
 // ---- the three lantern corals, touched in this order -----------------------------------------------------------------------
-// A tall coral spire with a dark orb on top that glows when it is touched. They lead from the garden toward the cave, so the third is the nearest to it.
-export const LANTERNS = Object.freeze([P3(12.5, -15.5), P3(16.6, -19.6), P3(21.2, -16.4)].map((p, i) => Object.freeze({ id: i, ...p, h: 1.7, touch: 1.8, r: 0.42 })));
+// A tall coral spire (3 m, taller than the cat's float) with a big dark orb on top that glows when it is touched, a ring of colour on the floor round it and, once lit (or when it is the next one), a column of light. They lead from the garden toward the cave, so the third is the nearest to it.
+export const LANTERNS = Object.freeze([P3(12.5, -15.5), P3(16.6, -19.6), P3(21.2, -16.4)].map((p, i) => Object.freeze({ id: i, ...p, h: 3.0, touch: 1.8, r: 0.5 })));
 export const LANTERN_COUNT = LANTERNS.length;
 export const LANTERN_COLORS = Object.freeze([0xff8fb4, 0xffd36e, 0x8fe6ff]); // the three glows, one each (a pink, a gold, a sea blue)
+
+// How the lanterns are dressed (reefwingparts.js draws the still part, reefhouse.js the light): the orb's radius, the light column's height and the floor ring's radii.
+export const LANTERN_LOOK = Object.freeze({ orb: 0.46, column: 9, ringIn: 0.9, ringOut: 2.1 });
 
 // Marlo's old shell, left as a sea snail's home beside the cave once he has tried the new one on.
 export const SNAIL_HOME = Object.freeze({ x: 30.4, z: -17.6 });

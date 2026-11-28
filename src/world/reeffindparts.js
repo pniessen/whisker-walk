@@ -14,6 +14,7 @@ const WOOD_DARK = 0x6a4224;
 const GOLD = 0xf2c14e;
 const SEAHORSE = 0xf2a65a;
 
+export const CHEST_YAW = 0.35;
 export function drawFindMarks() {
   const kit = K.createKit('reef-find');
   const M = K.reefMaterials();
@@ -35,11 +36,11 @@ export function drawFindMarks() {
     put(K.at(new THREE.CylinderGeometry(0.03, 0.05, 0.2, 5).rotateZ(Math.PI / 2), x - 0.26, z, 1.18), SEAHORSE);
     put(K.at(new THREE.ConeGeometry(0.09, 0.2, 4).rotateZ(-Math.PI / 2), x + 0.2, z, 0.6), 0xf8d09a);
   }
-  // the Treasure Chest: a wooden box, a rounded lid, two gold bands and a gold clasp
+  // the Treasure Chest: a wooden box, two gold bands and a gold clasp (the lid is the life's, so it can open)
   {
     const { x, z } = REEF_FIND_MARKS.chest;
     put(K.at(new THREE.BoxGeometry(0.9, 0.42, 0.55), x, z, 0.21, 0.35), WOOD);
-    put(K.at(new THREE.CylinderGeometry(0.28, 0.28, 0.9, 8, 1, false, 0, Math.PI).rotateZ(Math.PI / 2).rotateY(0).translate(0, 0, 0), x, z, 0.42, 0.35), WOOD_DARK);
+    // (the rounded lid is the chest life's own hinged mesh: world/reefchestlive.js lifts it when she opens the chest)
     for (const dx of [-0.28, 0.28]) put(K.at(new THREE.BoxGeometry(0.07, 0.48, 0.58), x + dx * Math.cos(0.35), z - dx * Math.sin(0.35), 0.22, 0.35), GOLD);
     put(K.at(new THREE.BoxGeometry(0.1, 0.12, 0.04), x + Math.sin(0.35) * 0.29, z + Math.cos(0.35) * 0.29, 0.38, 0.35), GOLD);
   }
