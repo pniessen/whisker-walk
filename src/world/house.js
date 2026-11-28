@@ -27,6 +27,7 @@
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { createHouseGlow } from './houseglow.js';
 import { hash01, applySky, tree, house as neighbourHouse } from './builder.js';
 import { litMaterial, tileMetres } from '../render/materials.js';
 import { withLocalUuids } from './localuuids.js';
@@ -205,7 +206,7 @@ function gardenDetail(kit) {
     pad(x, z, w - 0.3, 0.7, 0, CELL.curtainGreen);
     for (let i = 0; i < 5; i++) {
       const h = hash01(x + i, z, salt);
-      bloom(x + (h - 0.5) * (w - 0.2), z + (hash01(x, z + i, salt) - 0.5) * 0.8, 0.1 + 0.1 * h, 0.2, FLOWERS[Math.floor(h * 4)]);
+      bloom(x + (h - 0.5) * (w - 0.2), z + (hash01(x, z + i, salt) - 0.5) * 0.8, 0.2 + 0.16 * h, 0.42, FLOWERS[Math.floor(h * 4)]); // beauty pass 2: bigger, bolder blooms (the same cones)
     }
   };
   // a bed in front of the house keeps clear of the path
@@ -242,16 +243,29 @@ function gardenDetail(kit) {
   gardenLife(kit, B, gx);
 }
 
+// The garden's still places (houseglow.js sways the kit's low things): the birdbath, the gate and the washing poles keep still.
+function gardenKeep(B) {
+  const gx = HOUSE_FRONT_DOOR.x;
+  const lz = HEDGE.minZ + 1.9;
+  return [
+    { minX: HEDGE.minX + 3.2 - 1.0, maxX: HEDGE.minX + 3.2 + 1.0, minZ: HEDGE.maxZ - 3.2 - 1.0, maxZ: HEDGE.maxZ - 3.2 + 1.0 },
+    { minX: gx - GATE_HALF - 0.3, maxX: gx + GATE_HALF + 0.3, minZ: HEDGE.maxZ - 0.4, maxZ: HEDGE.maxZ + 0.4 },
+    { minX: B.minX + 4 - 0.3, maxX: B.minX + 13 + 0.3, minZ: lz - 0.3, maxZ: lz + 0.3 },
+  ];
+}
+
 // Beauty pass 1 (2026-11-28): a stone birdbath with two small birds in the front garden's west corner, a robin on the gate post, a
 // washing line along the back hedge (a sagging line, pegged shirts, towels and socks), and a few butterflies resting on the
 // beds' blooms. Boxes without undersides, in the garden's one non-casting atlas mesh: no mesh, draw or caster more, nothing to
 // walk on (they stand in the lawn's corners and the hedge's shade, where the cat has no use for them).
 function gardenLife(kit, B, gx) {
+  // beauty pass 2: the birds and butterflies were too small to see at play distance, so each is drawn at S times its size (the same boxes, no more triangles)
+  const S = 2.4;
   const bird = (x, y, z, dir, body, belly) => {
-    kitBox(kit, x - 0.05, x + 0.05, y, y + 0.09, z - 0.07, z + 0.07, body, { skip: ['y-'] });
-    kitBox(kit, x - 0.04, x + 0.04, y + 0.07, y + 0.15, z + dir * 0.06 - 0.04, z + dir * 0.06 + 0.04, body, { skip: ['y-'] });
-    kitBox(kit, x - 0.04, x + 0.04, y, y + 0.06, z + dir * 0.075, z + dir * 0.075 + dir * 0.03, belly, { skip: ['y-', dir > 0 ? 'z-' : 'z+'] }); // breast
-    kitBox(kit, x - 0.03, x + 0.03, y + 0.05, y + 0.07, z - dir * 0.07, z - dir * 0.18, CELL.darkWood, { skip: ['y-', dir > 0 ? 'z+' : 'z-'] }); // tail
+    kitBox(kit, x - 0.05 * S, x + 0.05 * S, y, y + 0.09 * S, z - 0.07 * S, z + 0.07 * S, body, { skip: ['y-'] });
+    kitBox(kit, x - 0.04 * S, x + 0.04 * S, y + 0.07 * S, y + 0.15 * S, z + dir * 0.06 * S - 0.04 * S, z + dir * 0.06 * S + 0.04 * S, body, { skip: ['y-'] });
+    kitBox(kit, x - 0.04 * S, x + 0.04 * S, y, y + 0.06 * S, z + dir * 0.075 * S, z + dir * 0.075 * S + dir * 0.03 * S, belly, { skip: ['y-', dir > 0 ? 'z-' : 'z+'] }); // breast
+    kitBox(kit, x - 0.03 * S, x + 0.03 * S, y + 0.05 * S, y + 0.07 * S, z - dir * 0.07 * S, z - dir * 0.18 * S, CELL.darkWood, { skip: ['y-', dir > 0 ? 'z+' : 'z-'] }); // tail
   };
   // the birdbath: foot, stem, a wide shallow bowl with water, two birds, a few pebbles
   const bx = HEDGE.minX + 3.2, bz = HEDGE.maxZ - 3.2;
@@ -290,8 +304,8 @@ function gardenLife(kit, B, gx) {
     const x = B.minX + 2 + hash01(k, 3, 92) * (B.maxX - B.minX - 4), z = (k % 2 ? B.maxZ + 1.5 : B.minZ - 1.5) + (hash01(k, 4, 92) - 0.5) * 0.6;
     if (Math.abs(x - gx) < FRONT_DOOR_W / 2 + 3 && z > B.maxZ) continue;
     const cell = [CELL.brass, CELL.curtainBlue, CELL.plaster, CELL.curtainRed][k % 4];
-    const y = 0.26;
-    for (const s of [-1, 1]) kit.fan([[x, y, z], [x + s * 0.1, y + 0.05, z - 0.07], [x + s * 0.1, y + 0.05, z + 0.07]], [0, 1, 2].map(() => cellUV(cell, 0.5, 0.5)));
+    const y = 0.4; // over the bigger blooms
+    for (const s of [-1, 1]) kit.fan([[x, y, z], [x + s * 0.1 * S, y + 0.05 * S, z - 0.07 * S], [x + s * 0.1 * S, y + 0.05 * S, z + 0.07 * S]], [0, 1, 2].map(() => cellUV(cell, 0.5, 0.5)));
   }
 }
 
@@ -339,7 +353,7 @@ function drawHedge(scene) {
 
 // The front garden on the atlas: the flagstone path from the door to the gate,
 // the gate posts and the shut wooden gate.
-function drawGarden(scene, material) {
+function drawGarden(scene, material, glow = null) {
   const kit = partsKit();
   const gx = HOUSE_FRONT_DOOR.x;
   const z0 = HOUSE_FRONT_DOOR.z + WALL_T / 2 + 0.35; // past the doorstep
@@ -359,7 +373,7 @@ function drawGarden(scene, material) {
     kitBox(kit, x - 0.045, x + 0.045, 0.12, top, zg + 0.03, zg + 0.06, CELL.lightWood, { skip: ['y-'] });
   }
   gardenDetail(kit);
-  scene.add(kitMesh(kit, material, 'houseGarden', { cast: false }));
+  scene.add(kitMesh(kit, glow ? glow.patch(material.clone(), true) : material, 'houseGarden', { cast: false })); // its own clone: only the garden's kit sways
 }
 
 function drawNeighbours(scene) {
@@ -593,6 +607,11 @@ function buildPlan(scene, P, { wind, gateEnds }) {
     const plan = old ? houseMovesArea(houseArea()) : bareMovesArea(houseArea(P));
     applySky(scene, HOUSE_SKY.top, HOUSE_SKY.horizon);
     const material = houseMaterial(createHouseAtlas());
+    // beauty pass 2 (houseglow.js): window light, lamp and firelight, the golden grade, stirring curtains and the garden's sway, all in a shader patch on the atlas material
+    const glow = old ? createHouseGlow({
+      windows: P.windows, rooms: P.rooms, levels: plan.levels, lamps: P.lamps, sconces: houseSconceSpots(), keep: gardenKeep(P.bounds),
+    }) : null;
+    glow?.patch(material);
 
     // the walls, one group per level, one mesh per section
     const sectionMeshes = new Map();
@@ -615,6 +634,7 @@ function buildPlan(scene, P, { wind, gateEnds }) {
     }
     for (const s of plan.sections) {
       const m = sectionMesh(s, material, { sections: plan.sections, openDoor });
+      if (glow && m.userData.decoMat) glow.patch(m.userData.decoMat); // a clone does not carry the patch
       const zone = sectionZone(s);
       groups.get(zone).add(m);
       sectionMeshes.set(s.id, m);
@@ -706,7 +726,7 @@ function buildPlan(scene, P, { wind, gateEnds }) {
     for (const m of lidMeshes) scene.add(m);
     if (P.dressing) {
       drawHedge(scene);
-      drawGarden(scene, material);
+      drawGarden(scene, material, glow);
       drawNeighbours(scene);
       drawTrees(scene, wind);
     }
@@ -774,6 +794,7 @@ function buildPlan(scene, P, { wind, gateEnds }) {
         wingSlots: old ? HOUSE_WING_SLOTS : freeze([]),
         sun, // the slots' patch of light (the wing's milestone 2)
         parts,
+        glow, // houseglow.js: house life drives its uniforms
         // the pieces that fade, with their boxes: house life holds each solid unless it
         // stands between the camera and her (Task 10)
         fading,

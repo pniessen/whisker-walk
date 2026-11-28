@@ -909,8 +909,9 @@ describe('the house sounds like the den', () => {
   it('the fire alone, day or dusk: never birdsong, crickets, gulls or wind', () => {
     const den = probe('den');
     expect(den).toEqual({ fire: 1, intervals: 0, timeouts: 0, stopped: true });
-    expect(probe('house')).toEqual(den);
-    expect(probe('house', { dusk: true })).toEqual(den);
+    // the den stays the fire alone; the Old House's bed (beauty pass 2) is the fire, a low draught and, by day, distant garden birds (one interval); never crickets, gulls or rain
+    expect(probe('house')).toEqual({ fire: 2, intervals: 1, timeouts: 0, stopped: true });
+    expect(probe('house', { dusk: true })).toEqual({ fire: 2, intervals: 0, timeouts: 0, stopped: true });
     expect(probe('den', { dusk: true })).toEqual(den);
     // outdoors a dusk walk has its crickets (one setInterval) over the wind
     expect(probe('park', { dusk: true }).intervals).toBe(1);
