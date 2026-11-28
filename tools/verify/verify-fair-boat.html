@@ -1,0 +1,304 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Fairground: Viking boat site pictures</title>
+<style>
+  body { margin: 0; background: #1c2431; font: 12px Avenir, sans-serif; color: #f1e0c2; overflow: hidden; }
+  #hud { position: absolute; left: 0; top: 0; padding: 6px 10px; }
+</style>
+<div id="hud">loading…</div>
+<script type="module">
+  // The Fairground as a walk shows it, for looking at (a beauty pass's before
+  // and after pictures). Not part of the game's build.
+  //
+  //   verify-fair.html?mood=day|sunset|dusk[&bare]
+  //
+  // Builds the place with walk.js's order (sun, build, fill, contact shadows,
+  // prop merge, the rides and the show, shadow fit, caster sweep, grass,
+  // clouds, ambient), renders through the game's own bloom rig (high tier),
+  // and holds the rides' clock at a fixed time so a picture is the same every
+  // time. The camera is the game's: 70 degrees, 4.5 m behind and 2.2 m up
+  // from the cat ('normal'), or a cat's eye at 0.32 m ('low').
+  //
+  //   __shot(name)  frames SHOTS[name] (scripts/record-page.mjs --shots)
+  //   __tour(name)  'midway': 20 s up the midway from the gate, sunset into dusk
+  //   __frame()     one 1/30 s step of the tour, { done }
+  //   __info()      renderer.info.render { calls, triangles } of the last frame
+  import * as THREE from 'three';
+  import { buildEnvMap } from '/src/render/materials.js';
+  import { setTextureTier, setTextureAnisotropy } from '/src/render/textures.js';
+  import { createWind } from '/src/render/wind.js';
+  import { createSun, createFill, SUN_BIAS, assignShadowCasters } from '/src/render/rig.js';
+  import { createShadowFit } from '/src/render/shadowfit.js';
+  import { createGrass } from '/src/render/grass.js';
+  import { createClouds } from '/src/render/clouds.js';
+  import { createAmbient } from '/src/render/ambient.js';
+  import { createContactShadows } from '/src/render/contactshadows.js';
+  import { mergeStaticProps } from '/src/render/mergeprops.js';
+  import { LADDER } from '/src/render/quality.js';
+  import { skyBackground } from '/src/render/sky.js';
+  import { applyDusk, duskEnv, createLampPools, tintDuskLawn } from '/src/render/dusk.js';
+  import { createWeather } from '/src/weather.js';
+  import { createComposerRig } from '/src/game/composer.js';
+  import * as fair from '/src/world/fair.js';
+  import { createFairLive } from '/src/fairlive.js';
+  import { createFairShow } from '/src/fairshow.js';
+  import { buildCat, CAT_LOOK_Y } from '/src/cat/model.js';
+  import { animateCat } from '/src/cat/animator.js';
+
+  const params = new URLSearchParams(location.search);
+  const MOOD = params.get('mood') || 'day';
+  const W = window.innerWidth, H = window.innerHeight;
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(1);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;
+  setTextureAnisotropy(Math.min(4, renderer.capabilities.getMaxAnisotropy()));
+  document.body.appendChild(renderer.domElement);
+
+  const tier = LADDER[0];
+  setTextureTier(tier);
+  const scene = new THREE.Scene();
+  scene.environment = buildEnvMap(renderer);
+  scene.environmentIntensity = tier.envIntensity;
+  const sun = createSun();
+  scene.add(sun);
+  const wind = createWind({ reducedMotion: true });
+  const area = fair.build(scene, { water: { quality: tier, reducedMotion: true }, wind });
+  const fill = createFill(area.groundBounce);
+  scene.add(fill);
+  createContactShadows(scene);
+  mergeStaticProps(scene);
+
+  // the clock: the rides stand where they are at T (seconds of the day)
+  const T0 = Number(params.get('T') ?? 43210.0);
+  let T = T0;
+  const camera = new THREE.PerspectiveCamera(70, W / H, 0.1, 300);
+  const cat = buildCat(params.get('breed') || 'tabby', {});
+  cat.position.set(fair.SPAWN.x, 0, fair.SPAWN.z);
+  scene.add(cat);
+  const player = { speed: 0, perchY: 0, halt() {}, setViewYaw() {} };
+  const session = { perched: null, idleTime: 0 };
+  let rideCam = null; // the camera fairlive steers, on a riding shot
+  const live = createFairLive(scene, area, { camera: { position: new THREE.Vector3(), lookAt() {} }, now: () => T });
+  const show = createFairShow(scene, area, { swept: live.sim.swept, strays: tier.strays, camera, seed: 'fair-pictures' });
+  live.attach(show);
+
+  // The light: the walk's weather (day, sunset) or its dusk look.
+  const rng = (() => { let s = 7; return () => ((s = (s * 16807) % 2147483647) / 2147483647); })();
+  let look = null;
+  let weather = null;
+  // walk.js's duskGround: the lawn, the paths and the horizon, darkened at dusk
+  const groundOf = () => scene.children.filter((c) => c.isMesh && (c.userData.ground || c.userData.duskTint || c.name === 'path' || c.name === 'horizonBand' || c.name === 'steppingStones'));
+  if (MOOD === 'dusk') {
+    look = applyDusk({ scene, sun, fill, areaData: area });
+    scene.environmentIntensity = duskEnv(scene.environmentIntensity, look);
+    fair.setFairGlow(area, 1);
+  } else {
+    weather = createWeather(scene, sun, MOOD === 'sunset' ? 'sunset' : 'clear', rng, true, undefined, { tier, fill, wet: [] });
+    fair.setFairGlow(area, 0);
+  }
+  const shadows = createShadowFit(sun, camera, { radius: tier.shadowFitRadius, mapSize: tier.shadowMapSize });
+  sun.shadow.bias = SUN_BIAS;
+  assignShadowCasters(scene);
+  const grass = createGrass(scene, { areaId: 'fair', areaData: area, tier, camera });
+  if (MOOD === 'dusk') { tintDuskLawn({ ground: groundOf(), grass: grass.mesh?.material ?? null, look }); createLampPools(scene); }
+  const clouds = createClouds(scene, {
+    areaId: 'fair', tier, camera, dusk: MOOD === 'dusk', sunset: MOOD === 'sunset',
+    centre: { x: 0, z: 3 },
+  });
+  const ambient = createAmbient(scene, { areaId: 'fair', areaData: area, tier, camera, dusk: MOOD === 'dusk' });
+
+  const rig = createComposerRig(renderer, camera);
+  rig.ensure(tier.msaaSamples);
+  rig.attachScene(scene);
+  const frameSession = { useComposer: true, scene };
+  // walk.js's day grade (composer.js applyDayGrade): the weather's exposure
+  const BASE_EXPOSURE = renderer.toneMappingExposure;
+  renderer.toneMappingExposure = BASE_EXPOSURE * (weather?.exposureScale ?? 1);
+
+  let t = 0;
+  function step(dt) {
+    t += dt; T += dt;
+    live.update(dt, t, { cat, player, session });
+    animateCat(cat, session.perched ? (session.perched.pose ?? 'perch') : 'follow', t, player.speed, false);
+    ambient.update(t, 1);
+  }
+  function render() {
+    shadows.update();
+    grass.update(t, 1);
+    clouds.update(t);
+    rig.renderFrame(frameSession);
+  }
+  // what one plain frame costs (the shadow pass and the main pass, as
+  // verify-places.html's __info measures it; the bloom's own passes are not counted)
+  window.__info = () => {
+    shadows.update();
+    renderer.render(scene, camera);
+    const { calls, triangles } = renderer.info.render;
+    render();
+    return { calls, triangles };
+  };
+
+  // Put the cat at (x, z) facing `face` (a point she looks towards), and the
+  // camera where the game's would be: 'normal' 4.5 m behind her and 2.2 m up,
+  // 'low' at her own eye height just behind her, looking at `at`.
+  function frameCat(x, z, face, view = 'normal', at = null) {
+    session.perched = null;
+    const yaw = Math.atan2(-(face[0] - x), -(face[1] - z)); // her model faces -z
+    cat.position.set(x, 0, z);
+    cat.rotation.y = yaw;
+    const bx = Math.sin(yaw), bz = Math.cos(yaw); // behind her
+    if (view === 'low') {
+      cat.visible = false;
+      camera.position.set(x + bx * 0.4, 0.32, z + bz * 0.4);
+      camera.lookAt(at[0], at[1], at[2]);
+    } else {
+      cat.visible = true;
+      camera.position.set(x + bx * 4.5, 2.2, z + bz * 4.5);
+      camera.lookAt(x, CAT_LOOK_Y, z);
+    }
+  }
+  const A = { mgr: fair.MGR_AT, wheel: fair.FERRIS_AT, cups: fair.TEACUPS_AT, slide: fair.HELTER_AT };
+  // name -> () => frame it. Every shot runs the clock on 2 s first (the
+  // bunting, the cat's legs) from the same T0, so a shot is the same every run.
+  const SHOTS = {
+    card: () => { cat.visible = false; camera.fov = 55; camera.updateProjectionMatrix(); const c = fair.FAIR_REGISTRATION.view.split(',').map(Number); camera.position.set(c[0], c[1], c[2]); camera.lookAt(c[3], c[4], c[5]); },
+    entrance: () => frameCat(0, 47.8, [0, 30]),
+    'entrance-low': () => frameCat(1.2, 49, [0, 0], 'low', [0, 3.2, 40]),
+    'mgr-normal': () => frameCat(1.5, 9.6, [0, 0]),
+    'mgr-low': () => frameCat(2.2, 7.4, [0, 0], 'low', [0, 1.6, 0]),
+    'wheel-normal': () => frameCat(0.8, -19.5, [0, -30]),
+    'wheel-low': () => frameCat(0, -21.8, [0, -30], 'low', [0, 6.5, -30]),
+    'teacups-normal': () => frameCat(-18.5, 0.4, [-26, 2]),
+    'teacups-low': () => frameCat(-20.6, 2.4, [-26, 2], 'low', [-26, 0.9, 2]),
+    'slide-normal': () => frameCat(-27.4, -26.4, [-33, -33]),
+    'slide-low': () => frameCat(-29.2, -28.6, [-33, -33], 'low', [-33, 4.2, -33]),
+    'coaster-normal': () => frameCat(17.5, 1.5, [24, -2]),
+    'coaster-low': () => frameCat(30.5, 14, [36, 2], 'low', [33, 2.2, -6]),
+    midway: () => frameCat(0, 33, [0, 0]),
+    stalls: () => frameCat(-0.8, 30.5, [-5.7, 26]),
+    'stalls-east': () => frameCat(1.2, 21.5, [5.7, 16.5]),
+    edge: () => frameCat(-34, -12, [-50, -40]),
+    backdrop: () => frameCat(30, 30, [60, 50]),
+    overview: () => { cat.visible = false; camera.position.set(0, 26, 66); camera.lookAt(0, 0, 4); },
+    // the grounds' beauty round: the fair's lawn and sawdust, close and wide
+    'g-pole': () => frameCat(1.4, 36, [3, 30]),
+    'g-stallback': () => frameCat(-9, 30, [-6, 26]),
+    'g-field': () => frameCat(-20, -18, [-14, -26]),
+    'g-picnic': () => frameCat(-27, 24, [-32, 18]),
+    'g-wheel': () => frameCat(6, -22, [10, -26]),
+    'g-east': () => frameCat(14, 26, [18, 20]),
+    // the Viking boat's move (2026-11-28): the coaster's loop and the boat's new corner, from the same angles before and after
+    'boat-coaster-high': () => { cat.visible = false; camera.position.set(66, 30, 30); camera.lookAt(32, 0, 6); },
+    'boat-old-site': () => frameCat(33, 13, [31, 3]),
+    'boat-south-high': () => { cat.visible = false; camera.position.set(52, 20, 62); camera.lookAt(29, 0, 36); },
+    'boat-new-site': () => frameCat(24, 47, [29, 38.5]),
+    'boat-new-front': () => frameCat(20, 34, [29, 38.5]),
+    'ride-horse': () => { /* set up in __shot below */ },
+  };
+  window.__shot = (name) => {
+    const s = SHOTS[name];
+    if (!s) throw new Error(`no shot "${name}"; there are ${Object.keys(SHOTS).join(', ')}`);
+    camera.fov = 70; camera.updateProjectionMatrix();
+    T = T0; t = 0;
+    if (name === 'ride-horse') {
+      // her on a horse, and the ride's own camera (fairlive's cameraFor) brought in over 3 s
+      const seat = live.sim.seats.find((q) => q.id === 'mgr-horse-2');
+      cat.visible = true;
+      session.perched = seat;
+      for (let i = 0; i < 90; i++) step(1 / 30);
+      // the ride's camera: from outside, level with the horses (fairlive WHEEL_CAM-like framing)
+      const r = Math.hypot(cat.position.x, cat.position.z) || 1;
+      const ox = cat.position.x / r, oz = cat.position.z / r;
+      camera.position.set(cat.position.x + ox * 3.4, cat.position.y + 1.1, cat.position.z + oz * 3.4);
+      camera.lookAt(cat.position.x, cat.position.y + CAT_LOOK_Y, cat.position.z);
+    } else {
+      s();
+      for (let i = 0; i < 60; i++) { step(1 / 30); }
+      s();
+    }
+    render();
+    const hud = document.getElementById('hud');
+    if (hud) hud.textContent = `${MOOD} · ${name}`;
+    return name;
+  };
+
+  // The film: 20 s from the gate up the midway, sunset into dusk. The sky,
+  // fog, sun and fill go from the sunset look to the dusk look; the bulbs come
+  // up from 6 s; the lamps' pools and the dusk swaps land at the half-way mark.
+  let tour = null;
+  const lerpHex = (a, b, k) => new THREE.Color(a).lerp(new THREE.Color(b), k);
+  window.__tour = (name) => {
+    if (name !== 'midway') throw new Error(`no tour "${name}"; there is midway`);
+    // read both looks once: sunset is what the page was built with (mood=sunset)
+    const from = {
+      top: 0xf0a060, horizon: 0xf8c890, fogNear: scene.fog.near, fogFar: scene.fog.far,
+      sun: sun.color.clone(), sunI: sun.intensity, fill: fill.color.clone(), fillG: fill.groundColor.clone(), fillI: fill.intensity,
+      env: scene.environmentIntensity,
+    };
+    const probe = { scene: new THREE.Scene(), sun: sun.clone(), fill: fill.clone() };
+    const L = applyDusk({ scene: probe.scene, sun: probe.sun, fill: probe.fill, areaData: area });
+    const to = {
+      top: area.skyDusk.top, horizon: area.skyDusk.horizon, fogNear: L.fogNear, fogFar: L.fogFar,
+      sun: probe.sun.color.clone(), sunI: probe.sun.intensity, fill: probe.fill.color.clone(), fillG: probe.fill.groundColor.clone(), fillI: probe.fill.intensity,
+      env: duskEnv(tier.envIntensity, L),
+    };
+    tour = { from, to, L, f: 0, swapped: false, sky: null };
+    T = T0; t = 0;
+    return name;
+  };
+  window.__frame = () => {
+    const dt = 1 / 30;
+    const DUR = 20;
+    const u = Math.min(1, tour.f / (DUR * 30));
+    const k = u * u * (3 - 2 * u);
+    const { from, to } = tour;
+    if (tour.f % 6 === 0) {
+      const old = scene.background;
+      scene.background = skyBackground(lerpHex(from.top, to.top, k).getHex(), lerpHex(from.horizon, to.horizon, k).getHex());
+      if (old && old !== tour.sky && old.dispose) old.dispose();
+    }
+    scene.fog.color.copy(lerpHex(from.horizon, to.horizon, k));
+    scene.fog.near = from.fogNear + (to.fogNear - from.fogNear) * k;
+    scene.fog.far = from.fogFar + (to.fogFar - from.fogFar) * k;
+    sun.color.copy(from.sun).lerp(to.sun, k);
+    sun.intensity = from.sunI + (to.sunI - from.sunI) * k;
+    fill.color.copy(from.fill).lerp(to.fill, k);
+    fill.groundColor.copy(from.fillG).lerp(to.fillG, k);
+    fill.intensity = from.fillI + (to.fillI - from.fillI) * k;
+    scene.environmentIntensity = from.env + (to.env - from.env) * k;
+    renderer.toneMappingExposure = BASE_EXPOSURE * ((weather?.exposureScale ?? 1) * (1 - k) + k);
+    fair.setFairGlow(area, Math.min(1, Math.max(0, (u - 0.3) / 0.5)));
+    if (!tour.swapped && u >= 0.6) {
+      // the dusk lawn and the lamps' pools land at the half-way mark
+      tour.swapped = true;
+      tintDuskLawn({ ground: groundOf(), grass: grass.mesh?.material ?? null, look: tour.L });
+      createLampPools(scene);
+    }
+    // her walk: from the gate to the plaza's rim, easing in and out
+    const z = 47.6 - (47.6 - 12.5) * (0.5 - 0.5 * Math.cos(Math.PI * u));
+    const x = 0.6 * Math.sin(u * 5.2);
+    const yaw = Math.atan2(-(0.6 * 5.2 * Math.cos(u * 5.2) / 35), 1);
+    session.perched = null;
+    cat.visible = true;
+    cat.position.set(x, 0, z);
+    cat.rotation.y = yaw;
+    player.speed = 1.8;
+    step(dt);
+    const bx = Math.sin(yaw), bz = Math.cos(yaw);
+    camera.position.set(x + bx * 4.5, 2.2, z + bz * 4.5);
+    camera.lookAt(x, CAT_LOOK_Y, z);
+    render();
+    tour.f++;
+    return { done: tour.f > DUR * 30 };
+  };
+
+  window.__scene = scene;
+  window.__area = area;
+  if (params.has('bare')) document.getElementById('hud').remove();
+  window.__shot('card');
+  window.__ready = true;
+</script>

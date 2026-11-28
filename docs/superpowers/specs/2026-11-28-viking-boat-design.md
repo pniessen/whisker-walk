@@ -19,7 +19,7 @@ A friendly longship with a green dragon head and tail on a swing frame: two red-
 
 ## Where it stands
 
-Inside the loop of the coaster at (31, 3): 5 m from the west track, 5 m from the east, and 3.5 m clear of the point of interest at (33, 12). Not on a path, not on a collider. The rest-of-loop tree at (31.5, 6) was in the way and moved to (33.5, 17.5) (still in the loop). Footprint: frame feet at x 28.9 and 33.1, planks 5.8 by 8 m, ground the swing sweeps 5.6 by 10.9 m (nobody lands there). Colliders: four feet, the ticket post, and two circles for the hull at rest.
+South-east of the coaster at (29, 38.5), below its south turn (moved there 2026-11-28 after owner feedback: at (31, 3) it stood in the middle of the coaster). More than 5 m from every metre of track, clear of the station, the trees and the paths; the loop tree at (33.5, 17.5) stays where it was. Footprint: frame feet at x 28.9 and 33.1, planks 5.8 by 8 m, ground the swing sweeps 5.6 by 10.9 m (nobody lands there). Colliders: four feet, the ticket post, and two circles for the hull at rest.
 
 ## How it is built
 
