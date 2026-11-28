@@ -156,6 +156,12 @@ export function createDrift(scene, { season = 'autumn', reducedMotion = false, t
     }
   }
   ambient(0);
+  // beauty pass 6 (legibility): a leaf or petal right at the lens is a big hard-edged disc over the picture, so none within 5.5 m of the camera
+  function keepClear(camera) {
+    const c = camera?.position;
+    if (!c) return;
+    for (let i = 0; i < nA; i++) if ((pos[i * 3] - c.x) ** 2 + (pos[i * 3 + 1] - c.y) ** 2 + (pos[i * 3 + 2] - c.z) ** 2 < 30) pos[i * 3 + 1] = HIDDEN;
+  }
 
   function paintBurst(t) {
     const age = t - burstAt;
@@ -181,9 +187,10 @@ export function createDrift(scene, { season = 'autumn', reducedMotion = false, t
     // start a burst at walk second t
     burst(t) { burstAt = t; paintBurst(t); geo.attributes.position.needsUpdate = true; },
     get bursting() { return burstAt > -1e8; },
-    update(t, catPos = null, sound = null) {
+    update(t, catPos = null, sound = null, camera = null) {
       if (!reducedMotion) {
         ambient(t);
+        keepClear(camera);
         if (t >= nextAt) {
           const near = catPos && Math.hypot(catPos.x - FOUNTAIN.x, catPos.z - FOUNTAIN.z) < DRIFT.ear;
           while (nextAt <= t) { burstN++; nextAt = burstTime(burstN); } // a long frame skips the ones it passed
