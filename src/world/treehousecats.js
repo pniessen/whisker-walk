@@ -1,35 +1,36 @@
 // =============================================================================
-// THE TREEHOUSE VILLAGE: THE TREE CATS (round two, the owner's backlog "other cats in the Treehouse"). Up to four friendly cats of their own, each in its own place (treehousecatparts.js): curled
-// on a cushion on the Bakery deck, sitting on the far platform's rail watching the village, on a limb of the great oak, and peeking out of the hollow at the oak's foot. They are the game's own
-// cat model (cat/model.js, a simple build, no scars) and its own poses (cat/animator.js: the slow blink and the tail's flick come with the sit; the napper breathes). They have NO name tag, NO
-// collider, NO perch and NO ground strip: scenery with one small friend moment. When her cat comes within AIM_R the cat's head turns to her (cat/headaim.js); within GREET_R it says its hello
-// in the walk's own speech bubble (chatbubble.js) once, and not again for HELLO_EVERY seconds; the napper wakes and sits up while she is near and curls back down when she leaves. No fight,
-// no prompt, no need: nothing here is a rule. Cats beyond SHOW_R are hidden and not animated. They cast no shadow (noCast). The lower rungs keep fewer (three, then two). Reduced motion holds
-// the poses still (the head still turns: it is the greeting). Made once when the life starts and freed with it. Draws no random number and reads no clock (the walk's seconds only).
-// A lazy file (treehousestagebranches.js reaches it by import() when the life starts): its words (treehousecatwords.js) and the cat model never join the start-up download.
+// THE TREEHOUSE VILLAGE: THE TREE CATS (round two, the owner's backlog "other cats in the Treehouse"). Up to three friendly cats (a fourth, on the oak's limb, did not fit the Treehouse mesh row of 23) of their own, each in its own place (treehousecatparts.js): curled
+// on a cushion on the Bakery deck, sitting on the far platform's rail, and peeking out of the hollow at the oak's foot. Each is ONE low-poly mesh (treehousecatmesh.js,
+// about 450 triangles, one shared lit material), made at once when the life starts (nothing arrives late: the frame budget sees them). NO name tag, NO collider, NO perch, NO ground strip, no
+// shadow: scenery with one small friend moment. Within AIM_R her cat is looked at (the cat turns, at most TURN_MAX either way, and eases back); within GREET_R it says its hello in the walk's own
+// speech bubble (chatbubble.js) once, and not again for HELLO_EVERY seconds; the napper wakes (its curled mesh is swapped for the sitting one) while she is near. The cats breathe a little (the
+// body's height); reduced motion holds them still (the turn is the greeting, so it stays). Cats beyond SHOW_R are hidden. Lower rungs keep fewer (two, then one). Draws no random number
+// and reads no clock (the walk's seconds only). Freed with the life.
 // =============================================================================
-import { buildCat, catStyle } from '../cat/model.js';
-import { animateCat } from '../cat/animator.js';
-import { aimHead } from '../cat/headaim.js';
+import * as THREE from 'three';
 import { createChatBubbles } from '../chatbubble.js';
 import { phrase } from '../clanphrases.js';
-import { withLocalUuids } from './localuuids.js';
+import { litMaterial } from '../render/materials.js';
 import { isLowTier } from './treehouselight.js';
 import { CATS } from './treehousecatparts.js';
+import { catGeometry } from './treehousecatmesh.js';
 import './treehousecatwords.js';
 
-export const AIM_R = 7; // m: her cat is near enough for the head to turn to her
+export const AIM_R = 7; // m: her cat is near enough to be looked at
 export const GREET_R = 3.8; // m: near enough for the hello
 export const WAKE_R = 4.5; // m: the napper sits up (and lies down again beyond WAKE_R + 2)
 export const SHOW_R = 40; // m: beyond this a cat is hidden and left alone
+export const TURN_MAX = 0.9; // rad: the most a cat turns from its resting way
 export const HELLO_EVERY = 45; // walk seconds before the same cat says its hello again
-export const catCount = (tier) => (tier && tier.shadows === false ? 2 : isLowTier(tier) ? 3 : 4);
+export const catCount = (tier) => (tier && tier.shadows === false ? 1 : isLowTier(tier) ? 2 : 3);
 const HELLO = Object.freeze({
   cushion: () => phrase('treehouse.cat.hello.cushion'), rail: () => phrase('treehouse.cat.hello.rail'),
-  limb: () => phrase('treehouse.cat.hello.limb'), hollow: () => phrase('treehouse.cat.hello.hollow'),
+  hollow: () => phrase('treehouse.cat.hello.hollow'),
 });
-// the lower rungs keep these (in the order of CATS, the last dropped first): the napper and the rail cat first
-const KEEP_ORDER = Object.freeze(['cushion', 'rail', 'hollow', 'limb']);
+// the lower rungs keep these first: the napper, then the rail cat
+const KEEP_ORDER = Object.freeze(['cushion', 'rail', 'hollow']);
+const TAU = Math.PI * 2;
+const wrap = (a) => a - TAU * Math.round(a / TAU);
 
 /** ctx { scene, tier, reducedMotion } -> { cats, update(dt, t, catPos), dispose() } */
 export function createTreehouseCats(ctx) {
@@ -39,42 +40,46 @@ export function createTreehouseCats(ctx) {
   let clockMs = 0;
   const bubbles = createChatBubbles(scene, { now: () => clockMs, ...(ctx.makeSprite ? { makeSprite: ctx.makeSprite } : {}) });
   let gone = false;
+  const material = litMaterial(0xffffff, { vertexColors: true, roughness: 0.9 }); // one for all the cats
   const cats = CATS.filter((c) => keep.has(c.id)).map((c, i) => {
-    const group = withLocalUuids(`treehouse-cat-${c.id}`, () => {
-      const g = buildCat(c.breed, undefined, { simple: true, scars: [], ...(c.coat ? { style: Object.freeze({ ...catStyle(c.breed), ...c.coat }) } : {}) });
-      g.name = `treehouse:cat:${c.id}`;
-      g.userData.blinkSeed = (i * 0.29 + 0.11) % 1;
-      g.scale.multiplyScalar(c.scale);
-      g.traverse((o) => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = true; o.userData.noCast = true; } });
-      return g;
-    });
-    group.position.set(c.x, c.y, c.z);
-    group.rotation.y = c.yaw;
-    scene.add(group);
-    return { id: c.id, rest: c.rest, pose: c.rest, group, phase: i * 1.7, said: -1e9, near: false, hello: HELLO[c.id] };
+    const sit = catGeometry(c.look, 'sit');
+    const nap = c.rest === 'nap' ? catGeometry(c.look, 'nap') : null;
+    const mesh = new THREE.Mesh(nap ?? sit, material);
+    mesh.name = `treehouse:cat:${c.id}`;
+    mesh.castShadow = false; mesh.receiveShadow = true;
+    Object.assign(mesh.userData, { noCast: true, noContactShadow: true, noMerge: true });
+    mesh.position.set(c.x, c.y, c.z);
+    mesh.rotation.y = c.yaw;
+    mesh.scale.setScalar(c.scale);
+    scene.add(mesh);
+    return { id: c.id, rest: c.rest, pose: c.rest, mesh, sit, nap, scale: c.scale, yaw: c.yaw, aim: 0, turn: 0, phase: i * 1.7, said: -1e9, near: false, hello: HELLO[c.id] };
   });
 
-  const target = { x: 0, y: 0, z: 0 };
   return {
     cats,
     update(dt, t, catPos) {
       if (gone) return;
       clockMs = t * 1000;
       for (const c of cats) {
-        const g = c.group;
-        const dx = catPos ? catPos.x - g.position.x : 1e3;
-        const dz = catPos ? catPos.z - g.position.z : 1e3;
-        const dy = catPos ? (catPos.y ?? 0) - g.position.y : 0;
+        const m = c.mesh;
+        const dx = catPos ? catPos.x - m.position.x : 1e3;
+        const dz = catPos ? catPos.z - m.position.z : 1e3;
+        const dy = catPos ? (catPos.y ?? 0) - m.position.y : 0;
         const d = Math.hypot(dx, dz, dy * 0.5);
-        g.visible = d <= SHOW_R;
-        if (!g.visible) continue;
-        // the napper sits up while she is near and lies down again when she has gone
-        if (c.rest === 'nap') c.pose = d <= WAKE_R ? 'requestPet' : d > WAKE_R + 2 ? 'nap' : c.pose;
-        animateCat(g, c.pose, t + c.phase, 0, reducedMotion);
-        if (d <= AIM_R) { target.x = catPos.x; target.y = (catPos.y ?? 0) + 0.4; target.z = catPos.z; aimHead(g, target, dt, c.pose, 0); } else aimHead(g, null, dt, c.pose, 0); // the head turns to her, and eases back
+        m.visible = d <= SHOW_R;
+        if (!m.visible) continue;
+        if (c.nap) { // the napper sits up while she is near and lies down again when she has gone
+          const want = d <= WAKE_R ? 'sit' : d > WAKE_R + 2 ? 'nap' : c.pose;
+          if (want !== c.pose) { c.pose = want; m.geometry = want === 'sit' ? c.sit : c.nap; }
+        }
+        // the turn toward her (the model faces -z: a turn to face (dx, dz) is atan2(-dx, -dz)), eased in and out
+        const want = d <= AIM_R ? Math.max(-TURN_MAX, Math.min(TURN_MAX, wrap(Math.atan2(-dx, -dz) - c.yaw))) : 0;
+        c.turn += (want - c.turn) * Math.min(1, 4 * Math.max(0, dt));
+        m.rotation.y = c.yaw + c.turn;
+        m.scale.y = c.scale * (reducedMotion ? 1 : 1 + (c.pose === 'nap' ? 0.035 : 0.012) * Math.sin(t * 1.8 + c.phase)); // breathing
         if (d <= GREET_R && !c.near) {
           c.near = true;
-          if (t - c.said >= HELLO_EVERY) { c.said = t; try { bubbles.show(g, c.hello(), clockMs); } catch { /* a place that cannot draw a bubble (a headless check) is quiet */ } }
+          if (t - c.said >= HELLO_EVERY) { c.said = t; try { bubbles.show(m, c.hello(), clockMs); } catch { /* a place that cannot draw a bubble (a headless check) is quiet */ } }
         } else if (d > GREET_R + 1) c.near = false;
       }
       bubbles.update(clockMs);
@@ -83,10 +88,8 @@ export function createTreehouseCats(ctx) {
       if (gone) return;
       gone = true;
       bubbles.clear();
-      for (const c of cats) {
-        scene.remove(c.group);
-        c.group.traverse((o) => { o.geometry?.dispose(); for (const m of Array.isArray(o.material) ? o.material : o.material ? [o.material] : []) { m.map?.dispose(); m.dispose(); } });
-      }
+      for (const c of cats) { scene.remove(c.mesh); c.sit.dispose(); c.nap?.dispose(); }
+      material.dispose();
     },
   };
 }
