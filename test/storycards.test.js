@@ -47,7 +47,7 @@ describe('the catalog of places with a story', () => {
   it('is the start-up check, the text table and the words one and the same list', () => {
     expect(Object.keys(STORY_TEXT).sort()).toEqual([...STORY_PLACES].sort());
     for (const p of STORY_PLACES) expect(hasStoryCard(p)).toBe(true);
-    for (const p of ['neighborhood', 'park', 'gorge', 'roofs', 'house', 'fair', 'den']) expect(hasStoryCard(p)).toBe(false);
+    for (const p of ['neighborhood', 'park', 'gorge', 'roofs', 'den']) expect(hasStoryCard(p)).toBe(false);
   });
 });
 
@@ -79,8 +79,8 @@ describe('the chapter rules agree with the missions', () => {
     expect(keys('moon', { step: 4, cells: 3 })).toEqual(['awake']);
     expect(keys('moon', { step: 8, cells: 3, relay: 0 })).toEqual(['done', 'cave', 'relay']);
     expect(keys('moon', { step: 8, cells: 7, relay: 16 })).toEqual(['done']);
-    expect(keys('reef', { step: 2, shells: 1 })).toEqual(['shells']);
-    expect(keys('reef', { step: 5, shells: 7 })).toEqual(['lanterns']);
+    expect(keys('reef', { step: 2, shells: 1 })).toEqual(['shells', 'seals']);
+    expect(keys('reef', { step: 5, shells: 7 })).toEqual(['lanterns', 'seals']);
     expect(keys('reef', { step: 7, shells: 7, lab: 0, wreck: 0 })).toEqual(['done', 'lab', 'wreck']);
     expect(keys('crystal', { step: 4, sparks: 3 })).toEqual(['stones']);
     expect(keys('crystal', { step: 6, sparks: 7 })).toEqual(['heart']);
@@ -114,6 +114,8 @@ describe('the words', () => {
         for (let step = 0; step <= top; step++) for (const b of [0, 1, 3, 7]) for (const extra of [{}, { forge: 8, songs: 7, lab: 15, wreck: 31, relay: 31 }, { deep: 15, songs: 7, album: 3 }]) for (const deepOn of [false, true]) {
           out.push([`${place} step ${step} ${key} ${b}`, cardText(place, { [place]: { step, [key]: b, ...extra } }, { deepOn })]);
         }
+      } else if (!JOB_PAGES[place]) {
+        out.push([`${place} static`, cardText(place, {})]);
       } else {
         for (const n of [0, 1, 2]) out.push([`${place} ${n} done`, cardText(place, { journal: Object.fromEntries(Object.values(JOB_PAGES[place]).slice(0, n).map((k) => [k, 1])) })]);
         out.push([`${place} all`, cardText(place, { journal: Object.fromEntries(Object.values(JOB_PAGES[place]).map((k) => [k, 1])) })]);
@@ -201,20 +203,31 @@ describe('the card on a walk', () => {
       expect(p.keys).toHaveLength(0);
     });
   }
-  it('comes by itself on the first two walks in a place only, and not when the story is finished or a lesson is open', () => {
+  it('comes by itself on every arrival in a place, unless a lesson is open; the button still brings it', () => {
     const st = { moon: { step: 1, cells: 0 } };
     expect(wantsAuto({ place: 'moon', state: st, visits: 0 })).toBe(true);
-    expect(wantsAuto({ place: 'moon', state: st, visits: 1 })).toBe(true);
-    expect(wantsAuto({ place: 'moon', state: st, visits: 2 })).toBe(false);
-    expect(wantsAuto({ place: 'moon', state: { moon: { step: 8, cells: 3 } }, visits: 0 })).toBe(false);
+    expect(wantsAuto({ place: 'moon', state: st, visits: 9 })).toBe(true);
+    expect(wantsAuto({ place: 'moon', state: { moon: { step: 8, cells: 3 } }, visits: 0 })).toBe(true);
     expect(wantsAuto({ place: 'moon', state: st, visits: 0, lesson: { finished: false, skipped: false } })).toBe(false);
     expect(wantsAuto({ place: 'moon', state: st, visits: 0, lesson: { finished: true } })).toBe(true);
-    expect(wantsAuto({ place: 'market', state: { journal: {} }, visits: 1 })).toBe(true);
+    expect(wantsAuto({ place: 'house' })).toBe(true);
+    expect(wantsAuto({ place: 'park' })).toBe(false);
     const p = page();
     const c = createStoryCard({ doc: p.doc, win: p.win, place: 'farm', progression: prog('farm'), visits: 5 });
-    expect(c.isOpen()).toBe(false);
+    expect(c.isOpen()).toBe(true);
+    c.close();
     c.toggle();
-    expect(c.isOpen()).toBe(true); // the button still brings it
+    expect(c.isOpen()).toBe(true);
+  });
+  it('has fixed cards for the Old House and the Fairground, and the Reef card names the Sealab and the seals', () => {
+    for (const place of ['house', 'fair']) { const t = cardText(place, {}); expect(t.lines.length).toBeGreaterThanOrEqual(3); expect(chapterFor(place, {}).keys).toEqual(['intro']); }
+    for (const st of [{}, { reef: { step: 7, shells: 7, lab: 7 } }, { reef: { step: 7, shells: 7, lab: 0 } }]) expect(cardText('reef', st).lines.join(' ')).toMatch(/Sealab/);
+    expect(cardText('reef', { reef: { step: 7, shells: 7, lab: 0 } }).lines.join(' ')).toMatch(/Seals/);
+  });
+  it('waits under the pause card or an open overlay, and shows once the way is clear', () => {
+    const p = page({ pauseCard: true });
+    const c = createStoryCard({ doc: p.doc, win: p.win, place: 'house', progression: prog('house'), visits: 0 });
+    expect(c.isOpen()).toBe(false);
   });
   it('says where she is: the moon at step 2 with one cell in', () => {
     const p = page();
@@ -233,10 +246,10 @@ describe('the card on a walk', () => {
     c.update(0.1); expect(c.isOpen()).toBe(true);
     const down = createStoryCard({ doc: p.doc, win: p.win, nav: pad([1]), place: 'reef', progression: prog('reef'), visits: 0 });
     down.update(0.1); expect(down.isOpen()).toBe(false); // B pressed: closed
-    const sel = createStoryCard({ doc: page().doc, win: p.win, nav: pad([8]), place: 'reef', progression: prog('reef'), visits: 9 });
+    const sel = createStoryCard({ doc: page().doc, win: p.win, nav: pad([8]), place: 'reef', progression: prog('reef'), lesson: { finished: false } });
     sel.update(0.1); expect(sel.isOpen()).toBe(true); // Select: opened
     const paused = page({ pauseCard: true });
-    const c2 = createStoryCard({ doc: paused.doc, win: p.win, place: 'reef', progression: prog('reef'), visits: 9 });
+    const c2 = createStoryCard({ doc: paused.doc, win: p.win, place: 'reef', progression: prog('reef'), lesson: { finished: false } });
     paused.key('KeyB'); expect(c2.isOpen()).toBe(false);
   });
   it('replaces the small arrival cards, so two never stack', () => {
@@ -246,7 +259,7 @@ describe('the card on a walk', () => {
     expect(a.style.display).toBe('none');
     const b = { style: { display: 'block' } };
     const q = page({ arrival: [b] });
-    createStoryCard({ doc: q.doc, win: q.win, place: 'crystal', progression: prog('crystal'), visits: 9 });
+    createStoryCard({ doc: q.doc, win: q.win, place: 'crystal', progression: prog('crystal'), lesson: { finished: false } });
     expect(b.style.display).toBe('block'); // nothing hidden when it does not show
   });
   it('is sized for a phone, and bigger on a TV', () => {

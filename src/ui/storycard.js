@@ -10,9 +10,10 @@ import { onTv } from '../tvseam.js';
 import { chapterLines, STORY_TEXT, BUTTONS } from './storycardwords.js';
 
 // THE CATALOG: every place that has a story card. test/storycards.test.js fails when a mission file or a job list has no entry here.
-export const STORY_PLACES = Object.freeze(['moon', 'reef', 'crystal', 'jungle', 'snowville', 'treehouse', 'greenhouse', 'lighthouse', 'farm', 'market']);
+export const STORY_PLACES = Object.freeze(['moon', 'reef', 'crystal', 'jungle', 'snowville', 'treehouse', 'greenhouse', 'lighthouse', 'farm', 'market', 'house', 'fair']);
 export const SHOW_SECS = 30;
-export const AUTO_WALKS = 2; // the card comes by itself on the first two walks in a place
+// the card comes by itself on EVERY arrival in a place (no lesson open); the pause card's Story button brings it back
+const STATIC_PLACES = Object.freeze(['house', 'fair']); // places with no story to track: one fixed card, always "finished"
 
 // the job places: the journal page of each job (done when its count is above 0), in the order the card offers them
 export const JOB_PAGES = Object.freeze({
@@ -56,6 +57,7 @@ export function chapterFor(place, state, { deepOn = false } = {}) {
     const done = ids.filter((id) => (s.journal?.[pages[id]] ?? 0) > 0);
     return { place, jobs: true, done, total: ids.length, next: ids.find((id) => !done.includes(id)) ?? null, finished: done.length === ids.length };
   }
+  if (STATIC_PLACES.includes(place)) return { place, keys: ['intro'], ctx: {}, finished: true };
   if (place === 'moon') {
     const m = s.moon ?? {};
     const step = stepOf(m, 'cells');
@@ -76,11 +78,11 @@ export function chapterFor(place, state, { deepOn = false } = {}) {
     const ctx = { n: pop(int(r.shells, 0, 7)) };
     if (step >= 7) {
       const keys = ['done'];
-      if ((int(r.lab, 0, 15) & 7) !== 7) keys.push('lab');
+      keys.push((int(r.lab, 0, 15) & 7) !== 7 ? 'lab' : 'seals');
       if (int(r.wreck, 0, 31) < 31) keys.push('wreck');
       return { place, keys, ctx, finished: true };
     }
-    return { place, keys: [['unmet', 'shells', 'shells', 'shells', 'tryon', 'lanterns', 'party'][step]], ctx, finished: false };
+    return { place, keys: [['unmet', 'shells', 'shells', 'shells', 'tryon', 'lanterns', 'party'][step], 'seals'], ctx, finished: false };
   }
   if (place === 'crystal') {
     const c = s.crystal ?? {};
@@ -130,11 +132,10 @@ export function cardText(place, state, opts) {
   return { title: T.title, lines: lines.slice(0, 4), finished: c.finished };
 }
 
-// Does the card come by itself on this walk? The first two walks in the place, the story not finished, no lesson open.
-export function wantsAuto({ place, state, visits, lesson = null }) {
-  if (!(visits <= AUTO_WALKS - 1)) return false;
+// Does the card come by itself on this walk? Every arrival in a place with a card, unless a lesson is open.
+export function wantsAuto({ place, lesson = null }) {
   if (lesson && !lesson.finished && !lesson.skipped) return false;
-  return !chapterFor(place, state).finished;
+  return STORY_TEXT[place] !== undefined;
 }
 
 const PAD_CLOSE = [0, 1, 2]; // A, B, X (standard layout); a press closes the card
@@ -143,7 +144,7 @@ export const PHONE_H = 500;
 const PAD_TOGGLE = 8; // Select / Back
 
 // The card on a walk. `session` gives the lesson and the pause card's presence; nothing here is sent anywhere.
-export function createStoryCard({ doc = globalThis.document, win = globalThis.window, nav = globalThis.navigator, place, progression, visits = 0, lesson = null, deepOn = false, touch = false }) {
+export function createStoryCard({ doc = globalThis.document, win = globalThis.window, nav = globalThis.navigator, place, progression, lesson = null, deepOn = false, touch = false }) {
   const live = { open: false, text: null };
   const els = { card: null };
   const noop = { state: live, els, update() {}, open() {}, close() {}, toggle() {}, isOpen: () => false, dispose() {} };
@@ -192,8 +193,12 @@ export function createStoryCard({ doc = globalThis.document, win = globalThis.wi
     hint.textContent = touch ? '' : padOf() ? BUTTONS.footerPad : BUTTONS.footerKeys;
   }
   function hideOthers() { for (const e of [...(doc.querySelectorAll?.('[data-arrival-card]') ?? [])]) e.style.display = 'none'; }
+  // A pause card or the page's overlay (the Ready? card, a join) is up: the card waits for it, so it never sits over one. It still never takes a tap but its own button.
+  const blocked = () => !!doc.querySelector?.('#btn-resume') || !!doc.querySelector?.('#overlay:not(.hidden)');
+  let waiting = false;
   function open() {
     if (gone) return;
+    waiting = false;
     crumb('card:story');
     paint();
     t = 0;
@@ -219,7 +224,7 @@ export function createStoryCard({ doc = globalThis.document, win = globalThis.wi
   };
   doc.addEventListener?.('keydown', onKey);
 
-  if (wantsAuto({ place, state: progression?.state, visits, lesson })) open();
+  if (wantsAuto({ place, lesson })) { if (blocked()) waiting = true; else open(); } // once per arrival: this runs once per walk
 
   return {
     state: live,
@@ -238,6 +243,7 @@ export function createStoryCard({ doc = globalThis.document, win = globalThis.wi
         else if (edge(PAD_TOGGLE) && !doc.querySelector?.('#btn-resume')) toggle();
         prev = [0, 1, 2, PAD_TOGGLE].reduce((a, i) => { a[i] = down(i); return a; }, []);
       }
+      if (waiting && !blocked()) open();
       if (!live.open) return;
       t += dt > 0 ? dt : 0;
       if (t > SHOW_SECS) close();
@@ -245,6 +251,7 @@ export function createStoryCard({ doc = globalThis.document, win = globalThis.wi
     dispose() {
       if (gone) return;
       gone = true;
+      waiting = false;
       try { offTv?.(); } catch { /* none */ }
       doc.removeEventListener?.('keydown', onKey);
       card.remove?.();
