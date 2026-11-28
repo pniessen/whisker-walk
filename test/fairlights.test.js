@@ -292,13 +292,13 @@ describe('the fair reacts to her (beauty pass 3)', () => {
     expect([FAIR_CLOCK.catOn.value, FAIR_CLOCK.beat.value, FAIR_CLOCK.breath.value]).toEqual([0, 0, 0]);
     expect(CAT_LOOK.flutter).toBeGreaterThan(0);
   });
-  it('kicked bits, steam and a dusk firework are five Points and no mesh; reduced motion draws none; a lite pool is smaller', async () => {
+  it('kicked bits, steam and a dusk firework are five Points and no mesh but the stray cat; reduced motion draws none; a lite pool is smaller', async () => {
     const { createFairAlive, fireAt, ALIVE } = await import('../src/fairalive.js');
     const sc = new THREE.Scene();
     const a = createFairAlive({ scene: sc });
     const pts = []; sc.traverse((o) => { if (o.isPoints) pts.push(o); });
-    expect(pts.length).toBe(13); // pass 3 and 4's five, the balloon's basket, pass 5's six, pass 7's vista pool
-    expect(sc.children.some((c) => c.isMesh)).toBe(false);
+    expect(pts.length).toBe(12); // pass 3 and 4's five, the balloon's basket, pass 5's five (the stray is a cat mesh now), pass 7's vista pool
+    expect(sc.children.filter((c) => c.isMesh).map((c) => c.name)).toEqual(['fair:stray']); // the one small mesh
     let moved = 0;
     for (let i = 0; i < 90; i++) { a.update(1 / 30, 5000 + i / 30, { x: i * 0.06, z: 20 }, 1, 2); }
     const bits = pts.find((p) => p.name === 'fair:bits');

@@ -6,7 +6,7 @@
 // =============================================================================
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { paint, placed, beam, slab } from './treehouseparts.js';
+import { paint, placed, beam, slab } from './shapekit.js';
 
 const DARK = 0x1c1816;
 const NOSE = 0xd98a8a;
@@ -14,7 +14,7 @@ const ell = (rx, ry, rz, x, y, z, hex, w = 8, h = 6, o = {}) => paint(placed(new
 const cone = (r, hgt, x, y, z, hex, o = {}) => paint(placed(new THREE.ConeGeometry(r, hgt, 4, 1), x, y, z, o), hex);
 
 /** The geometry of a cat in a pose: look { base, belly, accent, patch?, patches?, stripes?, points? }, pose 'sit' | 'nap' -> BufferGeometry (non-indexed, vertex colours). */
-export function catGeometry(look, pose = 'sit') {
+export function catGeometry(look, pose = 'sit', flick = false) {
   const L = look;
   const pts = L.points ? L.accent : null; // a pointed coat's ears, muzzle, paws and tail
   const earC = pts ?? L.base; const tailC = pts ?? L.accent; const pawC = pts ?? L.base;
@@ -43,7 +43,8 @@ export function catGeometry(look, pose = 'sit') {
       g.push(cone(0.05, 0.11, 0.085 * s, 0.7, -0.08, earC, { yaw: 0, pitch: 0 }));
       g.push(ell(0.018, 0.02, 0.012, 0.05 * s, 0.6, -0.208, DARK, 4, 3)); // an eye: a dark dot
     }
-    for (const [x0, z0, x1, z1] of [[0.1, 0.2, 0.2, 0.08], [0.2, 0.08, 0.2, -0.1], [0.2, -0.1, 0.1, -0.2]]) g.push(beam(x0, 0.04, z0, x1, 0.04, z1, 0.07, tailC)); // the tail round her paws
+    if (flick) for (const [x0, y0, z0, x1, y1, z1] of [[0.1, 0.04, 0.2, 0.22, 0.04, 0.14], [0.22, 0.04, 0.14, 0.34, 0.1, 0.02], [0.34, 0.1, 0.02, 0.4, 0.22, -0.06]]) g.push(beam(x0, y0, z0, x1, y1, z1, 0.07, tailC)); // the tail flicked out to her side (the stray at the Fairground swaps to it now and then)
+    else for (const [x0, z0, x1, z1] of [[0.1, 0.2, 0.2, 0.08], [0.2, 0.08, 0.2, -0.1], [0.2, -0.1, 0.1, -0.2]]) g.push(beam(x0, 0.04, z0, x1, 0.04, z1, 0.07, tailC)); // the tail round her paws
   }
   if (L.stripes) for (const [x, z] of pose === 'nap' ? [[0.1, 0.0], [-0.04, 0.02], [-0.16, 0.06]] : [[-0.16, 0.0], [-0.16, 0.12], [0.16, 0.0], [0.16, 0.12]]) {
     g.push(pose === 'nap' ? slab(x, 0.235, z, 0.04, 0.012, 0.26, L.accent) : slab(x, 0.33, z, 0.014, 0.18, 0.045, L.accent));

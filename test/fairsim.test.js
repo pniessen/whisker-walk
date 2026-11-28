@@ -1739,21 +1739,21 @@ describe('the first ride: one friendly line and a journal page', () => {
 });
 
 describe('what moving costs', () => {
-  it('draws exactly what the standing fair drew: the same meshes, the same triangles, merged or not', () => {
+  it('draws exactly what the standing fair drew, plus the stray cat (one mesh, 468 triangles, 2026-11-28): the same meshes, the same triangles, merged or not', () => {
     const count = (s) => { let meshes = 0; let tris = 0; s.traverse((o) => { if (o.isMesh) { meshes++; const g = o.geometry; tris += (g.index ? g.index.count : g.attributes.position.count) / 3; } }); return { meshes, tris }; };
     const a = builtFair();
     const before = count(a.scene);
     const live = createFairLive(a.scene, a.area, { now: () => 4321 });
     const cat = new THREE.Group();
     live.update(1 / 30, 0, { cat, player: { perchY: 0 }, session: { perched: null } });
-    expect(count(a.scene)).toEqual(before);
+    expect(count(a.scene)).toEqual({ meshes: before.meshes + 1, tris: before.tris + 468 }); // the stray at the carousel (fairpals.js): one small mesh, no caster
     // merged as the walk merges it, the rides still turn (their Groups are kept apart)
     const b = builtFair();
     mergeStaticProps(b.scene);
     const merged = count(b.scene);
     const liveB = createFairLive(b.scene, b.area, { now: () => 4321 });
     liveB.update(1 / 30, 0, { cat, player: { perchY: 0 }, session: { perched: null } });
-    expect(count(b.scene)).toEqual(merged);
+    expect(count(b.scene)).toEqual({ meshes: merged.meshes + 1, tris: merged.tris + 468 });
     expect(b.area.rides.merryGoRound.turn.parent).toBe(b.area.rides.merryGoRound.group);
     expect(b.area.rides.merryGoRound.turn.rotation.y).toBe(liveB.sim.angles.mgr);
     expect(hopDownTime(0.4)).toBeLessThan(0.35);
