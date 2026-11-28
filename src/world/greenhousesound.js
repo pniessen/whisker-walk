@@ -7,6 +7,8 @@
 //   * BIRDS in the garden (out of the glass, by day and not in rain: a two-note chirp every 5 to 11 s, heard within EAR);
 //   * BEES (beauty pass 2: under glass, and in the garden near the catnip beds: a soft low drone that swells and fades, every 5 to 12 s);
 //   * SOFT BIRDS under glass (beauty pass 2: the same two-note chirp, a third as loud, as if from the garden beyond the panes);
+//   * THE BRUSH (beauty pass 3: while she walks through the beds, hedges and plants: a soft rustle of three tiny high ticks, every 0.25 to 0.5 s);
+//   * CRICKETS (beauty pass 3: at dusk, dry weather: a quiet trill of fast ticks, every 2.2 to 4.6 s, out in the garden only);
 //   * THE RAIN PATTER (sheltered under glass while it rains: tiny ticks on the panes, every 0.08 to 0.2 s).
 // Every sound is one or two oscillators through their own gain envelope into the game's master (audio.getMaster()), so the
 // volume setting is the master's. Nothing is made and the context is never asked for until a sound is due and heard.
@@ -21,13 +23,14 @@ import { loudness } from './roofssound.js';
 import * as P from './greenhouseplan.js';
 
 export const GH_SOUND_SALT = 0x6e5e0; // the four streams below add their own offset (all distinct from every other salt)
-export const STREAM = Object.freeze({ drip: 0, trickle: 1, bird: 2, rain: 3, bee: 4 });
-export const EVERY = Object.freeze({ drip: [1.6, 4.2], trickle: [0.2, 0.5], bird: [5, 11], rain: [0.08, 0.2], bee: [5, 12] });
-export const GAIN = Object.freeze({ drip: 0.02, trickle: 0.012, bird: 0.02, rain: 0.006, bee: 0.011 });
+export const STREAM = Object.freeze({ drip: 0, trickle: 1, bird: 2, rain: 3, bee: 4, brush: 5, cricket: 6 });
+export const EVERY = Object.freeze({ drip: [1.6, 4.2], trickle: [0.2, 0.5], bird: [5, 11], rain: [0.08, 0.2], bee: [5, 12], brush: [0.25, 0.5], cricket: [2.2, 4.6] });
+export const GAIN = Object.freeze({ drip: 0.02, trickle: 0.012, bird: 0.02, rain: 0.006, bee: 0.011, brush: 0.012, cricket: 0.008 });
 export const TRICKLE = Object.freeze({ ear: 9 });
 export const BIRD_EAR = 22;
 export const BEE_EAR = 9;
 export const SOFT_BIRD = 0.35; // a bird heard through the glass: this share of a garden bird's level
+const BRUSH_SPOTS = [...P.HIBISCUS_SPOTS, ...P.CATNIP_BEDS.map((b) => [b.x, b.z]), [P.KITCHEN_BED.x, P.KITCHEN_BED.z]]; // where the plants are thick enough to rustle
 const QUIET = 0.0003;
 const FLOOR = 0.0001;
 
@@ -39,8 +42,10 @@ export function createGreenhouseSound(audio, { weather = null, dusk = false, red
   let broken = false;
   let disposed = false;
   const live = new Set();
-  const count = { drip: 0, trickle: 0, bird: 0, rain: 0, bee: 0 };
-  const due = { drip: 0, trickle: 0, bird: 0, rain: 0, bee: 0 };
+  const count = { drip: 0, trickle: 0, bird: 0, rain: 0, bee: 0, brush: 0, cricket: 0 };
+  const due = { drip: 0, trickle: 0, bird: 0, rain: 0, bee: 0, brush: 0, cricket: 0 };
+  let last = null;
+  let speed = 0;
   let walk = 0;
 
   const gap = (k) => {
@@ -93,6 +98,8 @@ export function createGreenhouseSound(audio, { weather = null, dusk = false, red
       else if (k === 'trickle') { for (let i = 0; i < 3; i++) plink(c, 1800 + 1400 * hash01(count[k], 5 + i, GH_SOUND_SALT + STREAM[k]), 1200, i * 0.045, 0.04, amp); }
       else if (k === 'bird') { const f = 2800 + 700 * h; plink(c, f, f + 700, 0, 0.07, amp); plink(c, f + 100, f + 800, 0.11, 0.07, amp); }
       else if (k === 'bee') { const f = 170 + 50 * h; plink(c, f, f * 1.18, 0, 0.9, amp, 0.3); plink(c, f * 1.5, f * 1.75, 0.05, 0.8, amp * 0.5, 0.3); plink(c, f * 2.01, f * 2.2, 0.02, 0.85, amp * 0.3, 0.3); }
+      else if (k === 'brush') { for (let i = 0; i < 3; i++) plink(c, 5200 + 2600 * hash01(count[k], 5 + i, GH_SOUND_SALT + STREAM[k]), 3800, i * 0.03, 0.025, amp, 0.004); }
+      else if (k === 'cricket') { const f = 4300 + 300 * h; for (let i = 0; i < 4; i++) plink(c, f, f - 80, i * 0.07, 0.03, amp, 0.005); }
       else plink(c, 4200 + 1800 * h, 3000, 0, 0.012, amp);
     } catch { broken = true; return false; }
     return true;
@@ -102,6 +109,8 @@ export function createGreenhouseSound(audio, { weather = null, dusk = false, red
   function level(k, catPos, under, raining) {
     if (k === 'drip') return under && !raining ? 1 : 0;
     if (k === 'rain') return under && raining ? 1 : 0;
+    if (k === 'brush') return speed > 0.8 && BRUSH_SPOTS.some(([x, z]) => Math.hypot(catPos.x - x, catPos.z - z) < 1.6) ? 1 : 0;
+    if (k === 'cricket') return dusk && !raining && !under ? 1 : 0;
     if (k === 'trickle') return under ? 0 : loudness(dist(catPos, P.FOUNTAIN), TRICKLE.ear);
     if (k === 'bee') {
       if (raining || dusk) return 0;
@@ -120,6 +129,8 @@ export function createGreenhouseSound(audio, { weather = null, dusk = false, red
     update(dt, catPos, under = false) {
       if (disposed || !audio || !catPos) return;
       walk += dt > 0 ? dt : 0;
+      if (last && dt > 0) speed = Math.hypot(catPos.x - last.x, catPos.z - last.z) / dt;
+      last = { x: catPos.x, z: catPos.z };
       const quiet = muted();
       if (quiet) hush();
       const raining = !!weather?.isRaining?.();

@@ -16,6 +16,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { hash01 } from './warehouselook.js';
 import * as P from './greenhouseplan.js';
+import { CAT_NEAR } from './greenhouseglass.js';
 import { lawnDetail, hallBlooms } from './greenhousedetail.js';
 
 export const GH_LOOK_SALT = 0x61a3d; // the plants' own hashed look
@@ -247,8 +248,9 @@ export const swayMat = () => {
   const m = plantMat();
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uSwayTime = SWAY_TIME;
+    shader.uniforms.uCat = CAT_NEAR;
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nuniform float uSwayTime;')
+      .replace('#include <common>', '#include <common>\nuniform float uSwayTime;\nuniform vec4 uCat;')
       .replace('#include <begin_vertex>', `#include <begin_vertex>
 {
   float hgt = max(0.0, transformed.y - 0.35);
@@ -256,9 +258,17 @@ export const swayMat = () => {
   transformed.x += sin(uSwayTime * 0.9 + ph) * 0.016 * hgt;
   transformed.z += cos(uSwayTime * 0.7 + ph * 1.3) * 0.012 * hgt;
   transformed.y += sin(uSwayTime * 1.6 + ph * 2.0) * 0.004 * hgt;
+  // beauty pass 3: she brushes past and the leaves bow away from her and shiver (stronger while she moves)
+  vec2 away = transformed.xz - uCat.xy;
+  float near = uCat.w * (1.0 - smoothstep(0.3, 2.8, length(away)));
+  float low = min(hgt, 1.8);
+  vec2 dir = away / max(length(away), 0.05);
+  float shake = sin(uSwayTime * 13.0 + ph * 6.0) * 0.06 * uCat.z;
+  transformed.y -= near * low * 0.12;
+  transformed.xz += dir * near * low * (0.22 + 0.26 * uCat.z) + vec2(shake, -shake) * near * low;
 }`);
   };
-  m.customProgramCacheKey = () => 'greenhouse-sway-v1';
+  m.customProgramCacheKey = () => 'greenhouse-sway-v2';
   return m;
 };
 export const finishMesh = (name, geometry, { cast = false, material = plantMat() } = {}) => {

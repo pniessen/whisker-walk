@@ -241,17 +241,26 @@ function frameGeometry(h, doors) {
 // (COND_TIME, set from the walk's clock by greenhouselife; reduced motion holds it at 0, so they show still).
 // Its own fixed hash seed, never the walk's stream. The low tier draws none; every other non-high tier draws beads only.
 export const COND_TIME = { value: 0 };
+// Beauty pass 3 (the house reacts to her): where she is (x, z), how fast she moves (0 to 1) and whether to react at all (0 under reduced
+// motion or before the first frame), and whether it rains. greenhouselife.js sets them each frame; the panes fog near her, the roof
+// glass runs with rain, the drip rings ripple where she steps, and (greenhouseplants.js) the leaves bend away from her.
+export const CAT_NEAR = { value: new THREE.Vector4(0, 0, 0, 0) };
+export const RAIN_ON = { value: 0 };
 export function condensation(material, quality = 'high') {
   if (quality === 'low') return material;
   const runnels = quality === 'high';
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uCondTime = COND_TIME;
+    shader.uniforms.uCat = CAT_NEAR;
+    shader.uniforms.uRain = RAIN_ON;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vCondW;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvCondW = (modelMatrix * vec4(position, 1.0)).xyz;');
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
 uniform float uCondTime;
+uniform vec4 uCat;
+uniform float uRain;
 varying vec3 vCondW;
 float cH(vec2 q) { return fract(sin(dot(q, vec2(91.7, 263.3)) + 17.31) * 24634.6345); }`)
       .replace('#include <color_fragment>', `#include <color_fragment>
@@ -279,17 +288,33 @@ ${runnels ? `    vec2 col = vec2(floor(q.x / 0.7), 0.0);
       float hd = length(vec2((q.x - cx) * 1.0, (q.y - head) * 0.7));
       run = max(run, 1.0 - smoothstep(0.018, 0.03, hd));
     }` : ''}
-    float cov = clamp(max(bead, run), 0.0, 1.0) * fade;
+    // beauty pass 3: rain runs down the panes in bright streaks; a fog gathers on the glass near her
+    float streak = 0.0;
+    if (uRain > 0.01) {
+      float rc = floor(q.x / 0.24);
+      float rk = cH(vec2(rc, 41.0));
+      if (rk < 0.7 * uRain) {
+        float rx = (rc + 0.2 + 0.6 * cH(vec2(rc, 43.0))) * 0.24;
+        float rph = fract(cH(vec2(rc, 47.0)) + uCondTime * (0.03 + 0.05 * rk));
+        float rhead = 11.0 * (1.0 - rph);
+        float rt = clamp((q.y - rhead) / 1.4, 0.0, 1.0);
+        streak = (1.0 - smoothstep(0.02, 0.045, abs(q.x - rx))) * (1.0 - rt) * step(rhead, q.y) * step(q.y, rhead + 1.4) + (1.0 - smoothstep(0.04, 0.07, length(vec2(q.x - rx, (q.y - rhead) * 0.8))));
+      }
+    }
+    float fogNear = uCat.w * (1.0 - smoothstep(2.5, 9.0, distance(vCondW.xz, uCat.xy))) * (0.75 + 0.25 * sin(q.x * 2.7 + q.y * 1.9 + uCondTime * 0.35)) * (0.5 + 0.5 * smoothstep(3.6, 0.3, vCondW.y));
+    float cov = clamp(max(max(bead, run), streak), 0.0, 1.0) * fade;
     // beauty pass 2: the beads twinkle (each on its own beat) and a slow diagonal sheen of sky light crosses the panes
     float tw = 0.65 + 0.35 * sin(uCondTime * 1.3 + h1 * 40.0);
     float sheen = pow(max(0.0, sin(vCondW.x * 0.55 + vCondW.y * 0.42 + vCondW.z * 0.2 - uCondTime * 0.32)), 18.0) * fade;
     diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.9, 1.0, 0.96), 0.55 * cov + 0.3 * lit * tw * fade);
     diffuseColor.rgb += vec3(0.5, 0.55, 0.42) * sheen * 0.35;
-    diffuseColor.a = min(1.0, diffuseColor.a + 0.34 * cov + 0.1 * sheen);
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.9, 0.97, 0.94), 0.8 * fogNear * fade);
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.62, 0.7, 0.72), 0.3 * uRain * fade); // rain: the panes go grey and milky
+    diffuseColor.a = min(1.0, diffuseColor.a + 0.34 * cov + 0.1 * sheen + 0.55 * fogNear * fade + 0.25 * streak * fade + 0.2 * uRain * fade);
   }
 }`);
   };
-  material.customProgramCacheKey = () => `greenhouse-condensation-${runnels ? 'r' : 'b'}-v2`;
+  material.customProgramCacheKey = () => `greenhouse-condensation-${runnels ? 'r' : 'b'}-v3`;
   return material;
 }
 
@@ -303,7 +328,7 @@ export function glassHouse(h, doors, { name = 'glassHouse', quality = 'high' } =
   frame.userData.noMerge = true;
   frame.castShadow = false;
   const glassMat = new THREE.MeshBasicMaterial({
-    vertexColors: true, transparent: true, depthWrite: false, side: THREE.FrontSide, fog: true,
+    vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: true,
   });
   condensation(glassMat, quality);
   const glass = new THREE.Mesh(glassGeometry(h, doors), glassMat);
@@ -461,7 +486,7 @@ export function sunShafts(h, spots = SHAFT_SPOTS, name = 'sunShafts') {
   g.setAttribute('aS', new THREE.Float32BufferAttribute(aS, 1));
   g.setIndex(idx);
   g.computeBoundingSphere();
-  const uniforms = { uTime: { value: 0 } }; // the walk's clock (greenhouselife.js; 0 under reduced motion: the motes hold still)
+  const uniforms = { uTime: { value: 0 }, uGain: { value: 1 }, uWarm: { value: 0 } }; // the walk's clock (greenhouselife.js; 0 under reduced motion: the motes hold still)
   const mat = new THREE.MeshBasicMaterial({
     vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false,
   });
@@ -479,8 +504,9 @@ vShaftW = (modelMatrix * vec4(transformed, 1.0)).xyz;`)
 if (aA.x > 0.5) mvPosition.xy += aA.yz * aS;
 gl_Position = projectionMatrix * mvPosition;`);
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform float uTime;\nvarying vec3 vShaftW;\nvarying vec4 vA;')
+      .replace('#include <common>', '#include <common>\nuniform float uTime;\nuniform float uGain;\nuniform float uWarm;\nvarying vec3 vShaftW;\nvarying vec4 vA;')
       .replace('#include <color_fragment>', `#include <color_fragment>
+diffuseColor.rgb *= uGain * mix(vec3(1.0), vec3(1.0, 0.72, 0.42), uWarm);
 diffuseColor.rgb *= smoothstep(${SHAFT_FADE.near.toFixed(1)}, ${SHAFT_FADE.far.toFixed(1)}, distance(cameraPosition, vShaftW));
 if (vA.x > 0.5) {
   float disc = 1.0 - smoothstep(0.25, 1.0, length(vA.yz));
@@ -489,7 +515,7 @@ if (vA.x > 0.5) {
   diffuseColor.rgb *= 0.86 + 0.14 * sin(uTime * 0.55 + vShaftW.x * 0.7 + vShaftW.z * 0.5);
 }`);
   };
-  mat.customProgramCacheKey = () => 'greenhouse-shafts-v3';
+  mat.customProgramCacheKey = () => 'greenhouse-shafts-v4';
   const m = new THREE.Mesh(g, mat);
   m.name = name;
   m.userData.shaft = uniforms;
@@ -539,7 +565,7 @@ export function mistSheets(sheets = MIST_SHEETS, name = 'glassMist', { rings = [
     for (const [u, v] of [[0, 0], [1, 0], [1, 1], [0, 1]]) {
       pos.push(x + (u - 0.5) * size, 0.07, z + (v - 0.5) * size);
       uv.push(u, v);
-      aA.push(1, 0, 0, hash01(k, 3, 0x9f7));
+      aA.push(1, x, z, hash01(k, 3, 0x9f7));
       aC.push(0.78, 0.92, 1);
     }
     idx.push(base, base + 2, base + 1, base, base + 3, base + 2);
@@ -561,7 +587,7 @@ export function mistSheets(sheets = MIST_SHEETS, name = 'glassMist', { rings = [
   g.setAttribute('aC', new THREE.Float32BufferAttribute(aC, 3));
   g.setIndex(idx);
   g.computeBoundingSphere();
-  const uniforms = { uTime: { value: 0 }, uColor: { value: new THREE.Color(COL.mist) } };
+  const uniforms = { uTime: { value: 0 }, uColor: { value: new THREE.Color(COL.mist) }, uCat: CAT_NEAR, uWarm: { value: 0 }, uRain: RAIN_ON };
   const material = new THREE.MeshBasicMaterial({ color: COL.mist, transparent: true, depthWrite: false, fog: true });
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
@@ -575,6 +601,9 @@ gl_Position = projectionMatrix * mvPosition;`);
       .replace('#include <common>', `#include <common>
 uniform float uTime;
 uniform vec3 uColor;
+uniform vec4 uCat;
+uniform float uWarm;
+uniform float uRain;
 varying vec3 vMistW;
 varying vec2 vMistUv;
 varying vec4 vMistA;
@@ -588,15 +617,21 @@ float mN(vec2 q) { vec2 i = floor(q), f = fract(q); vec2 u = f * f * (3.0 - 2.0 
   if (vMistA.x > 1.5) {
     // a lamp's halo: a warm soft disc, a little unsteady
     float r = length(vMistUv - 0.5) * 2.0;
-    a = (pow(max(0.0, 1.0 - r), 2.4) * 0.85 + 0.5 * pow(max(0.0, 1.0 - r * 3.2), 2.0)) * (0.92 + 0.08 * sin(uTime * 2.3 + vMistA.w));
-    diffuseColor.rgb = vMistC;
+    a = (pow(max(0.0, 1.0 - r), 2.4) * 0.85 + 0.5 * pow(max(0.0, 1.0 - r * 3.2), 2.0)) * (0.92 + 0.08 * sin(uTime * 2.3 + vMistA.w)) * (1.0 + 0.55 * uWarm);
+    diffuseColor.rgb = mix(vMistC, vec3(1.0, 0.6, 0.2), uWarm * 0.6);
   } else if (vMistA.x > 0.5) {
     // a drip's wet patch and two rings widening and fading
     float r = length(vMistUv - 0.5) * 2.0;
     float p1 = fract(uTime * 0.42 + vMistA.w), p2 = fract(uTime * 0.42 + vMistA.w + 0.5);
     float r1 = exp(-pow((r - p1 * 0.95) / 0.07, 2.0)) * (1.0 - p1);
     float r2 = exp(-pow((r - p2 * 0.95) / 0.07, 2.0)) * (1.0 - p2);
-    a = (0.2 * (1.0 - smoothstep(0.55, 0.8, r)) + 0.75 * max(r1, r2)) * (1.0 - smoothstep(0.85, 1.0, r));
+    float wet = (1.0 - smoothstep(0.55, 0.8, r));
+    // beauty pass 3: where she steps in the wet patch her paws send out their own widening rings
+    float dc = distance(vMistW.xz, uCat.xy);
+    float near = uCat.w * (1.0 - smoothstep(0.3, 1.2, distance(vMistA.yz, uCat.xy)));
+    float pc = fract(uTime * 1.4);
+    float step1 = exp(-pow((dc - pc * 0.6) / 0.05, 2.0)) * (1.0 - pc) * near * (0.4 + 0.6 * uCat.z);
+    a = (0.2 * wet + 0.75 * max(r1, r2) + 0.2 * near + 1.1 * step1) * (1.0 - smoothstep(0.85, 1.0, r));
     diffuseColor.rgb = vMistC;
   } else {
     vec2 p = vMistW.xz;
@@ -611,7 +646,7 @@ float mN(vec2 q) { vec2 i = floor(q), f = fract(q); vec2 u = f * f * (3.0 - 2.0 
   if (diffuseColor.a < 0.004) discard;
 }`);
   };
-  material.customProgramCacheKey = () => 'greenhouse-mist-v3';
+  material.customProgramCacheKey = () => 'greenhouse-mist-v4';
   const m = new THREE.Mesh(g, material);
   m.name = name;
   m.userData.noCast = true;

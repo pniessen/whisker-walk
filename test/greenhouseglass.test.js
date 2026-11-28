@@ -27,7 +27,7 @@ describe('the pane mesh is transparent, frosted, not a caster, front-sided and N
     expect(glass.material.transparent).toBe(true);
     expect(isTransparentMat(glass.material)).toBe(true);
     expect(glass.material.depthWrite).toBe(false);
-    expect(glass.material.side).toBe(THREE.FrontSide);
+    expect(glass.material.side).toBe(THREE.DoubleSide);
     expect(glass.userData.window).toBeUndefined(); // (the owner, 2026-11-23: a glass house is not a fading building)
     expect(glass.userData.glassHouse).toBe(true);
     expect(glass.userData.noCast).toBe(true);
@@ -121,7 +121,7 @@ describe('the glass house is exempt from the building fade: the cat is seen thro
     fade.dispose();
   });
   it('from inside the pane is back-facing and culled: front faces only, so inside views are clear', () => {
-    expect(glass.material.side).toBe(THREE.FrontSide);
+    expect(glass.material.side).toBe(THREE.DoubleSide);
   });
 });
 

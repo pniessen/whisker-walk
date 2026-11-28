@@ -52,6 +52,7 @@ export const PERK_TIME = 0.9;
 export const SOW_TIME = 1.4;
 export const SEEDS = 5;
 export const THIRSTY = 4;
+const THIRSTY_LEAF = 0xb59a58; // beauty pass 3: a thirsty pot's leaves are a dry, dull gold (they lerp to their own green when watered)
 export const STILL_EPS = 0.05; // m: her paws within this of where she came to rest are still (the Market's)
 
 // Which of the three sets (0, 1, 2) the packets lie in; and which four pots droop. Pure: the room's seed or the walk
@@ -96,6 +97,8 @@ export function createGreenhouseLife(ctx) {
   const pops = { orchid: { mesh: shyOrchid, at: -1 }, cactus: { mesh: cactusFlower, at: -1 } };
   let disposed = false;
   let clock = 0;
+  // beauty pass 3: the house reacts to her and to the weather (all of it uniforms on the existing materials)
+  const react = { x: 0, z: 0, speed: 0, on: 0, gain: 1, warm: ctx.dusk ? 1 : 0, rain: 0, has: false };
 
   // G3: finding, the catnip purr, the shelter
   const { log = null, progression = null, weather = null } = ctx;
@@ -136,7 +139,7 @@ export function createGreenhouseLife(ctx) {
     cloud.position.set(sp.x, 1.25, sp.z);
     scene.add(cloud);
     const st = { i, sp, leaves, cloud, watered: false, perk: 0 };
-    if (leaves) { leaves.scale.set(1.2, 0.5, 1.2); leaves.material.color.set(0xd2c690); }
+    if (leaves) { leaves.scale.set(1.3, 0.4, 1.3); leaves.material.color.set(THIRSTY_LEAF); }
     return st;
   });
   const dropMesh = withLocalUuids('greenhouse-spray', () => {
@@ -228,6 +231,26 @@ export function createGreenhouseLife(ctx) {
       if (shafts) { shafts.rotation.z = G.shaftAngle(t, reducedMotion); shafts.userData.shaft.uTime.value = tt; }
       for (const sh of roomShafts) { sh.rotation.z = G.shaftAngle(t, reducedMotion); sh.userData.shaft.uTime.value = tt; }
       butterflies?.update(dt, t, catPos);
+      {
+        const step = dt > 0 ? dt : 0;
+        const raining = !!weather?.isRaining?.();
+        react.rain += ((raining ? 1 : 0) - react.rain) * Math.min(1, step * 1.2);
+        G.RAIN_ON.value = reducedMotion ? (raining ? 1 : 0) : react.rain;
+        // sun shafts: a slow cloud passing, thin in rain, warm and low at dusk
+        const goal = (raining ? 0.4 : 1) * (ctx.dusk ? 0.7 : 1);
+        react.gain += (goal - react.gain) * Math.min(1, step * 0.8);
+        const cloud = reducedMotion ? 1 : 0.84 + 0.16 * Math.sin(t * 0.11);
+        const gain = react.gain * cloud;
+        const warm = ctx.dusk ? 1 : 0;
+        for (const sh of [shafts, ...roomShafts]) { if (sh) { sh.userData.shaft.uGain.value = gain; sh.userData.shaft.uWarm.value = warm; } }
+        for (const mm of [mist, roomMist]) if (mm) mm.userData.mist.uWarm.value = warm;
+        if (catPos && !reducedMotion) {
+          const v = react.has && step > 0 ? Math.hypot(catPos.x - react.x, catPos.z - react.z) / step : 0;
+          react.speed += (Math.min(1, v / 3) - react.speed) * Math.min(1, step * 6);
+          react.x = catPos.x; react.z = catPos.z; react.has = true; react.on = 1;
+          G.CAT_NEAR.value.set(catPos.x, catPos.z, react.speed, 1);
+        } else G.CAT_NEAR.value.set(0, 0, 0, 0);
+      }
       intro.update(dt);
       cues.update(reducedMotion ? 0 : t);
       if (koi) koi.userData.koi.uTime.value = reducedMotion ? KOI_FROZEN_TIME : t;
@@ -297,10 +320,10 @@ export function createGreenhouseLife(ctx) {
         if (!p.leaves) continue;
         if (p.watered) {
           const k = reducedMotion ? 1 : smooth((clock - p.perkAt) / PERK_TIME);
-          p.leaves.scale.set(1.2 - 0.2 * k, 0.5 + 0.5 * k, 1.2 - 0.2 * k);
-          p.leaves.material.color.set(0xd2c690).lerp(new THREE.Color(0xffffff), k);
+          p.leaves.scale.set(1.3 - 0.3 * k, 0.4 + 0.6 * k, 1.3 - 0.3 * k);
+          p.leaves.material.color.set(THIRSTY_LEAF).lerp(new THREE.Color(0xffffff), k);
         } else if (!reducedMotion) {
-          p.leaves.scale.y = 0.5 + 0.015 * Math.sin(t * 1.3 + p.i);
+          p.leaves.scale.y = 0.4 + 0.015 * Math.sin(t * 1.3 + p.i);
         }
         if (!p.watered && !reducedMotion) p.cloud.position.y = 1.25 + 0.04 * Math.sin(t * 1.1 + p.i * 2);
       }
@@ -317,6 +340,8 @@ export function createGreenhouseLife(ctx) {
     },
     dispose() {
       disposed = true;
+      G.CAT_NEAR.value.set(0, 0, 0, 0);
+      G.RAIN_ON.value = 0;
       intro.dispose();
       cues.dispose();
       sound?.dispose();

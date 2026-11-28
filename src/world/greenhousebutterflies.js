@@ -25,6 +25,7 @@ export const LAND_MAX = 10; // s
 // the orchids): a short glide, then a long hover and a loop over the bloom, on the walk's clock alone (a pure function of it; reduced
 // motion holds each at its first flower, wings half open). They never notice her and nothing can touch one.
 export const POLLINATORS = 6;
+const POLL_AVOID = 1.7; // m: a bee or butterfly this near her swings out round her
 const POLL_COLOURS = Object.freeze([0xffc21a, 0xffb000, 0xf2a60c, 0xff7a1a, 0xfff2f6, 0x6aa6ff]);
 const POLL_SITES = (() => {
   const hib = P.HIBISCUS_SPOTS.map(([x, z]) => [x, 1.5, z]);
@@ -201,8 +202,21 @@ export function createButterflies({ reducedMotion = false, lite = false } = {}) 
         for (let i = 0; i < POLLINATORS; i++) {
           pollinatorAt(i, tt, pa0); pollinatorAt(i, tt + 0.15, pa1);
           const bee = i < 3;
+          // beauty pass 3: they swing round her (never through) and settle back as she walks on
+          let detour = 0;
+          if (catPos && !reducedMotion) {
+            for (const o of [pa0, pa1]) {
+              const dx = o.x - catPos.x, dz = o.z - catPos.z, d = Math.hypot(dx, dz);
+              if (d < POLL_AVOID) {
+                const k = (POLL_AVOID - d) / POLL_AVOID;
+                const push = (POLL_AVOID - d) + 0.2;
+                o.x += (d > 1e-3 ? dx / d : 1) * push; o.z += (d > 1e-3 ? dz / d : 0) * push; o.y += 0.5 * k;
+                detour = Math.max(detour, k);
+              }
+            }
+          }
           const yaw = reducedMotion ? 0 : Math.atan2(pa1.x - pa0.x, pa1.z - pa0.z);
-          const open = reducedMotion ? 0.8 : 0.25 + 0.75 * Math.abs(Math.cos(clock * (bee ? 38 : 11) + i * 2));
+          const open = reducedMotion ? 0.8 : 0.25 + 0.75 * Math.abs(Math.cos(clock * (bee ? 38 : 11) * (1 + 0.5 * detour) + i * 2));
           put(CHASERS + CLOUD + i, pa0.x, pa0.y, pa0.z, yaw, open, bee ? 0.75 : 1.4);
         }
       }
