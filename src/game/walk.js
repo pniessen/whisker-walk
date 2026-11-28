@@ -304,7 +304,7 @@ export function pauseCardHtml({ welcome, touch, portrait = null, mode = 'ready',
 }
 export const SKIP_LESSON_ID = 'btn-skip-lesson';
 // The places with a story card (ui/storycard.js, a lazy chunk; test/storycards.test.js checks the list against the catalog there).
-const STORY_PLACES_RE = /^(moon|reef|crystal|jungle|snowville|treehouse|greenhouse|lighthouse|farm|market)$/;
+const STORY_PLACES_RE = /^(moon|reef|crystal|jungle|snowville|treehouse|greenhouse|lighthouse|farm|market|house|fair)$/;
 export const hasStoryCard = (areaId) => STORY_PLACES_RE.test(areaId);
 
 // A touch walk starts without the Ready? card, so its first few walks say
@@ -2128,7 +2128,7 @@ export function createWalkLifecycle({
       : NO_FIND;
     // The holiday errand's finds (world/holidayfinds.js, only when its chunk came): off the same seed as the outfit find, its own stream.
     session.holidayFinds = null;
-    // The story card (ui/storycard.js, a lazy chunk): only in a place with a story; it shows by itself on the first two walks there and from the pause card's Story button.
+    // The story card (ui/storycard.js, a lazy chunk): only in a place with a story; it shows by itself on the every arrival there and from the pause card's Story button.
     session.storyOn = hasStoryCard(areaId);
     session.storyCard = null;
     if (session.storyOn) {

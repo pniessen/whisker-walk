@@ -32,7 +32,8 @@ export const STORY_TEXT = Object.freeze({
       lanterns: ['It fits! Marlo has a new shell.', 'Now light up the coral: touch the three lantern corals, one after another.'],
       party: ['The coral is all lit up!', 'Start the housewarming with Marlo and watch the parade go by.'],
       done: ['Marlo’s housewarming was a hit!', 'He has an errand for you each walk.'],
-      lab: ['Climb down the ring by the Sunken Boat to Tidewell Station. It needs fuses.'],
+      lab: ['Climb down the ring by the Sunken Boat into the Sealab, Tidewell Station. It needs fuses. Seals swim by outside!'],
+      seals: ['Seals swim by the Sunken Boat. Climb down the ring beside it to explore the Sealab, Tidewell Station.'],
       wreck: ['An old sunken ship waits, with a treasure chest to find.'],
     },
   },
@@ -132,6 +133,28 @@ export const STORY_TEXT = Object.freeze({
       fiddle: 'The fiddler plays a whole song for a cat who sits still nearby.',
     },
     all: ['All six errands are done!', 'The market is yours to explore.'],
+  },
+  house: {
+    title: 'The Old House',
+    ch: {
+      intro: [
+        'A big, cozy old house with a hall, a library, a kitchen, a parlour, an attic and a cellar. Nothing here is scary.',
+        'An old house cat lives here. Walk up to her and she gives a hint about what you have not found yet.',
+        'Look for golden mice, play a tune on the old piano, and peek out of the round attic window.',
+        'The library bookcase has a secret. Can you find it?',
+      ],
+    },
+  },
+  fair: {
+    title: 'The Fairground',
+    ch: {
+      intro: [
+        'Walk up to a ride and hop on: merry-go-round, big wheel, teacups, helter-skelter, caterpillar coaster or Viking boat.',
+        'You can hop off any time.',
+        'Play Tin Can Alley, Hook a Duck and Ring the Bell. A win gets you a prize to wear at home.',
+        'Look around for little things to find, like the crystal ball and the juggler.',
+      ],
+    },
   },
 });
 
