@@ -30,6 +30,7 @@ export function createReact(puddles = []) {
     uMkRip: { value: 0 },
     uMkSpark: { value: 0 },
     uMkSway: { value: 0 },
+    uMkSea: { value: new THREE.Vector4(0, 0, 0, 0) }, // beauty pass 4: the season's weights, x autumn, y winter, z spring, w summer (marketseason.js)
     uMkPud: { value: pud },
   };
 }
@@ -43,6 +44,31 @@ export function addSquareLife(material, kind, react, geo) {
   const colour = kind === 'water' ? '' : `{
   vec3 w = vMkW;
   diffuseColor.rgb *= uMkTone;
+  {
+    // beauty pass 4: the season. A warm russet foliage and a golden tone in autumn, frost and a cool tone in winter,
+    // fresh green and blossom in spring, a bright richer tone in summer; fallen leaves, petals or daisies on the flat ground
+    vec3 c = diffuseColor.rgb;
+    float lum = dot(c, vec3(0.3, 0.59, 0.11));
+    float fol = smoothstep(0.02, 0.08, c.g - max(c.r, c.b));
+    c = mix(c, vec3(lum * 2.0 + 0.04, lum * 1.0, lum * 0.3), uMkSea.x * fol * 0.8);
+    c = mix(c, c * vec3(1.06, 1.14, 0.92), uMkSea.z * fol);
+    c = mix(c, vec3(lum * 0.9 + 0.1, lum * 1.0 + 0.1, lum * 1.05 + 0.13), uMkSea.y * fol * 0.7);
+    c *= vec3(1.0) + uMkSea.x * vec3(0.10, -0.02, -0.16) + uMkSea.y * vec3(-0.05, 0.0, 0.07) + uMkSea.w * vec3(0.05, 0.04, -0.01);
+    if (w.y < 0.03) {
+      vec2 sp = w.xz * 6.0;
+      vec2 cell = floor(sp);
+      float h = fract(sin(dot(cell, vec2(12.9898, 78.233))) * 43758.5453);
+      float h2 = fract(h * 91.7);
+      float spot = step(0.9, h) * (1.0 - smoothstep(0.12, 0.3, length(fract(sp) - 0.5)));
+      vec3 sc = uMkSea.x > 0.5 ? mix(vec3(0.72, 0.3, 0.07), vec3(0.88, 0.64, 0.14), h2)
+        : uMkSea.z > 0.5 ? mix(vec3(0.98, 0.78, 0.86), vec3(1.0, 0.96, 0.92), h2)
+        : uMkSea.w > 0.5 ? mix(vec3(0.98, 0.92, 0.5), vec3(1.0, 1.0, 0.95), h2)
+        : vec3(0.9, 0.95, 1.0);
+      c = mix(c, sc, spot * (uMkSea.x + uMkSea.z + uMkSea.w * 0.6 + uMkSea.y * 0.5) * 0.85);
+    }
+${kind === 'paint' ? `    c = mix(c, vec3(0.92, 0.96, 1.0), uMkSea.y * smoothstep(0.6, 0.9, vMkN.y) * smoothstep(0.35, 0.9, w.y) * 0.75);
+` : ''}    diffuseColor.rgb = c;
+  }
   float low = 1.0 - smoothstep(0.25, 0.45, w.y);
   vec2 q = w.xz * 0.05 + vec2(uMkR * 0.021, uMkR * 0.009);
   float c = 0.5 * sin(q.x * 3.1 + sin(q.y * 2.3)) + 0.5 * sin(q.y * 2.7 + 1.7 - q.x * 1.1);
@@ -80,17 +106,19 @@ export function addSquareLife(material, kind, react, geo) {
     prev?.call(material, shader, renderer);
     for (const k of Object.keys(react)) shader.uniforms[k] = react[k];
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vMkW;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvMkW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      .replace('#include <common>', '#include <common>\nvarying vec3 vMkW;\nvarying vec3 vMkN;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvMkW = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvMkN = normalize(mat3(modelMatrix) * objectNormal);');
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
 varying vec3 vMkW;
+varying vec3 vMkN;
 uniform float uMkR; uniform vec3 uMkCat; uniform vec3 uMkTone; uniform float uMkCloud; uniform float uMkRip; uniform float uMkSpark;
-uniform vec4 uMkPud[5];`)
+uniform vec4 uMkPud[5];
+uniform vec4 uMkSea;`)
       .replace('#include <color_fragment>', `#include <color_fragment>\n${colour}`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${glow}`);
   };
-  material.customProgramCacheKey = () => `${prevKey ? prevKey.call(material) : ''}|market-life-${kind}-v1`;
+  material.customProgramCacheKey = () => `${prevKey ? prevKey.call(material) : ''}|market-life-${kind}-v2`;
 }
 
 // The part of the day for walk second t: 0 morning .. 1 evening, over `period` seconds, then back

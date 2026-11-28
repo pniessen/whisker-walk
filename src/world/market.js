@@ -9,6 +9,7 @@ import { createMarketParts, marketMaterials, addFlutter, atlasCell, frontCell, b
 import { buildAppleCrate, buildYarnBasket, buildPullToy } from './marketfruit.js';
 import { createMarketLife } from './marketlife.js';
 import { createReact, addSquareLife } from './marketreact.js';
+import { STORY_SIGN_CELLS, STORY_TAG_CELLS, createFlagTexture, flagU } from './marketdetail.js';
 import {
   BASIN_PROFILE, SPIRE_PROFILE, BASIN_WATER, FOUNTAIN_STONE, fountainWaterMaterial, latheGeometry, dressFountain,
 } from './parkfountain.js';
@@ -143,12 +144,12 @@ const WICKER = 0xb08a52;
 // Each stall's own look: its awning cell, its sign's picture cell, the
 // painted counter front and what is on the counter.
 const STALL_LOOK = Object.freeze({
-  fish: { awning: 44, sign: 11, paint: 0x5d7fa8, goods: 'fish', valance: 50 },
-  baker: { awning: 45, sign: 12, paint: 0xa8524a, goods: [9], valance: 51 },
-  cheese: { awning: 46, sign: 13, paint: 0xc9a24a, goods: [10], valance: 52 },
-  milk: { awning: 47, sign: 14, paint: 0x5f8f5e, goods: 'churns', valance: 53 },
-  flowers: { awning: 48, sign: 8, paint: 0xc98aa0, goods: 'buckets', valance: 54 },
-  fruit: { awning: 49, sign: 6, paint: 0x6b8fb8, goods: [6, 7], valance: 55 }, // beauty pass 2: bold awning cells 44-49, scalloped valances 50-55
+  fish: { awning: 44, sign: STORY_SIGN_CELLS.fish, paint: 0x7fa3c4, goods: 'fish', valance: 50 },
+  baker: { awning: 45, sign: STORY_SIGN_CELLS.baker, paint: 0xd9a03a, goods: [9], valance: 51 },
+  cheese: { awning: 46, sign: STORY_SIGN_CELLS.cheese, paint: 0xe8d060, goods: [10], valance: 52 },
+  milk: { awning: 47, sign: STORY_SIGN_CELLS.milk, paint: 0xa9cfe0, goods: 'churns', valance: 53 },
+  flowers: { awning: 48, sign: STORY_SIGN_CELLS.flowers, paint: 0xe58fb4, goods: 'buckets', valance: 54 },
+  fruit: { awning: 49, sign: STORY_SIGN_CELLS.fruit, paint: 0x7cb04e, goods: [6, 7], valance: 55 }, // beauty pass 2: bold awning cells 44-49, scalloped valances 50-55
   // 2026-11-22: atlas cells 18-21 (awnings), 22-25 (signs), 26-29 (goods)
   toys: { awning: 18, sign: 22, paint: 0x7a5aa8, goods: 'toys', front: 0, valance: 40 },
   plants: { awning: 19, sign: 24, paint: 0x3f7a5a, goods: 'plants', front: 1, valance: 41 },
@@ -410,6 +411,7 @@ export function build(scene, { water = {}, wind } = {}) { // eslint-disable-line
     const paint = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0 });
     addSquareLife(paint, 'paint', react, reactGeo);
     const flags = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0, side: THREE.DoubleSide });
+    flags.map = createFlagTexture(); // beauty pass 4: a paw, a fish or a mouse on some of the pennants (marketdetail.js)
     addFlutter(flags, 'flags', react); // the breeze in the bunting (the life sets its amplitude)
     const barrel = new THREE.CylinderGeometry(0.5, 0.5, 1, 12).translate(0, 0.5, 0);
     const wheel = new THREE.CylinderGeometry(0.5, 0.5, 1, 14).translate(0, 0.5, 0);
@@ -740,7 +742,7 @@ function drawStall(s, { PARTS, M, paint, barrel, wheel, disc, quad, lanterns, po
   const slate = (x, y, z) => {
     const base = mat4(x, y, z, { pitch: -0.3 });
     wood(PARTS.crate, base.clone().multiply(mat4(0, 0, 0, { sx: 0.31, sy: 0.25, sz: 0.03 })), WOOD);
-    atlas(quad, base.clone().multiply(mat4(0, 0.125, 0.018, { sx: 0.28, sy: 0.22 })), 36);
+    atlas(quad, base.clone().multiply(mat4(0, 0.125, 0.018, { sx: 0.28, sy: 0.22 })), STORY_TAG_CELLS[s.id] ?? 36); // beauty pass 4: a bright tag in each stall's own colour
   };
   // a counter lantern: a dark foot and a bulb that glows at dusk (the lantern mesh is shared)
   const glow = (x, y, z) => {
@@ -1456,6 +1458,7 @@ function drawBunting(PARTS, flags, poles, lanterns) {
     z: a.z + (mast.z - a.z) * t,
   });
   const ribbon = new THREE.PlaneGeometry(0.07, 0.7).translate(0, -0.35, 0);
+  ribbon.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(ribbon.attributes.position.count * 2), 2)); // the plain cell of the flag strip
   // every piece carries aFlap (the shader's weight): 0 on a string, 0..1 down a pennant or streamer
   const weigh = (g, drop) => {
     const pos = g.attributes.position;
@@ -1465,6 +1468,13 @@ function drawBunting(PARTS, flags, poles, lanterns) {
   weigh(string, 0);
   weigh(ribbon, 0.7);
   const pennantG = weigh(PARTS.pennant.clone(), 1);
+  // beauty pass 4: the pennant's uv into the flag strip's cell c: 0 plain, 1 a paw, 2 a fish, 3 a mouse
+  const pennantOf = [0, 1, 2, 3].map((cell) => {
+    const g = pennantG.clone();
+    const uv = g.attributes.uv;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, flagU(cell, uv.getX(i)), 0.03 + uv.getY(i) * 0.94);
+    return g;
+  });
   poles.forEach((a, k) => {
     // two streamers hang from each pole's top (beauty pass 1)
     K.put('flags', flags, ribbon, mat4(a.x, a.y - 0.05, a.z, { yaw: k * 1.3, roll: 0.08 }), { color: PENNANT_COLORS[k % PENNANT_COLORS.length], noCast: true });
@@ -1491,12 +1501,15 @@ function drawBunting(PARTS, flags, poles, lanterns) {
     for (let i = 1; i < n; i++) {
       const p = at(a, i / n);
       const c = PENNANT_COLORS[Math.floor(hash01(i, k, 31) * PENNANT_COLORS.length) % PENNANT_COLORS.length];
-      K.put('flags', flags, pennantG, mat4(p.x, p.y, p.z, { yaw, sx: PENNANT.w, sy: PENNANT.h }), { color: c, noCast: true });
+      const hp = hash01(i, k, 47);
+      const cell = hp < 0.42 ? 0 : 1 + (Math.floor(hp * 1000) % 3); // a little under half plain, the rest a paw, a fish or a mouse
+      K.put('flags', flags, pennantOf[cell], mat4(p.x, p.y, p.z, { yaw, sx: PENNANT.w, sy: PENNANT.h }), { color: c, noCast: true });
     }
   });
   string.dispose();
   ribbon.dispose();
   pennantG.dispose();
+  for (const g of pennantOf) g.dispose();
   const m = K.meshes()[0];
   m.name = 'marketBunting';
   m.userData.bunting = true;

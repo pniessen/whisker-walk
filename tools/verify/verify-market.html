@@ -93,6 +93,7 @@
   import { createComposerRig } from '/src/game/composer.js';
   import * as market from '/src/world/market.js';
   import { MARKET_SHOTS, MARKET_MOMENT_SHOTS, MARKET_REGISTRATION, MARKET_SPAWN, FOUNTAIN, TREAT_STALLS, stallById, fromStall } from '/src/world/marketplan.js';
+  import { applySeason, createDrift } from '/src/world/marketseason.js';
   import { createMarketPilot, MARKET_TOURS } from '/src/world/marketpilot.js';
   import { createMarketLive } from '/src/marketlive.js';
   import { createPeopleKit } from '/src/people/index.js';
@@ -173,6 +174,17 @@
   mergeStaticProps(scene);
 
   const camera = new THREE.PerspectiveCamera(55, W / H, 0.1, 300);
+  // beauty pass 4: ?season=spring|summer|autumn|winter tints the square and fills its air (the walk's life does this by the date);
+  // ?burst=<seconds> shows the fountain's surprise that many seconds after it leaves (a seasonal ?season is needed)
+  const SEASON = params.get('season');
+  let drift = null;
+  if (SEASON) {
+    applySeason(area.react, SEASON);
+    drift = createDrift(scene, { season: SEASON, reducedMotion: params.get('still') === '1' });
+    const at = 40;
+    if (params.has('burst')) drift.burst(at - Number(params.get('burst')));
+    drift.update(at, null);
+  }
   // her cat at the spawn, facing the fountain (the spawn and phone shots)
   const cat = buildCat(params.get('breed') || 'tabby', {});
   cat.position.set(MARKET_SPAWN.x, 0, MARKET_SPAWN.z);
@@ -221,7 +233,14 @@
   const CAT_SHOTS = new Set(['spawn', 'phone']);
   const frame = (name, v) => {
     const c = v.split(',').map(Number);
-    cat.visible = CAT_SHOTS.has(name);
+    // ?cat=x,z puts her cat there for the 'view' shot, facing its look-at point (the walk's chase camera, by hand)
+    const catAt = name === 'view' && params.has('cat') ? params.get('cat').split(',').map(Number) : null;
+    cat.visible = CAT_SHOTS.has(name) || !!catAt;
+    if (catAt) {
+      cat.position.set(catAt[0], 0, catAt[1]);
+      cat.rotation.set(0, Math.atan2(-(c[3] - catAt[0]), -(c[5] - catAt[1])), 0);
+      animateCat(cat, 'follow', 1, 0, false);
+    }
     if (partnerCat) partnerCat.visible = false;
     camera.fov = cat.visible ? 70 : 55;
     camera.updateProjectionMatrix();

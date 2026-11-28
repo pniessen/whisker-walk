@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { storySignPixel, storyTagPixel, isStorySign, isStoryTag, CHALK_DOODLES } from './marketdetail.js';
 
 // =============================================================================
 // THE MARKET'S KIT: one 256 x 128 px atlas (awning stripes, produce, sign
@@ -217,6 +218,7 @@ function chalkboardPixel(x, y) {
   if (x < 1 || y < 1 || x > 30 || y > 30) return BOARD_WOOD;
   // slate, with the faint smudge of old chalk wiped off
   let c = mixc(SLATE, CHALK.white, 0.05 * hash01(Math.floor(x / 3), Math.floor(y / 2), 151));
+  for (const [test, col] of CHALK_DOODLES) if (test(x + 0.5, y + 0.5)) c = col; // beauty pass 4: doodles between the pictures
   for (const [test, col] of CHALKBOARD) if (test(x + 0.5, y + 0.5)) c = col;
   return c;
 }
@@ -504,22 +506,6 @@ function butcherFront(x, y) {
   if (y > 21 && y < 25 && sc * sc + (y - 25) ** 2 > 2.6 * 2.6 && y > 22.5) c = rgbOf(0xf3ead2);
   return c;
 }
-function slatePixel(x, y) {
-  // a light price board: cream card in a wooden frame, a dark dot for the thing and gold coins (one, two, three) beside it
-  if (x < 2 || y < 2 || x > 29 || y > 29) return rgbOf(0x8a6642);
-  let c = rgbOf(0xf3e8c8);
-  if (x < 3.5 || y < 3.5 || x > 27.5 || y > 27.5) return rgbOf(0xc9a46a);
-  const rows = [24, 16, 8];
-  rows.forEach((cy, k) => {
-    if (inCircle(x, y, 7.5, cy, 3)) c = rgbOf(0x5a3b26);
-    for (let j = 0; j <= k; j++) {
-      const cx = 14 + j * 5.2;
-      if (inCircle(x, y, cx, cy, 2.7)) c = rgbOf(0x8a6a1c);
-      if (inCircle(x, y, cx, cy, 1.9)) c = rgbOf(0xf2c94c);
-    }
-  });
-  return c;
-}
 // The counter fronts live in a texture of their own (the beauty pass, round 2): four 128 px cells in
 // 256 x 256, drawn at four times the atlas's density and magnified without smoothing, so the gingham,
 // planks and rug keep their edges from a cat's height. Cell i at column i % 2, row floor(i / 2).
@@ -590,7 +576,8 @@ function boldValancePixel(i, x, y) {
 }
 
 function cellPixel(i, x, y) {
-  if (i === 36) return slatePixel(x, y);
+  if (isStoryTag(i)) return storyTagPixel(i, x, y); // beauty pass 4: bright price tags (36, 59-61)
+  if (isStorySign(i)) return storySignPixel(i, x, y); // beauty pass 4: hand-painted signs (30, 31, 37, 56-58)
   if (i >= 40 && i <= 43) return valancePixel(i, x, y);
   if (i >= BOLD_AWNING && i < BOLD_AWNING + 6) return awningPixel(i, x);
   if (i >= BOLD_VALANCE && i < BOLD_VALANCE + 6) return boldValancePixel(i, x, y);
@@ -745,6 +732,36 @@ export function addFlutter(material, kind, react = null) {
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
     if (react) { shader.uniforms.uMkCat = react.uMkCat; shader.uniforms.uMkSway = react.uMkSway; }
+    // beauty pass 4: the bunting's pictures (a paw, a fish, a mouse: the map's alpha is the flag's ground, 0 where the
+    // picture is, inked cream on a dark flag and brown on a pale one) and the winter frost on the awnings' upper faces
+    if (kind === 'flags') {
+      shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+#ifdef USE_MAP
+  {
+    vec3 fc = diffuseColor.rgb;
+    float pic = 1.0 - diffuseColor.a;
+    vec3 ink = dot(fc, vec3(0.3, 0.59, 0.11)) > 0.5 ? fc * 0.3 : vec3(0.97, 0.93, 0.82);
+    diffuseColor.rgb = mix(fc, ink, pic);
+    diffuseColor.a = 1.0;
+  }
+#endif`);
+    } else if (react && react.uMkSea) {
+      shader.uniforms.uMkSea = react.uMkSea;
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vMkN2;\nvarying vec3 vMkW2;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvMkN2 = normalize(mat3(modelMatrix) * objectNormal);\nvMkW2 = (modelMatrix * vec4(position, 1.0)).xyz;');
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vMkN2;\nvarying vec3 vMkW2;\nuniform vec4 uMkSea;')
+        .replace('#include <map_fragment>', `#include <map_fragment>
+  {
+    vec3 c = diffuseColor.rgb;
+    c *= vec3(1.0) + uMkSea.x * vec3(0.10, -0.02, -0.16) + uMkSea.y * vec3(-0.05, 0.0, 0.07) + uMkSea.w * vec3(0.04, 0.03, -0.01) + uMkSea.z * vec3(0.02, 0.02, 0.03);
+    float up = smoothstep(0.35, 0.75, abs(vMkN2.y));
+    float grain = 0.5 + 0.5 * sin(vMkW2.x * 9.0 + sin(vMkW2.z * 7.0) * 2.0) * sin(vMkW2.z * 11.0);
+    c = mix(c, vec3(0.9, 0.95, 1.0), uMkSea.y * up * smoothstep(0.15, 0.55, grain) * 0.75);
+    diffuseColor.rgb = c;
+  }`);
+    }
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>
 uniform float uMkT;
@@ -755,7 +772,7 @@ float mkNear() { return 1.0 + uMkSway * 2.4 * (1.0 - smoothstep(0.8, 4.5, length
       .replace('#include <begin_vertex>', `#include <begin_vertex>
 ${body}`);
   };
-  material.customProgramCacheKey = () => `market-flutter-${kind}-v1${react ? 'r' : ''}`;
+  material.customProgramCacheKey = () => `market-flutter-${kind}-v2${react ? 'r' : ''}`;
   material.userData.flutter = uniforms;
   return uniforms;
 }
