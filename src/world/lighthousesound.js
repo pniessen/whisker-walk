@@ -180,7 +180,9 @@ export function createLighthouseSound(audio) {
     } catch { dead = true; }
   }
 
+  // the golden moment's one soft chime (beauty pass 7): a bright fifth, two sines that ring and fade
+  const chime = () => play((c, master, now) => { [[784, 0], [1175, 0.16]].forEach(([f, at]) => voice(c, master, { f, at, dur: 1.7, gain: 0.022, attack: 0.02, now })); });
   const weather = (storm = 0, fog = 0) => { stormK = storm; fogK = fog; };
   const quiet = (on) => { hushGulls = !!on; };
-  return { weather, quiet, horn, bell, echo, gull, surf, mew, purr, beds, ambient, dispose() { dead = true; hush(); bed = null; } };
+  return { weather, quiet, chime, horn, bell, echo, gull, surf, mew, purr, beds, ambient, dispose() { dead = true; hush(); bed = null; } };
 }
