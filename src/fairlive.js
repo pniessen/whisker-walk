@@ -86,6 +86,17 @@ export const TUNE = Object.freeze({
   ]),
 });
 
+// The midway's other sounds (beauty pass 2): a calliope under the music box
+// (an oom-pah-pah on the same beat: a low note, then two chord notes), a crowd's
+// murmur every MURMUR seconds, and a bell each time the merry-go-round comes
+// round. Heard over `hear` metres from the merry-go-round and fading to nothing,
+// so the far corners of the field are quiet.
+export const MIDWAY = Object.freeze({
+  hear: 30, bellHear: 22, murmur: 2.4,
+  bass: Object.freeze([131, 131, 98, 131, 175, 131, 98, 131]), // per bar of three notes
+  chord: Object.freeze([[330, 392], [330, 392], [294, 392], [330, 392], [349, 440], [330, 392], [294, 392], [330, 392]]),
+});
+
 // The big wheel's camera (cameraFor below). In front of the wheel while her
 // gondola is below LOW, behind and above it over HIGH, and round the outside
 // of the wheel in between (ROUND metres further out at the middle of the way).
@@ -114,6 +125,7 @@ const CAM_EASE = 2.6; // 1/seconds: how fast the ride's camera takes over, and l
 //                      { type: 'lookout' } onto the lookout at the top of the big wheel,
 //                      { type: 'slide' } off down the helter-skelter, { type: 'slide-end' } onto its mat,
 //                      { type: 'boat-lap' } a whole swing of the boat ridden to the end (it pays: game/fairplay.js),
+//                      { type: 'calliope', freq, chord: [f, f], volume } the bass and chord of each bar, { type: 'murmur' | 'bell', volume } the crowd, the merry-go-round's bell (MIDWAY),
 //                      { type: 'boat-whoosh' | 'boat-creak', volume } the swing of the Viking boat, heard from near it
 export function createFairLive(scene, area, { camera = null, reducedMotion = false, now = wallClock, onEvent = () => {}, ground = FLAT_GROUND } = {}) {
   const sim = createFairSim(area, { reducedMotion });
@@ -132,6 +144,9 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
   const hop = { on: false, u: 0, dur: 0.3, x0: 0, z0: 0, x1: 0, z1: 0, h0: 0 };
   let wobble = 0;
   let noteAt = -1;
+  let murmurAt = -1;
+  let calliopeAt = -1;
+  let bellAt = null;
   let boatSwung = false; // on the boat, and it has swung since she got on: the lap is hers once it is calm again
   let quarterAt = -1; // the swing of the boat, in quarters: a whoosh at the bottom, a creak at each end
 
@@ -379,6 +394,27 @@ export function createFairLive(scene, area, { camera = null, reducedMotion = fal
         const freq = TUNE.notes[((n % TUNE.notes.length) + TUNE.notes.length) % TUNE.notes.length];
         const d = Math.hypot(cat.position.x - sim.mgr.cx, cat.position.z - sim.mgr.cz);
         if (freq > 0 && d < TUNE.HEAR) onEvent({ type: 'note', freq, volume: 1 - d / TUNE.HEAR });
+      }
+
+      // the calliope, the crowd and the merry-go-round's bell: quieter with distance, none far off
+      {
+        const dm = Math.hypot(cat.position.x - sim.mgr.cx, cat.position.z - sim.mgr.cz);
+        if (dm < MIDWAY.hear && ((n % 3) + 3) % 3 === 0 && calliopeAt !== n) {
+          calliopeAt = n;
+          const bar = (((Math.floor(n / 3)) % MIDWAY.bass.length) + MIDWAY.bass.length) % MIDWAY.bass.length;
+          onEvent({ type: 'calliope', freq: MIDWAY.bass[bar], chord: MIDWAY.chord[bar], volume: 1 - dm / MIDWAY.hear });
+        }
+        const mu = Math.floor(T / MIDWAY.murmur);
+        if (mu !== murmurAt) {
+          murmurAt = mu;
+          if (dm < MIDWAY.hear) onEvent({ type: 'murmur', volume: 1 - dm / MIDWAY.hear });
+        }
+        const lap = Math.floor(T / RIDE.MGR_TURN);
+        if (bellAt === null) bellAt = lap;
+        else if (lap !== bellAt) {
+          bellAt = lap;
+          if (dm < MIDWAY.bellHear) onEvent({ type: 'bell', volume: 1 - dm / MIDWAY.bellHear });
+        }
       }
 
       // the Viking boat: a gentle whoosh as it passes the bottom, a creak at each end, quieter with distance

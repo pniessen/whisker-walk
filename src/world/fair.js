@@ -6,7 +6,7 @@ import { sureClawsTreePerch } from '../climbing.js';
 import { tintGround, rectDist, smoothField, smoothstep, lerp3, lin } from './dressing.js';
 import { lawnMottle } from './park.js';
 import { withLocalUuids } from './localuuids.js';
-import { glowMaterial, GLOW_MAX, LAMP_LOOK } from './fairkit.js';
+import { glowMaterial, GLOW_MAX, LAMP_LOOK, FAIR_CLOCK } from './fairkit.js';
 import * as parts from './fairparts.js';
 import * as rides from './fairrides.js';
 import * as edge from './fairedge.js';
@@ -534,11 +534,14 @@ const GAP_BALES = Object.freeze([-1, 1].map((side, i) => Object.freeze({
 const GAP_BALE_COLLIDERS = Object.freeze([-1, 1].flatMap((side) => [0.3, 0.75, 1.2, 1.65]
   .map((u) => Object.freeze({ ...gapAlong(side * (GAP_STACK_FROM + u)), r: 0.3 }))));
 
+// A sunset-weather walk (golden hour) lights the bulbs part way: a warm twinkle before the dusk's full blaze.
+export const SUNSET_GLOW = 0.6;
 export function setFairGlow(area, t) {
   const k = Math.min(1, Math.max(0, Number.isFinite(t) ? t : 0));
   if (area?.glow?.material) area.glow.material.emissiveIntensity = GLOW_MAX * k;
   // the stalls' counters and goods, lit from inside (fairkit.js LAMP_LOOK)
   for (const m of area?.glow?.lamps ?? []) m.emissiveIntensity = LAMP_LOOK.max * k;
+  FAIR_CLOCK.lit.value = k;
   if (area?.glow) area.glow.level = k;
   return k;
 }

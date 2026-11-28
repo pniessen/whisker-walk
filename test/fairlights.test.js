@@ -243,3 +243,35 @@ describe('the clock', () => {
     still.dispose();
   });
 });
+
+// Beauty pass 2: lit bulbs swell, the midway has a calliope, a crowd and a bell.
+describe('the midway after dark (beauty pass 2)', () => {
+  it('lights swell the bulbs through one shared number', async () => {
+    const { setFairGlow } = await import('../src/world/fair.js');
+    setFairGlow(area, 1);
+    expect(FAIR_CLOCK.lit.value).toBe(1);
+    setFairGlow(area, 0);
+    expect(FAIR_CLOCK.lit.value).toBe(0);
+    expect(GLOW_LOOK.halo).toBeGreaterThan(0);
+  });
+  it('the calliope, murmur and bell play near the merry-go-round and are silent far away', async () => {
+    const { MIDWAY } = await import('../src/fairlive.js');
+    const run = (x, z) => {
+      const events = [];
+      let T = 100;
+      const live = createFairLive(scene, area, { now: () => T, onEvent: (e) => events.push(e) });
+      const cat = new THREE.Object3D(); cat.position.set(x, 0, z);
+      const player = { speed: 0, perchY: 0, halt() {}, setViewYaw() {} };
+      const session = { perched: null, idleTime: 0 };
+      for (let i = 0; i < 1800; i++) { T += 1 / 30; live.update(1 / 30, i / 30, { cat, player, session }); }
+      return events;
+    };
+    const near = run(0, 9.6);
+    const kinds = new Set(near.map((e) => e.type));
+    expect(kinds.has('calliope')).toBe(true);
+    expect(kinds.has('murmur')).toBe(true);
+    const far = run(-40, -40);
+    expect(far.some((e) => ['calliope', 'murmur', 'bell'].includes(e.type))).toBe(false);
+    expect(MIDWAY.hear).toBeGreaterThan(MIDWAY.bellHear);
+  });
+});
