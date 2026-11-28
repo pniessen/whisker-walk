@@ -6,6 +6,8 @@ import * as on from '../src/clanwords.js';
 import * as off from '../src/offclanwords.js';
 import { realBuild } from './helpers/realbuild.js';
 import { IOS_MODE } from '../vite.config.js';
+import { startupFiles } from '../scripts/buildjson.mjs';
+import { VAULT } from '../src/seriesvault.js';
 import { scanText, scanDir, bundleDenyList, ORDINARY_DENIED } from '../scripts/bundlewords.mjs';
 
 describe('scanText', () => {
@@ -78,6 +80,18 @@ describe('the public files say nothing of the series', () => {
       expect(offences).toEqual([]);
     }, 300_000);
   }
+
+  it('the sealed vault is in a lazy chunk of its own, not in start-up, and is ciphertext', async () => {
+    const b = await realBuild('production');
+    const entry = Object.entries(b.manifest).find(([src]) => /src\/seriesvault\.js$/.test(src));
+    expect(entry, 'the vault is a chunk').toBeTruthy();
+    expect(entry[1].isDynamicEntry).toBe(true);
+    expect(startupFiles(b.manifest)).not.toContain(entry[1].file);
+    const chunk = b.files.get(entry[1].file);
+    expect(chunk.code).toContain(VAULT.data);
+    expect(chunk.code).not.toMatch(/Clan\b/);
+    for (const o of b.outputs) expect(o.fileName).not.toMatch(/clanwords/);
+  }, 300_000);
 
   it('index.html and every file in public/ say nothing of the series either', () => {
     const files = ['index.html', ...globSync('public/**/*').filter((f) => /\.(html|js|json|css|svg|webmanifest|txt)$/.test(f))];

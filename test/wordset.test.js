@@ -85,13 +85,19 @@ describe('the word file has one door', () => {
     ]) expect(importsOf(src).some(isWordFile), src).toBe(false);
   });
 
-  it('no module but the door and the phrase table reads a set\'s PHRASES, and none changes the mode', () => {
+  it('no module but the door and the phrase table reads a set\'s PHRASES, and none but main.js changes the mode or the lock installs the family set', () => {
     for (const f of FILES) {
       if (f === 'src/wordset.js') continue;
       const code = read(f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-      expect(code, f).not.toMatch(/\b(setSeriesMode|addWordSet|removeWordSet)\b/);
+      expect(code, f).not.toMatch(f === 'src/main.js' ? /\b(addWordSet|removeWordSet)\b/ : /\b(setSeriesMode|addWordSet|removeWordSet)\b/); // main.js chooses the set the save wants (applyWordSet)
+      if (f !== 'src/serieslock.js') expect(code, f).not.toMatch(/\binstallSeriesSet\b/);
       if (f !== 'src/clanphrases.js') expect(code, f).not.toMatch(/\.PHRASES\b/);
     }
+  });
+  it('only the lock imports the sealed vault, and only the door imports the everyday set', () => {
+    const importing = (re) => FILES.filter((f) => importsOf(read(f)).some((spec) => re.test(spec)));
+    expect(importing(/(^|\/)seriesvault\.js$/)).toEqual(['src/serieslock.js']);
+    expect(importing(/(^|\/)offclanwords\.js$/)).toEqual(['src/wordset.js']);
   });
 });
 

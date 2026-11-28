@@ -787,7 +787,7 @@ describe('createProgression', () => {
         clan: { name: null, adopted: false },
         marks: { neighborhood: [], park: [], seaside: [], docks: [], woods: [], river: [], moor: [], pines: [], gorge: [], farm: [], fair: [], roofs: [], market: [], lighthouse: [], den: [] },
         visits: 0, visitPrizesSeen: 0, visitPrizePending: null,
-        mapMode: 'north', edition: 'canon',
+        mapMode: 'north', edition: 'canon', wordSet: null,
         clanPick: { mine: null, partner: null, partnerId: null },
         // World map step 1: a bare save has no Park explores, so it keeps no old offer.
         keptOffers: [],
@@ -2409,7 +2409,7 @@ describe('the colony save key', () => {
     expect(p.state.version).toBe(4);
     expect(p.state.colony).toEqual(emptyColony());
     // ...and everything else came through untouched
-    const { colony, clanRoles, clan, marks, retired, redeemed, visits, visitPrizesSeen, visitPrizePending, mapMode, edition, clanPick, customCats, moreCatSlots, outfits, usage, fightsWon, fightMoves, scars, scarredIntruders, tutorial, foundWear, events, holidays, holidayFinds, sleepingCats, keptOffers, ...rest } = p.state;
+    const { colony, clanRoles, clan, marks, retired, redeemed, visits, visitPrizesSeen, visitPrizePending, mapMode, edition, wordSet, clanPick, customCats, moreCatSlots, outfits, usage, fightsWon, fightMoves, scars, scarredIntruders, tutorial, foundWear, events, holidays, holidayFinds, sleepingCats, keptOffers, ...rest } = p.state;
     // World map step 1: 2 Park walks and no Seaside, so this old save keeps the old offer (after the Park, for 100).
     expect(keptOffers).toEqual(['seaside']);
     // 2026-11-15, guided-first-walk design (section 8): this save has points, so it is an existing player's.

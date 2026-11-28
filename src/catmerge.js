@@ -248,6 +248,7 @@ export const MERGE_RULES = Object.freeze({
   visitPrizePending: (r) => settled(r.L.visitPrizePending, r.C.visitPrizePending, (l, c) => (l === c ? l : newer(l, c, r.B?.visitPrizePending, r.ctx))),
   mapMode: (r) => newer(r.L.mapMode, r.C.mapMode, r.B?.mapMode, r.ctx),
   edition: (r) => newer(r.L.edition, r.C.edition, r.B?.edition, r.ctx),
+  wordSet: (r) => newer(r.L.wordSet, r.C.wordSet, r.B?.wordSet, r.ctx),
   clanPick: (r) => {
     const l = r.L.clanPick; const c = r.C.clanPick;
     const pair = l.partnerId && c.partnerId && l.partnerId !== c.partnerId ? newer(l, c, r.B?.clanPick, r.ctx) : (l.partnerId ? l : c.partnerId ? c : l);
@@ -292,7 +293,7 @@ export const MERGE_RULES = Object.freeze({
 // (Object keys, not strings: the word tests read string literals, and `clan` is a key here.)
 const BASE_WANTED = {
   points: 1, walks: 1, unlocked: 1, equipped: 1, customCats: 1, area: 1, lifetimePoints: 1, petName: 1, den: 1,
-  duskWalks: 1, moon: 1, reef: 1, crystal: 1, snowville: 1, treehouse: 1, jungle: 1, clan: 1, visits: 1, visitPrizesSeen: 1, visitPrizePending: 1, mapMode: 1, edition: 1, clanPick: 1, fightsWon: 1, sleepingCats: 1,
+  duskWalks: 1, moon: 1, reef: 1, crystal: 1, snowville: 1, treehouse: 1, jungle: 1, clan: 1, visits: 1, visitPrizesSeen: 1, visitPrizePending: 1, mapMode: 1, edition: 1, wordSet: 1, clanPick: 1, fightsWon: 1, sleepingCats: 1,
 };
 export const BASE_KEYS = Object.freeze(Object.keys(BASE_WANTED));
 
