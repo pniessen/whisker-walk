@@ -1,4 +1,4 @@
-// The Treehouse, beauty pass 7 (2026-11-28): PHOTOGENIC VISTAS. Five spots where the walk's own camera (behind her, 7 m back at the second zoom step) frames a picture: the Bakery landing looking up the great oak,
+// The Treehouse, beauty pass 7 (2026-11-28): PHOTOGENIC VISTAS. Five spots where the walk's own camera (behind her, 7 m back at the second zoom step) frames a picture: the Bakery landing looking up the big oak,
 // the high bridge with its flags and kite, the Bakery deck at golden hour, the stairs to the Crown, and the Bell Tower's base. Standing at one (and the camera looking the way the picture wants) eases in:
 //   * a warm grade, three bands of haze (warm near, green between, blue far), the frame's edges dimmed with the leaves there gone deeper green, and a warm key on the focal point (treehouseglow.js, one uniform set);
 //   * a warm rim on her fur: the village's one real light (made at intensity 0) is borrowed for the moment, behind her, whenever nobody else is using it;
@@ -13,7 +13,7 @@ const fr = (v) => v - Math.floor(v);
 // A vista: where she stands, how far it reaches, the way the picture faces (unit, on the ground), the focal point and how strongly each part of the look comes in.
 const V = (id, x, y, z, r, dx, dz, fx, fy, fz, glow, haze) => Object.freeze({ id, x, y, z, r, dx, dz, f: Object.freeze({ x: fx, y: fy, z: fz }), glow, haze });
 export const VISTAS = Object.freeze([
-  V('oak', -5.0, 2.8, 8.1, 3.4, 0.34, -0.94, 0.0, 5.2, -3.2, 1.1, 1.0), // the first landing, looking up the great oak: the oak's face is the focal
+  V('oak', -5.0, 2.8, 8.1, 3.4, 0.34, -0.94, 0.0, 5.2, -3.2, 1.1, 1.0), // the first landing, looking up the big oak: the oak's face is the focal
   V('bridge', 4.4, 4.2, -8.6, 3.2, -0.55, -0.85, 5.4, 7.7, -10.0, 1.0, 1.0), // the high bridge: the kite
   V('bakery', -8.6, 1.4, 12.4, 3.4, 0.8, -0.6, -9.6, 2.9, 9.6, 1.2, 1.0), // the Bakery deck: the hut's front, richest at golden hour
   V('stairs', 2.5, 4.9, -10.8, 3.0, -0.58, -0.82, 0.0, 9.3, -16.0, 0.9, 1.15), // the flight to the Crown, half way up: the bell above, a deeper blue behind
