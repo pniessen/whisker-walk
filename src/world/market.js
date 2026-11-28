@@ -5,7 +5,7 @@ import { litMaterial, surfaceMaterialNoMap, tileMetres } from '../render/materia
 import { getTextureAnisotropy } from '../render/textures.js';
 import { withLocalUuids } from './localuuids.js';
 import { hash01 } from './warehouselook.js';
-import { createMarketParts, marketMaterials, atlasCell, frontCell, buildTreatMesh, createCobbleTexture, bloomGeometry, BLOOMS, ATLAS_W, ATLAS_H } from './marketparts.js';
+import { createMarketParts, marketMaterials, addFlutter, atlasCell, frontCell, buildTreatMesh, createCobbleTexture, bloomGeometry, BLOOMS, ATLAS_W, ATLAS_H } from './marketparts.js';
 import { buildAppleCrate, buildYarnBasket, buildPullToy } from './marketfruit.js';
 import { createMarketLife } from './marketlife.js';
 import {
@@ -87,6 +87,7 @@ export const MARKET_COBBLE = 0x8b8478; // the cobbles, and the ground bounce
 export const MARKET_SKY = Object.freeze({ top: 0x8ec4ea, horizon: 0xe8e0cc }); // a clear, warm morning
 export const MARKET_SKY_DUSK = Object.freeze({ top: 0x2a3358, horizon: 0xa86e62 });
 export const LANTERN_MAX = 1.6; // the lanterns' emissiveIntensity at full dusk
+export const LANTERN_DAY = 0.6; // and by day (beauty pass 2: a lit lantern's warm glow shows in the sun too, no real light)
 export const WINDOW_GLOW = 1.0; // the lit shop and house windows' at full dusk
 const GROUND_SIZE = 96;
 // The cobbles (Task 6): tiled at 0.6 m, so a tile's four rows are 15 cm stones
@@ -105,7 +106,7 @@ const FLAG_RING = Object.freeze({ r0: 3.15, r1: 5.4, y: 0.012, color: 0x9a9284 }
 // The far town, round the shop fronts: blocks hazed by the fog, some tall
 // enough to show over the roofs.
 export const MARKET_HORIZON = Object.freeze({
-  kind: 'skyline', inner: 32, outer: 92, height: 16, wavelength: 40, blocks: 26, color: 0x8f8584, salt: 67,
+  kind: 'skyline', inner: 32, outer: 92, height: 16, wavelength: 40, blocks: 26, color: 0x8f8584, salt: 67, windowGap: 2, around: 96, outSegs: 6,
 });
 
 // The fountain: the Park's (r 2.65 at its plinth) scaled to the plan's r 3.2,
@@ -141,12 +142,12 @@ const WICKER = 0xb08a52;
 // Each stall's own look: its awning cell, its sign's picture cell, the
 // painted counter front and what is on the counter.
 const STALL_LOOK = Object.freeze({
-  fish: { awning: 0, sign: 11, paint: 0x5d7fa8, goods: 'fish' },
-  baker: { awning: 1, sign: 12, paint: 0xa8524a, goods: [9] },
-  cheese: { awning: 2, sign: 13, paint: 0xc9a24a, goods: [10] },
-  milk: { awning: 3, sign: 14, paint: 0x5f8f5e, goods: 'churns' },
-  flowers: { awning: 4, sign: 8, paint: 0xc98aa0, goods: 'buckets' },
-  fruit: { awning: 0, sign: 6, paint: 0x6b8fb8, goods: [6, 7] },
+  fish: { awning: 44, sign: 11, paint: 0x5d7fa8, goods: 'fish', valance: 50 },
+  baker: { awning: 45, sign: 12, paint: 0xa8524a, goods: [9], valance: 51 },
+  cheese: { awning: 46, sign: 13, paint: 0xc9a24a, goods: [10], valance: 52 },
+  milk: { awning: 47, sign: 14, paint: 0x5f8f5e, goods: 'churns', valance: 53 },
+  flowers: { awning: 48, sign: 8, paint: 0xc98aa0, goods: 'buckets', valance: 54 },
+  fruit: { awning: 49, sign: 6, paint: 0x6b8fb8, goods: [6, 7], valance: 55 }, // beauty pass 2: bold awning cells 44-49, scalloped valances 50-55
   // 2026-11-22: atlas cells 18-21 (awnings), 22-25 (signs), 26-29 (goods)
   toys: { awning: 18, sign: 22, paint: 0x7a5aa8, goods: 'toys', front: 0, valance: 40 },
   plants: { awning: 19, sign: 24, paint: 0x3f7a5a, goods: 'plants', front: 1, valance: 41 },
@@ -250,7 +251,7 @@ function intoCell(g, cell) {
   return g;
 }
 
-const KEEP = ['position', 'normal', 'uv'];
+const KEEP = ['position', 'normal', 'uv', 'aFlap'];
 // A clone of `geo`, moved into place, with exactly the attributes a bucket
 // merges (position, normal, uv, and color for a vertex-coloured material).
 // `own`: keep the geometry's own vertex colours (a flower's petals and middle).
@@ -345,8 +346,7 @@ function valance(sx, z, yTop, h, n = 8) {
 // scallop to each stripe (n of them, 4 segments each); its top follows the sheet's edge, three
 // rows of vertices (top, the trim band's top, the hem) so the atlas cell's stripes run down it
 // and its accent band follows the scallops. UVs 0..1 (the cell squeezes them: valancePixel).
-function scallopValance(sx, z, yTop, h, n = 8) {
-  const SEG = 4;
+function scallopValance(sx, z, yTop, h, n = 8, SEG = 4) {
   const cols = n * SEG;
   const depth = 0.09;
   const bandH = 0.1;
@@ -384,7 +384,7 @@ export function setMarketDusk(area, k) {
   const t = Math.min(1, Math.max(0, Number.isFinite(k) ? k : 0));
   const look = area?.look;
   if (!look) return;
-  look.lantern.emissiveIntensity = LANTERN_MAX * t;
+  look.lantern.emissiveIntensity = LANTERN_DAY + (LANTERN_MAX - LANTERN_DAY) * t;
   look.windows.emissiveIntensity = WINDOW_GLOW * t;
   const packed = t > 0.5;
   look.packing.visible = packed;
@@ -406,6 +406,7 @@ export function build(scene, { water = {}, wind } = {}) { // eslint-disable-line
     const M = marketMaterials();
     const paint = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0 });
     const flags = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0, side: THREE.DoubleSide });
+    addFlutter(flags, 'flags'); // the breeze in the bunting (the life sets its amplitude)
     const barrel = new THREE.CylinderGeometry(0.5, 0.5, 1, 12).translate(0, 0.5, 0);
     const wheel = new THREE.CylinderGeometry(0.5, 0.5, 1, 14).translate(0, 0.5, 0);
     const disc = new THREE.CircleGeometry(0.5, 10).rotateX(-Math.PI / 2);
@@ -493,9 +494,12 @@ export function build(scene, { water = {}, wind } = {}) { // eslint-disable-line
       treatMeshes[id] = t;
     }
 
+    // the bunting's strings (beauty pass 2: lanterns hang from them, so it is drawn before the lanterns' mesh)
+    const buntingMesh = drawBunting(PARTS, flags, poles, lanterns);
+
     // the lanterns: one mesh, one material
     const lk = makeKit('marketLanterns');
-    for (const p of lanterns) lk.put('lantern', M.lantern, PARTS.dome, mat4(p.x, p.y, p.z, { sx: 0.16, sy: 0.19, sz: 0.16 }), { noCast: true });
+    for (const p of lanterns) lk.put('lantern', M.lantern, PARTS.dome, mat4(p.x, p.y, p.z, { sx: 0.16 * (p.s ?? 1), sy: 0.19 * (p.s ?? 1), sz: 0.16 * (p.s ?? 1) }), { noCast: true });
     const lanternMesh = lk.meshes()[0];
     lanternMesh.name = 'marketLanterns';
     scene.add(lanternMesh);
@@ -506,11 +510,12 @@ export function build(scene, { water = {}, wind } = {}) { // eslint-disable-line
     packing.visible = false;
     scene.add(baskets, packing);
 
-    scene.add(drawBunting(PARTS, flags, poles));
+    scene.add(buntingMesh);
     // the shop fronts, and a share of their windows lit at dusk (the lit kit above)
     const sack = new THREE.SphereGeometry(0.5, 6, 4);
     const footBarrel = new THREE.CylinderGeometry(0.5, 0.5, 1, 8).translate(0, 0.5, 0); // eight sides: the foot's barrels are small and far
-    for (const side of SIDES) scene.add(drawShopFront(side, { paint, winLit, litKit, barrel: footBarrel, sack }));
+    const chimneys = [];
+    for (const side of SIDES) scene.add(drawShopFront(side, { paint, winLit, litKit, barrel: footBarrel, sack, chimneys }));
     footBarrel.dispose();
     const windows = litKit.meshes()[0];
     windows.name = 'marketWindowsLit';
@@ -566,8 +571,12 @@ export function build(scene, { water = {}, wind } = {}) { // eslint-disable-line
       anchors: Object.fromEntries(Object.entries(MARKET_ANCHORS).map(([k, v]) => [k, { ...v }])),
       // the parked bicycle's group: the life rocks it when she lands in its basket (V8)
       bicycle,
+      // the shop fronts' chimney pots that smoke (the life draws it, roofsair.js)
+      chimneys,
       // what setMarketDusk drives
       look: { lantern: M.lantern, windows: winLit, packing, baskets, level: 0 },
+      // the breeze in the awnings and the bunting: uniforms { uMkT, uMkAmp }, the life's to drive (marketlife.js)
+      flutter: [M.awning.userData.flutter, flags.userData.flutter],
     };
     record.life = (ctx) => createMarketLife(record, ctx);
     return record;
@@ -745,7 +754,7 @@ function drawStall(s, { PARTS, M, paint, barrel, wheel, disc, quad, lanterns, po
   K.put('awning', M.awning, PARTS.awningSheet(look.awning), mat4(0, AWNING.y, awn.cz, { sx: awn.sx, sy: AWNING.rise, sz: awn.sz }), { tag: { awning: true } });
   {
     const flap = look.valance != null
-      ? scallopValance(awn.sx, awn.z1, (x) => awn.yAt(x, awn.z1) + 0.01, 0.32)
+      ? scallopValance(awn.sx, awn.z1, (x) => awn.yAt(x, awn.z1) + 0.01, 0.32, 8, look.valance >= 50 ? 3 : 4)
       : valance(awn.sx, awn.z1, (x) => awn.yAt(x, awn.z1) + 0.01, 0.26);
     K.put('awning', M.awning, flap, null, { cell: look.valance ?? look.awning });
     flap.dispose();
@@ -757,14 +766,14 @@ function drawStall(s, { PARTS, M, paint, barrel, wheel, disc, quad, lanterns, po
     atlas(sign, mat4(0, awn.yAt(0, sz) + SIGN.lift, sz), look.sign);
     sign.dispose();
   }
-  // the lanterns: a string along the awning's front edge (the treat stalls)
-  if (TREAT_STALLS.includes(s.id)) {
+  // the lanterns: a string along the awning's front edge (every stall: the flower and fruit stalls' came in beauty pass 2)
+  {
     const n = 5;
     for (let i = 0; i < n; i++) {
       const lx = -W / 2 + 0.15 + (i * (W - 0.3)) / (n - 1);
-      const z = awn.z1 - 0.04;
-      const p = new THREE.Vector3(lx, awn.yAt(lx, z) - 0.16 - 0.06 * Math.sin((Math.PI * i) / (n - 1)), z).applyMatrix4(toWorld);
-      lanterns.push({ x: p.x, y: p.y, z: p.z });
+      const z = awn.z1 + 0.03; // in front of the scalloped valance, hanging below its hem
+      const p = new THREE.Vector3(lx, awn.yAt(lx, awn.z1) - 0.4 - 0.06 * Math.sin((Math.PI * i) / (n - 1)), z).applyMatrix4(toWorld);
+      lanterns.push({ x: p.x, y: p.y, z: p.z, s: 1.9 });
     }
   }
 
@@ -928,6 +937,36 @@ function drawStall(s, { PARTS, M, paint, barrel, wheel, disc, quad, lanterns, po
       const x = -W / 2 + 0.35 + (i * (W - 0.7)) / (n - 1);
       metal(PARTS.basket, mat4(x, top, cz, { sx: 0.34, sy: 0.3, sz: 0.34 }));
       atlas(disc, mat4(x, top + 0.29, cz, { sx: 0.4, sz: 0.4 }), 8);
+    }
+  }
+
+  // beauty pass 2: produce piled high in strong colours on the older six stalls' counters (twenty-sided balls and
+  // six-sided wheels in the paint bucket: no new mesh), each heap over its crate or bucket
+  if (!cart || look.goods === 'buckets' || look.goods === 'fish') {
+    const FRUITS = [[0xd6262b, 0xf08a14, 0xd6262b, 0x7ab648, 0xf2c200], [0xf08a14, 0xd6262b, 0xf2c200, 0xd6262b, 0x7ab648]];
+    if (s.id === 'fruit' || s.id === 'baker' || s.id === 'cheese') {
+      const n = Math.max(2, Math.floor((W - 0.3) / 0.6));
+      for (let i = 0; i < n; i++) {
+        const x = -W / 2 + 0.15 + 0.3 + (i * (W - 0.9)) / (n - 1);
+        const y = top + 0.2;
+        const z = cz - 0.05;
+        if (s.id === 'fruit') {
+          const cols = FRUITS[i % 2];
+          [[-0.1, 0, -0.06], [0.1, 0, -0.06], [-0.1, 0, 0.1], [0.1, 0, 0.1], [0, 0.15, 0.02]].forEach(([dx, dy, dz], j) => bulb(x + dx * 1.2, y + dy * 1.3, z + dz, 0.26, 0.26, 0.26, cols[j]));
+        } else if (s.id === 'baker') {
+          const cols = [0xc98a3e, 0xdca64f, 0xb87430];
+          [[-0.1, 0, -0.07], [0.1, 0, -0.07], [-0.1, 0, 0.09], [0.1, 0, 0.09]].forEach(([dx, dy, dz], j) => bulb(x + dx, y - 0.02 + dy, z + dz, 0.32, 0.19, 0.19, cols[(i + j) % 3], { yaw: (j - 1.5) * 0.12 }));
+          bulb(x, y + 0.11, z + 0.01, 0.28, 0.16, 0.16, cols[(i + 1) % 3], { yaw: 0.1 });
+        } else {
+          [[0.36, 0xf2c200], [0.28, 0xe8a93a], [0.2, 0xf5d24a]].forEach(([r, c], j) => drum(x, y - 0.04 + j * 0.09, z, r, 0.1, r, c));
+        }
+      }
+    } else if (look.goods === 'buckets') {
+      const blooms = [0xf0488a, 0xf5c542, 0xd6262b, 0xa65fd6, 0xffffff, 0xf08a14];
+      for (let i = 0; i < 4; i++) {
+        const x = -W / 2 + 0.35 + (i * (W - 0.7)) / 3;
+        [[0, 0.38, 0, 0.4], [-0.16, 0.3, 0.05, 0.28], [0.17, 0.33, -0.04, 0.28], [0.02, 0.58, 0.0, 0.24]].forEach(([dx, dy, dz, d], j) => bulb(x + dx, top + dy, cz + dz, d, d * 0.8, d, blooms[(i * 2 + j) % blooms.length]));
+      }
     }
   }
 
@@ -1398,7 +1437,7 @@ function crossedString() {
   return g;
 }
 
-function drawBunting(PARTS, flags, poles) {
+function drawBunting(PARTS, flags, poles, lanterns) {
   const K = makeKit('marketBunting');
   const mast = new THREE.Vector3(FOUNTAIN.x, MAST_TOP, FOUNTAIN.z);
   const string = crossedString(); // two crossed strips (4 triangles), not a box (12)
@@ -1408,6 +1447,15 @@ function drawBunting(PARTS, flags, poles) {
     z: a.z + (mast.z - a.z) * t,
   });
   const ribbon = new THREE.PlaneGeometry(0.07, 0.7).translate(0, -0.35, 0);
+  // every piece carries aFlap (the shader's weight): 0 on a string, 0..1 down a pennant or streamer
+  const weigh = (g, drop) => {
+    const pos = g.attributes.position;
+    g.setAttribute('aFlap', new THREE.Float32BufferAttribute(Array.from({ length: pos.count }, (_, i) => (drop ? Math.min(1, Math.max(0, -pos.getY(i) / drop)) : 0)), 1));
+    return g;
+  };
+  weigh(string, 0);
+  weigh(ribbon, 0.7);
+  const pennantG = weigh(PARTS.pennant.clone(), 1);
   poles.forEach((a, k) => {
     // two streamers hang from each pole's top (beauty pass 1)
     K.put('flags', flags, ribbon, mat4(a.x, a.y - 0.05, a.z, { yaw: k * 1.3, roll: 0.08 }), { color: PENNANT_COLORS[k % PENNANT_COLORS.length], noCast: true });
@@ -1423,15 +1471,23 @@ function drawBunting(PARTS, flags, poles) {
       const l = Math.hypot(h, q.y - p.y);
       K.put('flags', flags, string, mat4((p.x + q.x) / 2, (p.y + q.y) / 2, (p.z + q.z) / 2, { yaw, roll, sx: l }), { color: 0x3a3a3a, noCast: true });
     }
+    // beauty pass 2: paper lanterns hung from the string's last third, toward the fountain's mast (further out they
+    // could cross a stallholder's busy bubble from the chase camera: marketlive.test.js's sight test), 0.4 m wide, glowing warm
+    for (const t of [0.7, 0.8, 0.9]) {
+      const p = at(a, t);
+      lanterns.push({ x: p.x, y: p.y - 0.32, z: p.z, s: 2.8 });
+      K.put('flags', flags, string, mat4(p.x, p.y - 0.11, p.z, { roll: Math.PI / 2, sx: 0.2 }), { color: 0x3a3a3a, noCast: true });
+    }
     const n = Math.floor(len / PENNANT.every);
     for (let i = 1; i < n; i++) {
       const p = at(a, i / n);
       const c = PENNANT_COLORS[Math.floor(hash01(i, k, 31) * PENNANT_COLORS.length) % PENNANT_COLORS.length];
-      K.put('flags', flags, PARTS.pennant, mat4(p.x, p.y, p.z, { yaw, sx: PENNANT.w, sy: PENNANT.h }), { color: c, noCast: true });
+      K.put('flags', flags, pennantG, mat4(p.x, p.y, p.z, { yaw, sx: PENNANT.w, sy: PENNANT.h }), { color: c, noCast: true });
     }
   });
   string.dispose();
   ribbon.dispose();
+  pennantG.dispose();
   const m = K.meshes()[0];
   m.name = 'marketBunting';
   m.userData.bunting = true;
@@ -1513,7 +1569,7 @@ function drawGroundDecor(K, { paint, quad, disc }) {
 }
 
 // --- the shop fronts: one row of town buildings a side, one mesh
-function drawShopFront(side, { paint, winLit, litKit, barrel, sack }) {
+function drawShopFront(side, { paint, winLit, litKit, barrel, sack, chimneys }) {
   const K = makeKit(`marketShops:${side.id}`);
   const sideM = mat4(side.x, 0, side.z, { yaw: side.yaw });
   const put = (geo, m, color, own = false) => K.put('paint', paint, geo, sideM.clone().multiply(m), { color, noCast: true, own }); // WHAT CASTS
@@ -1534,12 +1590,13 @@ function drawShopFront(side, { paint, winLit, litKit, barrel, sack }) {
   for (const [g0, g1] of side.gaps) { runs.push([from, g0]); from = g1; }
   runs.push([from, side.u1]);
   let k = 0;
+  const pots = []; // each chimney pot's top, in the row's frame (beauty pass 2: a smoking one or two a side)
   for (const [r0, r1] of runs) {
     let u = r0;
     while (u < r1 - 0.01) {
       let w = 5.2 + 2.6 * hash01(u, si, 71);
       if (r1 - (u + w) < 3) w = r1 - u;
-      house(put, lit, cube, plane, u, w, k, si, shapes);
+      house(put, lit, cube, plane, u, w, k, si, shapes, pots);
       u += w;
       k++;
     }
@@ -1576,6 +1633,12 @@ function drawShopFront(side, { paint, winLit, litKit, barrel, sack }) {
       for (const dv of [0.2, 0.6]) put(cube, mat4(u + 0.95, 0.47, dv, { sx: 0.8, sy: 0.04, sz: 0.04 }), 0x6e5038);
       put(cube, mat4(u - 0.1, 0.47, 0.4, { yaw: 0.1, sx: 0.44, sy: 0.28, sz: 0.38 }), CRATE);
     }
+  }
+  // the smoking chimneys: the middle pot of a side's, on the north, west and east rows (the south is behind her at the spawn) (the life draws their smoke)
+  if (si !== 1 && pots.length) {
+    const [px, py, pz] = pots[Math.floor(pots.length / 2)];
+    const w = new THREE.Vector3(px, py, pz).applyMatrix4(sideM);
+    chimneys.push({ x: w.x, y: w.y, z: w.z });
   }
   cube.dispose();
   plane.dispose();
@@ -1630,7 +1693,7 @@ function wallBox(bottom, top) {
 
 // One town building: u..u+w along the row, its front at v 0 facing the square.
 // `put(geo, matrix, color, own)` and `lit(geo, matrix)` are drawShopFront's; `K` its shared shapes.
-function house(put, lit, cube, plane, u, w, k, si, K) {
+function house(put, lit, cube, plane, u, w, k, si, K, pots) {
   const h1 = hash01(u, si, 81);
   const upper = h1 < 0.45 ? 1 : 2;
   const h = 3.4 + 2.9 * upper + 0.4;
@@ -1663,6 +1726,7 @@ function house(put, lit, cube, plane, u, w, k, si, K) {
     put(cube, mat4(cx, cy, -FRONT_DEPTH / 2, { sx: 0.5, sy: ch, sz: 0.6 }), 0x7a4a3a);
     put(cube, mat4(cx, cy + ch, -FRONT_DEPTH / 2, { sx: 0.66, sy: 0.12, sz: 0.76 }), 0xb9ad9a);
     put(cube, mat4(cx, cy + ch + 0.12, -FRONT_DEPTH / 2, { sx: 0.2, sy: 0.28, sz: 0.2 }), 0xb5693f);
+    pots.push([cx, cy + ch + 0.4, -FRONT_DEPTH / 2]);
   }
   // a dormer on some of the roofs, lit at dusk on half of them
   if (hash01(u, si, 101) < 0.34) {

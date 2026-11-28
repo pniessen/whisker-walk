@@ -108,8 +108,9 @@ const clearOf = (x, z, colliders) => Math.min(...colliders.map((c) => Math.hypot
 // 2026-11-22 (buildings round of the beauty pass, the town fronts: sky-glass, bars, sills, shutters, flower boxes, window goods, fascia bars, awnings, signs, door panels, courses, tile courses, dormers; the foot's sacks and barrels coarser, boxes without undersides): +2,436 triangles, no new mesh (marketlive's people test leaves about 100 of the 62,000 ceiling)
 // 2026-11-27 (buildings beauty round 2: roof tile courses and tone per roof, gutters, ridge caps, chimney caps and pots, brick courses, drainpipes; paid for by thinning the far skyline from 56 to 26 blocks): -70 triangles, no new mesh
 // 2026-11-28 (beauty pass 1: paved ring and sett runs, puddles, crumbs, petals, stall mats, fountain coins, pole streamers, all in existing noCast meshes; paid for by a 4-triangle bunting thread (was 12) and a 20-sided spire (was 32)): -1,248 triangles, no new mesh
-const MEASURED_BUILT = { meshes: 145, casters: 35, triangles: 46226 };
-const MEASURED_MERGED = { meshes: 142, casters: 32, triangles: 46226 };
+const MEASURED_BUILT = { meshes: 145, casters: 35, triangles: 45840 };
+const MEASURED_MERGED = { meshes: 142, casters: 32, triangles: 45840 };
+// 2026-11-28 (beauty pass 2: bold awnings with scalloped trimmed valances on all ten stalls, produce piled high on four counters, a lantern string on every stall and paper lanterns on the last third of each bunting string, a warm daytime glow; paid for by the far skyline's coarser band (4,936 -> 1,814: 96 steps round, 6 across, windows twice as wide and far apart): -386 triangles, no new mesh (marketlive's people test: 145 + 34 meshes and 45,840 + 14,358 = 60,198 triangles, and the life's three chimney smokes add 420: 60,618 of the 62,000 street budget, was 60,584). The Market row (46,226 here) is a tripwire; the street budget of 62,000 for the whole frame is the limit: with the life's three chimney smokes (420 triangles) the frame is below)
 const MEASURED_DRAWS = 0;
 
 function budgetStats(s) {
@@ -340,7 +341,7 @@ describe('the Market Square drawn', () => {
     expect(windows.material.emissiveIntensity).toBe(0);
     expect(windows.geometry.index.count / 6).toBeGreaterThan(40); // a good share of the panes
     expect(lantern.isMesh).toBe(true);
-    expect(lantern.material.emissiveIntensity).toBe(0);
+    expect(lantern.material.emissiveIntensity).toBeCloseTo(0.6, 9); // beauty pass 2: the lanterns glow warm by day too (LANTERN_DAY)
     expect(packing.visible).toBe(false);
     expect(baskets.visible).toBe(true);
     for (const o of [lantern, packing, baskets]) expect(o.parent).toBe(scene);
@@ -355,11 +356,11 @@ describe('the Market Square drawn', () => {
     expect(lantern.material.emissiveIntensity).toBeCloseTo(1.6, 9);
     expect(packing.visible).toBe(true);
     setMarketDusk(area, 0.25);
-    expect(lantern.material.emissiveIntensity).toBeCloseTo(0.4, 9);
+    expect(lantern.material.emissiveIntensity).toBeCloseTo(0.85, 9); // 0.6 + 1.0 * 0.25
     expect(packing.visible).toBe(false);
     expect(baskets.visible).toBe(true);
     setMarketDusk(area, 0);
-    expect(lantern.material.emissiveIntensity).toBe(0);
+    expect(lantern.material.emissiveIntensity).toBeCloseTo(0.6, 9);
     expect(windows.material.emissiveIntensity).toBe(0);
     expect(packing.visible).toBe(false);
     expect(baskets.visible).toBe(true);
@@ -377,7 +378,7 @@ describe('the Market Square drawn', () => {
     const day = area.life(ctx(false));
     expect(typeof day.update).toBe('function');
     expect(typeof day.dispose).toBe('function');
-    expect(lantern.material.emissiveIntensity).toBe(0);
+    expect(lantern.material.emissiveIntensity).toBeCloseTo(0.6, 9);
     expect(packing.visible).toBe(false);
     day.update(0.016);
     day.dispose();
@@ -389,7 +390,7 @@ describe('the Market Square drawn', () => {
     expect(scene.children.length).toBe(before);
     dusk.dispose();
     const again = createMarketLife(area, { scene, dusk: false });
-    expect(lantern.material.emissiveIntensity).toBe(0);
+    expect(lantern.material.emissiveIntensity).toBeCloseTo(0.6, 9);
     expect(packing.visible).toBe(false);
     again.update(0.016, 0, null, null, null); // no session yet: nothing to watch, nothing breaks
     again.dispose();
