@@ -43,4 +43,10 @@ describe('moods (beauty pass 6)', () => {
     const m = M.createCrystalMood({ scene }); tick(m, 2, { x: 0, y: 0, z: 0 }, 315); expect(l.intensity).toBeLessThan(0.6); expect(scene.fog.far).toBeLessThan(30);
     m.dispose(); expect(l.intensity).toBe(1); expect(scene.fog.far).toBe(38);
   });
+  it('the arch door of light thins out as she comes through and is restored on dispose (pass 7)', () => {
+    const scene = new THREE.Scene(); const door = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial()); door.name = 'crystal:glow'; scene.add(door);
+    const m = M.createCrystalMood({ scene }); m.update(0.03, 1, { x: 0, y: 0, z: 40 }); expect(door.material.opacity).toBe(1);
+    m.update(0.03, 1.1, { x: 0, y: 0, z: 24.5 }); expect(door.material.opacity).toBeLessThan(0.4); expect(door.material.opacity).toBeGreaterThan(0.2);
+    m.dispose(); expect(door.material.opacity).toBe(1); expect(door.material.transparent).toBe(false);
+  });
 });

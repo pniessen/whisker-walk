@@ -33,6 +33,8 @@ export const heroSites = () => planBeauty2('high').hero;
 export function createCrystalMood({ scene, decor = null, audio = null, tier = null, reducedMotion = false }) {
   const low = !!tier && (tier.name === 'low' || tier.shadows === false || (tier.rung ?? 0) >= 3);
   const U = decor?.uniforms; const heroes = heroSites();
+  const door = scene.getObjectByName('crystal:glow')?.material; // the arch's door of light: it thins out as she comes through, so the camera behind never loses her (pass 7)
+  if (door) { door.transparent = true; door.needsUpdate = true; }
   const uM = { value: new THREE.Vector4(0, 0, 0, 0) }; // the dome's: aurora, clock, dream, resonance
   const gm = scene.getObjectByName('crystal:ground')?.material; const dome = scene.getObjectByName('crystal:dome'); const dm = dome?.material;
   if (dm) {
@@ -96,6 +98,7 @@ export function createCrystalMood({ scene, decor = null, audio = null, tier = nu
           if (bi >= 0) { on = bi; lingAt = heroes[bi]; sing(lingAt, bi); }
         }
       }
+      if (door && catPos) door.opacity = Math.min(1, Math.max(0.28, (Math.hypot(catPos.x, catPos.z - 24.5) - 1.2) / 4));
       ling = reducedMotion ? (on >= 0 ? 1 : 0) : on >= 0 ? Math.min(1, ling + dt / 1.2) : Math.max(0, ling - dt / 2.5);
       const w = reducedMotion ? [1, 0, 0, 0] : moodAt(t); const wd = reducedMotion ? { s: 0, ang: 0 } : windAt(t);
       state = { mood: w, wind: wd.s, ling };
@@ -103,7 +106,7 @@ export function createCrystalMood({ scene, decor = null, audio = null, tier = nu
       if (U) { U.mood.value.set(w[1], w[2], w[3], wd.s); U.ling.value.set(lingAt?.x ?? 0, lingAt?.z ?? 0, ling, wd.ang); }
       if (!reducedMotion) {
         if (scene.fog) { scene.fog.color.multiplyScalar(1 - 0.6 * w[3] - 0.08 * w[1]); scene.fog.near = fogN * (1 - 0.5 * w[3]); scene.fog.far = fogF * (1 - 0.4 * w[3]); } // (after the colour grade has set it this frame): the dream closes in and darkens
-        for (const [l, b] of lights) l.intensity = b * (1 - 0.6 * w[3]); scene.environmentIntensity = envBase * (1 - 0.6 * w[3]); gm?.color.setScalar(1 - 0.45 * w[3]); // dim ambient
+        for (const [l, b] of lights) l.intensity = b * (1 - 0.42 * w[3]); scene.environmentIntensity = envBase * (1 - 0.6 * w[3]); gm?.color.setScalar(1 - 0.45 * w[3]); // dim ambient (pass 7: the lights keep more of their strength in the dream, so the cat stays readable)
         sound(w, wd, t);
         if (N && catPos) {
           points.visible = true;
@@ -129,6 +132,6 @@ export function createCrystalMood({ scene, decor = null, audio = null, tier = nu
         }
       }
     },
-    dispose() { stopSnd(); if (scene.fog) { scene.fog.near = fogN; scene.fog.far = fogF; } scene.remove(points); geo.dispose(); points.material.dispose(); for (const [l, b] of lights) l.intensity = b; scene.environmentIntensity = envBase; gm?.color.setScalar(1); if (dm) { dm.onBeforeCompile = () => {}; dm.needsUpdate = true; } },
+    dispose() { stopSnd(); if (door) { door.opacity = 1; door.transparent = false; door.needsUpdate = true; } if (scene.fog) { scene.fog.near = fogN; scene.fog.far = fogF; } scene.remove(points); geo.dispose(); points.material.dispose(); for (const [l, b] of lights) l.intensity = b; scene.environmentIntensity = envBase; gm?.color.setScalar(1); if (dm) { dm.onBeforeCompile = () => {}; dm.needsUpdate = true; } },
   };
 }
