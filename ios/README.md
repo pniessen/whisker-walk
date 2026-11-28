@@ -306,3 +306,18 @@ What to know:
   bare `npm test` also collects the tests of every other worktree
   (`.worktrees/`, `.claude/worktrees/`).
 - Debug builds can be inspected from Safari on the Mac (Develop menu).
+
+## Start-up cover and pre-warm
+
+- `LaunchCover.swift` is a native loading view (the cat icon, the title, a
+  spinner that only shows after 2.5 s) over the web view from the first frame.
+  It copies the page's own boot splash (`#splash` in `index.html`, cat width
+  `min(52vw, 220px)`), so the hand-over is the same picture. It fades away when
+  the page posts `painted` to `window.webkit.messageHandlers.launch` (two
+  animation frames after the splash is in the page), or after 20 s regardless.
+- `AppDelegate` calls `GameViewController.prewarm()` as the app finishes
+  launching: the web view is made (with the screen's size, not zero) and starts
+  loading before the scene connects. `SceneDelegate` takes it with `take()`.
+  Not yet read on a device: check the first-launch time and that the game is
+  sized right after a cold start in both orientations.
+

@@ -74,6 +74,14 @@
           try { window.dispatchEvent(new Event('splash-hidden')); } catch (e) { /* old browser: the fallback timer covers it */ }
           setTimeout(function () { s.style.display = 'none'; }, 650);
         }
+        // The iPhone and iPad app covers the page with its own copy of this splash
+        // until the real one has painted (ios/WhiskerWalk/LaunchCover.swift). Two
+        // animation frames after this script ran, the splash is on screen: say so.
+        // Nothing happens in a browser, which has no such handler.
+        try {
+          var bridge = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.launch;
+          if (bridge) requestAnimationFrame(function () { requestAnimationFrame(function () { try { bridge.postMessage('painted'); } catch (e) { /* the app's own timer takes the cover away */ } }); });
+        } catch (e) { /* no bridge */ }
         window.addEventListener('load', function () { setTimeout(hide, 750); });
         setTimeout(hide, 4000); // fallback
       })();

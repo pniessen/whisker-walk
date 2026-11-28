@@ -14,6 +14,33 @@ final class GameViewController: UIViewController, WKNavigationDelegate, WKUIDele
     /// object for the same reason.
     private let nearby = NearbyBridge()
 
+    /// The native loading view, up from the first frame until the page says
+    /// its own boot splash has painted (LaunchCover.swift).
+    private var cover: LaunchCover?
+    private let launchSignal = LaunchSignalHandler()
+
+    /// A controller made, and its game already loading, before the scene
+    /// connects (AppDelegate calls `prewarm()` as the app finishes launching):
+    /// the web content process and the page's scripts start while the system
+    /// is still setting up the window. `take()` hands it over.
+    private static var warmed: GameViewController?
+
+    static func prewarm() {
+        guard warmed == nil else { return }
+        let controller = GameViewController()
+        // A web view with no size lays its page out 0 points wide, and the
+        // game reads the window size when it starts. The screen's size is what
+        // it will have (the app is always full screen); the real layout takes
+        // over as soon as the view is in the window.
+        controller.view.frame = UIScreen.main.bounds
+        warmed = controller
+    }
+
+    static func take() -> GameViewController {
+        defer { warmed = nil }
+        return warmed ?? GameViewController()
+    }
+
     /// The game's splash colour (#1c2431), so nothing flashes white.
     private let background = UIColor(named: "LaunchBackground") ?? .black
 
@@ -71,6 +98,9 @@ final class GameViewController: UIViewController, WKNavigationDelegate, WKUIDele
         // window.webkit.messageHandlers.nearby. It does nothing, and iOS asks
         // nothing about the local network, until the page first sends to it.
         config.userContentController.add(nearby, name: NearbyBridge.handlerName)
+        // The page's "my splash has painted" word, which takes the native
+        // loading view away (index.html).
+        config.userContentController.add(launchSignal, name: LaunchSignal.handlerName)
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.isOpaque = false
@@ -90,6 +120,22 @@ final class GameViewController: UIViewController, WKNavigationDelegate, WKUIDele
         self.webView = webView
 
         view = webView
+
+        // The loading view goes over the web view straight away.
+        let cover = LaunchCover(background: background)
+        cover.frame = webView.bounds
+        cover.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        webView.addSubview(cover)
+        self.cover = cover
+        launchSignal.onPainted = { [weak self] in self?.dismissCover() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + LaunchSignal.fallbackSeconds) { [weak self] in
+            self?.dismissCover()
+        }
+    }
+
+    private func dismissCover() {
+        cover?.dismiss()
+        cover = nil
     }
 
     override func viewDidLoad() {
