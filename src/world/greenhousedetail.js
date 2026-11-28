@@ -166,6 +166,8 @@ const WET = memo(() => tint(new THREE.CircleGeometry(0.26, 8).rotateX(-Math.PI /
 const STICK = memo(() => tint(new THREE.PlaneGeometry(0.014, 0.3), 0x8a6642));
 const CARD = memo(() => tint(new THREE.PlaneGeometry(0.1, 0.075), 0xffffff));
 const CARDS = [0xfaf3dc, 0xf6c4d4, 0xc4e4f4, 0xf8e08a];
+// beauty pass 5: the journey from the warm hall to the cool shed as colour: a pot's sign card (and its pictogram) takes its zone's tone
+const zoneCard = (x, z) => (x > 17 ? [0xc4e4f4, 0x3f8fd8] : z < 1 ? [0xf8d2a8, 0xe0603a] : x < -14 ? [0xe6d4f0, 0x8a5cff] : [0xe4f0b8, 0x3f9a46]);
 
 // each of the garden pots: a saucer with a damp ring in it, and a plant label on a stick, each a different colour
 // (beauty pass 4: the label is bigger and carries a hand-drawn picture, a drop, a sun, a leaf or a flower, over two lines of lettering)
@@ -176,8 +178,8 @@ export function potDetail(col, x, z, i) {
   const a = h(i, 2, 61) * TAU;
   const sx = x + Math.cos(a) * 0.2, sz = z + Math.sin(a) * 0.2;
   col.add(STICK(), sx, 0.52, sz, { yaw: a, tilt: 0.12 });
-  col.add(tint(new THREE.PlaneGeometry(0.15, 0.11), CARDS[i % CARDS.length]), sx, 0.66, sz, { yaw: a, tilt: 0.12 });
-  const [segs, hex] = PICTO[i % PICTO.length];
+  col.add(tint(new THREE.PlaneGeometry(0.15, 0.11), zoneCard(x, z)[0]), sx, 0.66, sz, { yaw: a, tilt: 0.12 });
+  const segs = PICTO[i % PICTO.length][0], hex = zoneCard(x, z)[1];
   const nx = Math.sin(a) * 0.006, nz = Math.cos(a) * 0.006;
   col.add(tint(new THREE.CircleGeometry(0.03, segs), hex), sx + nx, 0.675, sz + nz, { yaw: a, tilt: 0.12 });
   col.add(tint(new THREE.PlaneGeometry(0.1, 0.012), 0x5a4030), sx + nx, 0.628, sz + nz, { yaw: a, tilt: 0.12 });
