@@ -11,6 +11,7 @@ import { createReactions } from './snowvillebeauty8.js';
 import { createAlive, waveAt, chase, glowNear, SHARED } from './snowvillealive.js';
 import { createSnowvilleCritters } from './snowvillecritters.js';
 import { createFestival } from './snowvillefestival.js';
+import { createCoherence } from './snowvillecoherence.js';
 import { createSoundBed, createZoneBed } from './snowvillesound.js';
 
-Object.assign(ST, { story: Object.freeze({ createWonder, createLiving, createWeather, createVista, createReactions, createFestival, createAlive, waveAt, chase, glowNear, SHARED, createSoundBed, createZoneBed, critters: createSnowvilleCritters }) });
+Object.assign(ST, { story: Object.freeze({ createWonder, createLiving, createWeather, createVista, createReactions, createFestival, createCoherence, createAlive, waveAt, chase, glowNear, SHARED, createSoundBed, createZoneBed, critters: createSnowvilleCritters }) });

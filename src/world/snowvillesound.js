@@ -13,6 +13,15 @@ export const CAROL_GAP = Object.freeze({ first: 53, min: 70, span: 50 });
 export const CAROL_SCALE = Object.freeze([392, 440, 523.3, 587.3, 659.3, 784]);
 export const CAROL_PHRASES = Object.freeze([[2, 3, 4, 3, 2, 1], [4, 3, 2, 3, 4, 4, 4], [0, 2, 3, 4, 3, 2], [5, 4, 3, 2, 3]].map((p) => Object.freeze(p)));
 
+// Pass 10: at most VOICE_CAP chime voices (sleigh cluster, carol phrase, village bell) sound at once; a newcomer waits its turn (is dropped), the ones ringing are never cut.
+export const VOICE_CAP = 4;
+const rung = new WeakMap();
+export function takeVoice(ac, dur) {
+  const now = ac.currentTime || 0; const a = (rung.get(ac) ?? []).filter((e) => e > now);
+  rung.set(ac, a);
+  if (a.length >= VOICE_CAP) return false;
+  a.push(now + dur); return true;
+}
 function soundCtx(audio) {
   if (!audio || typeof audio.getContext !== 'function' || audio.isMuted?.()) return null;
   return audio.getContext() ?? null;
@@ -48,7 +57,7 @@ export function windGust(audio, k = 0.5) {
 // Sleigh bells: a dozen tiny high tinkles in quick, uneven succession, drifting off. `k` varies the pitch of the cluster.
 export function sleighBells(audio, k = 0, gain = 1) {
   const ac = soundCtx(audio);
-  if (!ac) return false;
+  if (!ac || !takeVoice(ac, 1.6)) return false;
   const now = ac.currentTime;
   const out = audio.getMaster?.() ?? ac.destination;
   const base = 2600 + 500 * hash01(k, 61);
@@ -87,9 +96,10 @@ export const carolPhrase = (k = 0) => CAROL_PHRASES[Math.floor(hash01(k, 64) * C
 export function carolChime(audio, k = 0) {
   const ac = soundCtx(audio);
   if (!ac) return false;
+  const phrase = carolPhrase(k);
+  if (!takeVoice(ac, phrase.length * 0.46 + 2.2)) return false;
   const now = ac.currentTime;
   const out = audio.getMaster?.() ?? ac.destination;
-  const phrase = carolPhrase(k);
   phrase.forEach((n, i) => {
     const at = now + i * 0.46 + (i === phrase.length - 1 ? 0.2 : 0);
     const g = ac.createGain();
@@ -123,7 +133,7 @@ export function createSoundBed(audio, gust) {
 // The village bell: one low strike with its two inharmonic partials, ringing out. `k` varies the pitch a little, `gain` is the zone's weight.
 export function villageBell(audio, k = 0, gain = 1) {
   const ac = soundCtx(audio);
-  if (!ac) return false;
+  if (!ac || !takeVoice(ac, 3.3)) return false;
   const now = ac.currentTime; const out = audio.getMaster?.() ?? ac.destination; const f0 = 196 * (1 + 0.06 * hash01(k, 71));
   for (const [m, v, len] of [[1, 1, 3.2], [2.76, 0.4, 1.8], [5.4, 0.12, 0.9]]) {
     const o = ac.createOscillator(); const g = ac.createGain(); o.type = 'sine'; o.frequency.value = f0 * m;
