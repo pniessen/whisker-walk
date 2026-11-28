@@ -64,8 +64,19 @@ export function createHouseAir(scene, { windows, rooms, levels, dusk = false, re
     color: 0xffffff, vertexColors: true, transparent: true, opacity: SUNBEAM.opacity,
     blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false,
   });
+  // beauty pass 7: each mote is a soft round glint (a small canvas disc), not a hard white square
+  const dot = (() => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 16;
+    const x = c.getContext?.('2d');
+    if (typeof x?.createRadialGradient !== 'function') return null;
+    const g = x.createRadialGradient(8, 8, 0, 8, 8, 8);
+    g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.4, 'rgba(255,255,255,0.75)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    x.fillStyle = g; x.fillRect(0, 0, 16, 16);
+    return new THREE.CanvasTexture(c);
+  })();
   const moteMat = new THREE.PointsMaterial({
-    color: 0xfff0c8, size: 0.075, sizeAttenuation: true, transparent: true, opacity: 0.95,
+    map: dot, alphaTest: 0, color: 0xfff0c8, size: 0.075, sizeAttenuation: true, transparent: true, opacity: 0.95,
     blending: THREE.AdditiveBlending, depthWrite: false, fog: false,
   });
 
@@ -124,6 +135,7 @@ export function createHouseAir(scene, { windows, rooms, levels, dusk = false, re
 
   // beauty pass 3: a mote near the cat is swept round her as she walks (cat { x, y, z }, energy 0..1; none when she is still or motion is reduced)
   let cx = 0, cy = 0, cz = 0, ce = 0, tone = 1, amp = AMP;
+  let gold = 0, gx = 0, gy = 0, gz = 0, goldLow = false; // beauty pass 7 (housevista.js): the golden moment gathers the motes round a focal point
   function place(L, t) {
     const { base, phase, rate, mp, n } = L;
     for (let j = 0; j < n * 3; j++) mp[j] = base[j] + amp * Math.sin(t * rate[j] + phase[j]);
@@ -140,8 +152,17 @@ export function createHouseAir(scene, { windows, rooms, levels, dusk = false, re
         mp[o + 2] += dx * 0.4 * k + Math.sin(a) * 0.1 * k;
       }
     }
+    if (gold > 0.005) {
+      for (let m = 0; m < n; m += goldLow ? 2 : 1) {
+        const o = m * 3, a = t * 0.5 + m * 2.4, r = 0.25 + 0.55 * ((m * 7) % 11) / 11;
+        mp[o] += (gx + Math.cos(a) * r - mp[o]) * 0.9 * gold;
+        mp[o + 1] += (gy + 0.1 + 0.5 * Math.sin(a * 1.3 + m) - mp[o + 1]) * 0.9 * gold;
+        mp[o + 2] += (gz + Math.sin(a) * r - mp[o + 2]) * 0.9 * gold;
+      }
+    }
     L.points.geometry.attributes.position.needsUpdate = true;
     L.placed = true;
+    L.gold = gold;
   }
 
   // the Old House's solarium goes calm while she lies in a sunny slot: the motes drift at half speed (their clock loses half of dt)
@@ -150,6 +171,7 @@ export function createHouseAir(scene, { windows, rooms, levels, dusk = false, re
   return {
     beams,
     setCalm(on) { calm = !!on; },
+    setGold(g, x, y, z, low = false) { gold = g; gx = x; gy = y; gz = z; goldLow = low; },
     // the day's light (houseglow.js dayPart): the shafts and motes take its sun colour and strength
     setTone(rgb, k) { beamMat.color.setRGB(rgb[0], rgb[1], rgb[2]); moteMat.color.setRGB(1.0 * (0.4 + 0.6 * rgb[0]), 0.94 * (0.4 + 0.6 * rgb[1]), 0.78 * (0.4 + 0.6 * rgb[2])); tone = k; },
     update(dt, t0, full, cat = null, energy = 0) {
@@ -158,13 +180,14 @@ export function createHouseAir(scene, { windows, rooms, levels, dusk = false, re
       const t = t0 - lost;
       // beauty pass 2: the shafts breathe a little, as a high cloud passes (still under reduced motion)
       beamMat.opacity = SUNBEAM.opacity * tone * (reducedMotion ? 1 : 1 + 0.18 * Math.sin(t * 0.45) * Math.sin(t * 0.17 + 1)) * (mood ? Math.min(2, mood.sun + mood.flash * 2) : 1);
-      if (mood) { moteMat.size = 0.075 * mood.motes; amp = AMP * mood.motes; } // beauty pass 6: a sunny morning's motes are bigger and dance wider; a storm's flash lights the shafts
+      if (mood) { moteMat.size = 0.075 * mood.motes; amp = AMP * mood.motes; }
+      moteMat.size = (mood ? 0.075 * mood.motes : 0.075) * (1 + 0.8 * gold); // beauty pass 6: a sunny morning's motes are bigger and dance wider; a storm's flash lights the shafts
       for (let i = 0; i < layers.length; i++) {
         const L = layers[i];
         const show = full.has(L.level);
         L.mesh.visible = show;
         L.points.visible = show;
-        if (show && (!L.placed || !reducedMotion)) place(L, reducedMotion ? 0 : t);
+        if (show && (!L.placed || !reducedMotion || L.gold !== gold)) place(L, reducedMotion ? 0 : t);
       }
     },
     dispose() {
@@ -177,6 +200,7 @@ export function createHouseAir(scene, { windows, rooms, levels, dusk = false, re
       layers.length = 0;
       beamMat.dispose();
       moteMat.dispose();
+      dot?.dispose();
     },
   };
 }

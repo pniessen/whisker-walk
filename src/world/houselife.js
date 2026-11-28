@@ -194,6 +194,7 @@ export function createHouseLife(scene, house, {
     if (lights.length && typeof envBase === 'number') scene.environmentIntensity = envBase * part.env;
     for (const x of lights) { x.l.color.copy(x.c).multiply(LIT.fromArray(part.lit)); if (x.g) x.l.groundColor.copy(x.g).multiply(LIT); }
     air.setTone?.(part.sun, dusk ? 1 : part.sunK * (1 - 0.5 * rainK));
+    vista?.rebase();
   };
   const WOOD = new Set(['hall', 'library', 'parlour', 'bedroom', 'attic', 'livingroom', 'kids']);
   const sound = ST.story.createHouseSound(audio, {
@@ -209,6 +210,8 @@ export function createHouseLife(scene, house, {
     fire: P === OLD_HOUSE_PLAN ? { x: ST.story.FIRE.x, z: ST.story.FIRE.z } : null,
   });
   const air = ST.story.createHouseAir(scene, { windows: P.windows, rooms: P.rooms, levels: house.levels, dusk: !!dusk, reducedMotion, mood: mood?.out ?? null });
+  // beauty pass 7 (housevista.js): the photo vistas, and their golden moment
+  const vista = mood ? ST.story.createHouseVista({ audio, reducedMotion, low, lights, air }) : null;
   retone();
   // beauty pass 2 (houseglow.js): the light, firelight, curtains and garden sway are one shader patch on the house's material; LOW and LITE hold the flicker and sway still
   const glow = house.glow ?? null;
@@ -352,6 +355,7 @@ export function createHouseLife(scene, house, {
       if (arriveT >= 0) { arriveT += dt; const w = Math.min(1, arriveT / 5); glowOpts.warm = 0.3 + 0.7 * w * w * (3 - 2 * w); if (arriveT >= 5) arriveT = -1; }
       glowOpts.fireK = rhy.fire;
       mood?.update(dt, t);
+      if (vista) { vista.update(dt, catPos); glowOpts.vista = vista.out; }
       creatures?.update(dt, catPos, drawing.full);
       glow?.update(t, catPos, glowOpts);
       finds.update(dt, t, catPos, camera.position, partners); // after the camera's move: the bookcase's fade hold
@@ -369,6 +373,7 @@ export function createHouseLife(scene, house, {
     dispose() {
       tagRest.forEach((r, g) => { g.material.depthTest = r[0]; g.renderOrder = r[1]; });
       frontDoor.dispose();
+      vista?.dispose();
       mood?.dispose();
       if (lights.length && typeof envBase === 'number') scene.environmentIntensity = envBase;
       for (const x of lights) { x.l.color.copy(x.c); if (x.g) x.l.groundColor.copy(x.g); }

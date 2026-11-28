@@ -23,6 +23,7 @@ import { STORY_FUNCS, SEASON_TONE, SEASON_BREEZE } from './housestories.js';
 export const WIN_SLOTS = 6;
 export const LIVE_WIN = Object.freeze({ high: 6, low: 2 });
 export const LAMP_SLOTS = 3;
+const NO_VISTA = Object.freeze({ k: 0, mx: 0, mz: 0, R: 4, fx: 0, fy: 0, fz: 0 }); // beauty pass 7 (housevista.js): no vista
 const CALM = Object.freeze({ flash: 0, lamp: 1, sconce: 1, fire: 1, draught: 1, sun: 1, crawl: 0, snow: 0, rain: 0, wob: 0, tr: 1, tg: 1, tb: 1 }); // the mood when there is none (housemood.js)
 const FLASH_COL = new THREE.Vector3(1.0, 1.08, 1.35), SNOW_COL = new THREE.Vector3(0.95, 1.0, 1.15);
 export const FIRE = Object.freeze({ x: 13.72, y: 0.5, z: 7.0, r: 4.0, clip: Object.freeze({ minX: 4, maxX: 13.98, minZ: 2.02, maxZ: 11.98 }) });
@@ -131,6 +132,8 @@ uniform float uCuckoo;
 uniform float uBreeze;
 uniform float uFlash;
 uniform float uSnow;
+uniform vec4 uVista;
+uniform vec4 uVistaF;
 varying vec3 vTw;
 varying vec3 vNw;
 float hCell(vec2 uv) { return floor(uv.x * 8.0) + 8.0 * floor(uv.y * 8.0); }
@@ -156,6 +159,12 @@ const COLOR_FRAG = `#include <color_fragment>
   diffuseColor.rgb = stories(diffuseColor.rgb, vTw, normalize(vNw), uSeason, uBox, uCuckoo, uTime);
   if (uSnow > 0.0 && vTw.z > 12.1) diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.93, 0.96, 1.0), smoothstep(0.4, 0.8, vNw.y) * uSnow * 0.85);
   diffuseColor.rgb *= mix(uTone, vec3(1.0), uDusk);
+  if (uVista.w > 0.0) {
+    // beauty pass 7: at a photo vista the edges of the frame go dim and cool, the foreground warm
+    float ev = smoothstep(uVista.z, uVista.z + 2.6, distance(vTw.xz, uVista.xy));
+    float fg = 1.0 - smoothstep(2.0, 7.5, distance(vTw, cameraPosition));
+    diffuseColor.rgb *= mix(vec3(1.0), mix(vec3(0.36, 0.46, 0.72), vec3(0.66, 0.5, 0.36), fg), ev * uVista.w);
+  }
 }`;
 const EMISSIVE_FRAG = `#include <emissivemap_fragment>
 {
@@ -177,6 +186,12 @@ const EMISSIVE_FRAG = `#include <emissivemap_fragment>
   totalEmissiveRadiance += (base * 0.95 + vec3(0.05, 0.035, 0.01)) * uSunCol * sunk * 1.7;
   totalEmissiveRadiance += storiesGlow(base, vTw, n, uSeason, uBox, uTime);
   totalEmissiveRadiance += base * vec3(0.5, 0.62, 1.0) * uFlash * 1.3;
+  if (uVista.w > 0.0) {
+    // the vista's focal point (hearth, window, range) rims the surfaces that face her in warm light
+    vec3 vd = vTw - uVistaF.xyz;
+    float vb = (1.0 - smoothstep(0.3, 4.2, length(vd))) * clamp(dot(n, -normalize(vd + vec3(0.0, 0.001, 0.0))) * 0.5 + 0.55, 0.0, 1.0);
+    totalEmissiveRadiance += (base + vec3(0.04, 0.02, 0.0)) * vec3(1.0, 0.72, 0.38) * vb * uVista.w * 1.3;
+  }
   float pool = 0.0;
   for (int i = 0; i < ${LAMP_SLOTS}; i++) {
     vec3 d = vTw - uLamp[i].xyz;
@@ -202,6 +217,7 @@ const EMISSIVE_FRAG = `#include <emissivemap_fragment>
     float haze = exp(-pr * pr * 5.0) * (0.55 + 0.45 * sin(uTime * 3.3 + pr * 4.0 + pd.x * 5.0));
     totalEmissiveRadiance += onFloor * uCat.w * (base * rugK * ring + vec3(0.95, 0.86, 0.68) * haze * 0.18);
   }
+  if (uVista.w > 0.0) totalEmissiveRadiance *= 1.0 - 0.7 * smoothstep(uVista.z, uVista.z + 2.6, distance(vTw.xz, uVista.xy)) * uVista.w; // the frame's edges: the lamp and window light dims too
 }`;
 
 function patch(material, uniforms, garden) {
@@ -216,7 +232,7 @@ function patch(material, uniforms, garden) {
       .replace('#include <color_fragment>', COLOR_FRAG)
       .replace('#include <emissivemap_fragment>', EMISSIVE_FRAG);
   };
-  material.customProgramCacheKey = () => (garden ? 'house-glow-garden-v3' : 'house-glow-v3');
+  material.customProgramCacheKey = () => (garden ? 'house-glow-garden-v4' : 'house-glow-v4');
   material.needsUpdate = true;
 }
 
@@ -288,6 +304,7 @@ export function createHouseGlow({ windows = [], rooms = [], levels = [], lamps =
     uTime: { value: 0 }, uDusk: { value: 0 }, uFlick: { value: 1 },
     uCat: { value: new THREE.Vector4(0, -100, 0, 0) }, uTone: { value: new THREE.Vector3(1.1, 1.0, 0.82) }, uSunCol: { value: new THREE.Vector3(1.0, 0.84, 0.5) },
     uLampK: { value: 0 }, uBurst: { value: 0 }, uRain: { value: 0 }, uSeason: { value: 3 }, uBox: { value: 0 }, uCuckoo: { value: 0 }, uBreeze: { value: 1 }, uFlash: { value: 0 }, uSnow: { value: 0 },
+    uVista: { value: new THREE.Vector4(0, 0, 4, 0) }, uVistaF: { value: new THREE.Vector4(0, 0, 0, 0) },
     uWin: { value: Array.from({ length: WIN_SLOTS }, () => new THREE.Vector4(0, -100, 0, 0)) },
     uWinB: { value: Array.from({ length: WIN_SLOTS }, () => new THREE.Vector4(0, 1, 0.5, 1)) },
     uLamp: { value: Array.from({ length: LAMP_SLOTS }, () => new THREE.Vector4(0, -100, 0, 0)) },
@@ -305,7 +322,9 @@ export function createHouseGlow({ windows = [], rooms = [], levels = [], lamps =
     patchPane(material) { patchPane(material, uniforms); return material; },
     // t: the walk's clock; cat { x, y, z }; still: reduced motion; dusk: the lamplight look; low: LOW and LITE tiers
     // pass 3: part (dayPart's result, null: the afternoon the house always had), rain (0 or 1), burst (0..1, the fire's crackle), energy (0..1, how hard she is walking)
-    update(t, cat, { still = false, dusk = false, low = false, part = null, rain = 0, burst = 0, energy = 0, season = 3, box = 0, cuckoo = 0, fireK = 1, warm = 1, mood = CALM } = {}) {
+    update(t, cat, { still = false, dusk = false, low = false, part = null, rain = 0, burst = 0, energy = 0, season = 3, box = 0, cuckoo = 0, fireK = 1, warm = 1, mood = CALM, vista = NO_VISTA } = {}) {
+      uniforms.uVista.value.set(vista.mx, vista.mz, vista.R, vista.k);
+      uniforms.uVistaF.value.set(vista.fx, vista.fy, vista.fz, 1);
       const calm = still || low;
       uniforms.uCat.value.set(cat?.x ?? 0, cat?.y ?? -100, cat?.z ?? 0, calm ? 0 : energy);
       uniforms.uBurst.value = calm ? 0 : burst;
@@ -323,7 +342,7 @@ export function createHouseGlow({ windows = [], rooms = [], levels = [], lamps =
       const sc = part ? part.sun : DEFAULT_SUN;
       uniforms.uSunCol.value.set(sc[0] + (0.7 - sc[0]) * rain * 0.5, sc[1] + (0.76 - sc[1]) * rain * 0.5, sc[2] + (0.85 - sc[2]) * rain * 0.5).lerp(FLASH_COL, Math.min(1, mood.flash * 1.5)).lerp(SNOW_COL, mood.snow * 0.6);
       const tn = uniforms.uTone.value;
-      tn.set(tn.x * mood.tr, tn.y * mood.tg, tn.z * mood.tb);
+      tn.set(tn.x * mood.tr * (1 + 0.06 * vista.k), tn.y * mood.tg, tn.z * mood.tb * (1 - 0.08 * vista.k)); // beauty pass 7: a subtle warm grade at a vista
       uniforms.uTime.value = still || low ? 0 : t;
       uniforms.uDusk.value = dusk ? 1 : 0;
       uniforms.uFlick.value = still || low ? 0 : 1;

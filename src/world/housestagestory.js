@@ -7,5 +7,6 @@ import { createHouseSound } from './housesound.js';
 import { createHouseAir } from './houseair.js';
 import { createHouseCreatures } from './housealive.js';
 import { createHouseMood } from './housemood.js';
+import { createHouseVista } from './housevista.js';
 
-ST.story = Object.freeze({ createHouseGlow, FIRE, dayPart, seasonOf, createSurprises, createHouseSound, createHouseAir, createHouseCreatures, rhythm, gustAt, HALL_LAMP, createHouseMood });
+ST.story = Object.freeze({ createHouseGlow, FIRE, dayPart, seasonOf, createSurprises, createHouseSound, createHouseAir, createHouseCreatures, rhythm, gustAt, HALL_LAMP, createHouseMood, createHouseVista });
