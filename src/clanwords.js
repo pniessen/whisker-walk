@@ -313,10 +313,10 @@ export const PHRASES = Object.freeze({
   'move.rollingTumble.name': 'Rolling Tumble',
   // what the other cats say to her made cat, and her small role goals (rolelines.js ids)
   'role.say.kit.0': 'Stay close to camp, little one.',
-  'role.say.apprentice.0': 'Learn the bounds well. Your mentor is proud of you!',
+  'role.say.apprentice.0': 'Learn the bounds well. Your teacher is pleased with you!',
   'role.say.medicine.1': 'Thank you for the herbs. They helped so much!',
   'role.say.medicine.2': 'You always know which herb to use for a scrape.',
-  'role.say.queen.1': 'The kits are lucky to have you.',
+  'role.say.queen.1': 'The kits are glad to have you.',
   'role.say.leader.1': 'The whole Clan is ready for you to speak.',
   'role.goal.medicine': 'Find three herbs',
   'role.goal.leader': 'Hold a Gathering',
