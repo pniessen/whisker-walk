@@ -7,7 +7,7 @@ const SEL = '.dr-wearing';
 
 /** Returns { stop() } that removes the listeners and every .tv-more it set. */
 export function watchScrollCue(doc, win) {
-  if (!doc?.body || typeof win?.requestAnimationFrame !== 'function') return { stop() {} };
+  if (!doc?.body || typeof doc.addEventListener !== 'function' || typeof win?.requestAnimationFrame !== 'function' || typeof win.addEventListener !== 'function') return { stop() {} };
   let queued = false;
   const check = () => {
     queued = false;
