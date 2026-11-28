@@ -14,7 +14,7 @@ import * as P from './snowvilleplan.js';
 import * as K from './snowvilleparts.js';
 import { drawBeauty } from './snowvillebeauty.js';
 import { createSnowvilleLight, isLowTier, gustAt } from './snowvillelight.js';
-import { createSoundBed } from './snowvillesound.js';
+import { createSoundBed, createZoneBed } from './snowvillesound.js';
 import { createTilly, createSnowvillePrompts } from './snowvillelife.js';
 import './snowvillewords.js';
 import { ST } from './snowvillestages.js'; // the two stages' slots (filled by their chunks, loaded with this one: areas.js)
@@ -89,6 +89,7 @@ export function build(scene, opts = {}) {
         const strayNotes = ST.b?.strayNotes?.(); // a line the first time she meets each of the four friendly strays (round two)
         const critters = ST.b?.critters?.(ctx); // the otters, hare, robin, fox kit, smoke, bells and crunch (milestone V4)
         const bed = createSoundBed(ctx.audio, ctx.reducedMotion ? () => 0 : gustAt); // beauty pass 2: wind with the gusts, sleigh bells, a distant carol chime (silent when muted)
+        const zones = createZoneBed(ctx.audio, ctx.reducedMotion ? () => 0 : gustAt); // beauty pass 5: the pond's ice, the bakery's oven, the fir wood's wind and the village bell, cross-faded by where she stands
         return {
           light,
           spottable: critters?.spottable ?? [],
@@ -98,8 +99,8 @@ export function build(scene, opts = {}) {
           wing,
           // a step done by anyone in the room (an `sv-` event): an errand done by a partner is credited to ours, a show begun by a partner starts ours, any other step is Tilly's
           credit: (ev) => errand?.credit(ev) ?? wing?.credit(ev) ?? tilly.credit(ev),
-          update(dt, t, catPos, camera, session) { light.update(dt, t, catPos, camera, session); bed.update(t); tilly.update(dt, t, catPos, camera, session); wing?.update(dt, t, catPos); errand?.update(dt, t, catPos, camera, session); finds?.update(dt, t, catPos); critters?.update(dt, t, catPos); strayNotes?.update(catPos, session); sled?.frame(dt, t, catPos, camera, session); skis?.frame(dt, t, catPos, camera, session); mobile?.frame(dt, t, catPos, camera, session); },
-          dispose() { mobile?.dispose(); skis?.dispose(); sled?.dispose(); errand?.dispose(); critters?.dispose(); finds?.dispose(); wing?.dispose(); tilly.dispose(); light.dispose(); },
+          update(dt, t, catPos, camera, session) { light.update(dt, t, catPos, camera, session); bed.update(t); if (!ctx.reducedMotion) zones.update(t, catPos?.x ?? 0, catPos?.z ?? 30); tilly.update(dt, t, catPos, camera, session); wing?.update(dt, t, catPos); errand?.update(dt, t, catPos, camera, session); finds?.update(dt, t, catPos); critters?.update(dt, t, catPos); strayNotes?.update(catPos, session); sled?.frame(dt, t, catPos, camera, session); skis?.frame(dt, t, catPos, camera, session); mobile?.frame(dt, t, catPos, camera, session); },
+          dispose() { zones.dispose(); mobile?.dispose(); skis?.dispose(); sled?.dispose(); errand?.dispose(); critters?.dispose(); finds?.dispose(); wing?.dispose(); tilly.dispose(); light.dispose(); },
         };
       },
     };

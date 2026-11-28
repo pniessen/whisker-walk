@@ -13,7 +13,8 @@ import * as P from './snowvilleplan.js';
 import { dotTexture, LIGHT } from './snowvilleparts.js';
 import { litSpots } from './snowvillebeauty.js';
 import { createWonder } from './snowvillewonder.js';
-import { createAlive, waveAt, chase, glowNear } from './snowvillealive.js';
+import { createLiving } from './snowvilleliving.js';
+import { createAlive, waveAt, chase, glowNear, SHARED } from './snowvillealive.js';
 import { coldStep, cheekTint, lineStep, nearWarm } from './snowvillewarmth.js';
 import { phrase } from '../clanphrases.js';
 import { bus } from '../events.js';
@@ -81,7 +82,7 @@ function createCheeks() {
 const _pink = new THREE.Color(CHEEK_PINK);
 
 // createSnowvilleLight({ scene, tier, reducedMotion }) -> { flakes, glints, light, cold, update(dt, t, catPos, camera, session), dispose() }
-export function createSnowvilleLight({ scene, tier = null, reducedMotion = false, audio = null, season = null }) {
+export function createSnowvilleLight({ scene, tier = null, reducedMotion = false, audio = null, season = null, sun = null }) {
   const low = isLowTier(tier);
   const nFlakes = reducedMotion ? P.FLAKES.reduced : low ? P.FLAKES.low : P.FLAKES.count;
 
@@ -129,12 +130,13 @@ export function createSnowvilleLight({ scene, tier = null, reducedMotion = false
   let nearX = 1e9; let nearZ = 1e9; // her place (windows and lamps wake as she comes near; the bulbs' twinkle chases along their strings)
   const paintHalos = (L, t, level) => {
     L.list.forEach((s, i) => {
-      const k = level * (reducedMotion ? 0.8 : (L === smallL ? twinkle(s.ph, t) * chase(i, t) : (1 + HALO.flicker * Math.sin(t * 1.1 + s.ph * 40)) * glowNear(Math.hypot(s.x - nearX, s.z - nearZ))));
+      const k = level * (reducedMotion ? 0.8 : SHARED.breath * (L === smallL ? twinkle(s.ph, t) * chase(i, t) : (1 + HALO.flicker * Math.sin(t * 1.1 + s.ph * 40)) * glowNear(Math.hypot(s.x - nearX, s.z - nearZ)) * living.wakeAt(s.x, s.z, t)));
       _h.setHex(s.hex);
       L.col[i * 3] = _h.r * k; L.col[i * 3 + 1] = _h.g * k; L.col[i * 3 + 2] = _h.b * k;
     });
     L.g.attributes.color.needsUpdate = true;
   };
+  const living = createLiving({ scene, tier, reducedMotion, audio, low, sun }); // beauty pass 5: creatures, the arrival, the shared breath, hour and wind
   const smallL = haloLayer(smalls, HALO.bulb, 'snowville:halos');
   const bigL = haloLayer(bigs, HALO.big, 'snowville:glows');
   paintHalos(smallL, 0, 0.9); paintHalos(bigL, 0, 0.5);
@@ -182,16 +184,19 @@ export function createSnowvilleLight({ scene, tier = null, reducedMotion = false
     cheeks,
     alive,
     wonder,
+    living,
     update(dt, t, catPos, _camera, session) {
       const cx = catPos?.x ?? P.SNOWVILLE_SPAWN.x;
       const cz = catPos?.z ?? P.SNOWVILLE_SPAWN.z;
       place(t, cx, cz);
       nearX = cx; nearZ = cz;
+      living.update(dt, t, catPos, _camera);
       alive.update(dt, t, catPos, _camera, session);
       wonder.update(dt, t, catPos, _camera);
+      flakes.material.color.setRGB(0.9 + 0.1 * SHARED.hour, 0.94 + 0.06 * SHARED.hour, 1 - 0.06 * SHARED.hour); // the blue hour's flakes are a touch cooler
       if (!reducedMotion) { paintHalos(smallL, t, 0.9); paintHalos(bigL, t, 0.5); placeSteam(t); }
       if (!reducedMotion) glints.material.opacity = GLINT_LOOK.opacity - GLINT_LOOK.wobble * (0.5 + 0.5 * Math.sin(t * GLINT_LOOK.rate));
-      if (light) light.intensity = reducedMotion || low ? LIGHT.intensity : LIGHT.intensity * (1 + 0.1 * Math.sin(t * 7.3) + 0.06 * Math.sin(t * 13.1 + 1));
+      if (light) light.intensity = reducedMotion || low ? LIGHT.intensity : LIGHT.intensity * SHARED.breath * (1 + 0.1 * Math.sin(t * 7.3) + 0.06 * Math.sin(t * 13.1 + 1));
       const warm = nearWarm(cx, cz);
       const before = cold;
       cold = coldStep(cold, dt, warm);
@@ -202,6 +207,7 @@ export function createSnowvilleLight({ scene, tier = null, reducedMotion = false
     dispose() {
       cheeks.restore();
       alive.dispose();
+      living.dispose();
       wonder.dispose();
       scene.remove(flakes, glints, smallL.pts, bigL.pts, steam);
       for (const L of [smallL, bigL]) { L.g.dispose(); L.pts.material.dispose(); }
