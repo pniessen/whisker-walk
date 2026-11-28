@@ -22,6 +22,7 @@ export const HUE_PITCH = Object.freeze({ rose: 1, blue: 1.122, gold: 1.335, hear
 export const HERO_CHIMES = Object.freeze(planBeauty2('high').hero.filter((h) => !h.great).map((h, i) => Object.freeze({ x: h.x, z: h.z, note: (i + 1) % 3, ratio: HUE_PITCH[h.hue] ?? 1, hue: h.hue, reach: h.s * 0.55 + 1.9, away: h.s * 0.55 + 4 })));
 // beauty round 3: each colour tunes its crystal's chime (rose 1, blue a whole step up, gold a fourth up, violet a minor third down), and a quiet shimmer follows her past any hero crystal
 export const SHIMMER = Object.freeze({ reach: 5, gain: 0.006, f: 880 });
+export const BLOOM_CHORD = Object.freeze([1, 1.25, 1.5, 1.875, 2.25]); // a major ninth climbing from the crystal's own note
 export const NOTE_GAP = 6; // seconds before the same crystal may sing again
 
 export const loud = (d) => { const k = Math.min(1, Math.max(0, 1 - d / DRIP_EAR)); return k * k; };
@@ -38,6 +39,7 @@ export function createCrystalSound({ audio }) {
   const lastNote = new Array(GREATS.length).fill(-1e9);
   const nearH = new Array(HERO_CHIMES.length).fill(false); const lastH = new Array(HERO_CHIMES.length).fill(-1e9);
   let shim = null; let shimK = 0;
+  let seenBloom = -1; let seenStar = -1; // the alive layer's counters (the first look only learns them)
   let broken = false; // a context that throws silences the rest of the walk
   const muted = () => !audio || typeof audio.getContext !== 'function' || !!audio.isMuted?.();
 
@@ -85,6 +87,12 @@ export function createCrystalSound({ audio }) {
     get plinks() { return plinks; },
     get notes() { return notes; },
     get humming() { return !!hum; },
+    // beauty round 4: the alive layer's two surprises. bloom: every crystal sings a rising chord (five notes a third of a second apart); star: one high gentle ring when it lands.
+    cue(c) {
+      if (!c) return;
+      if (c.bloom !== seenBloom) { const fresh = seenBloom >= 0; seenBloom = c.bloom; if (fresh && !broken) { try { BLOOM_CHORD.forEach((r, i) => { if (humNote(audio, i % 3, r, i * 0.33)) notes++; }); } catch { broken = true; } } }
+      if (c.star !== seenStar) { const fresh = seenStar >= 0; seenStar = c.star; if (fresh && !broken) { try { if (humNote(audio, 2, 2.0)) notes++; } catch { broken = true; } } }
+    },
     update(dt, catPos) {
       clock += Math.max(0, Math.min(dt, 1)) || 0;
       const n = Math.floor(clock / DRIP.slot);
