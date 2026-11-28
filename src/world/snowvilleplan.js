@@ -230,6 +230,22 @@ export function cottageColliders(c) {
     const t = n === 1 ? 0 : -long / 2 + short / 2 + ((long - short) * i) / (n - 1);
     out.push(Object.freeze({ x: Math.round((c.x + along[0] * t) * 100) / 100, z: Math.round((c.z + along[1] * t) * 100) / 100, r: Math.round((short / 2 + 0.25) * 100) / 100 }));
   }
+  // The big circles leave the corners and the wall's ends bare: walk the footprint's border (inset half a metre, under a metre apart) and plug each bare spot with a small circle.
+  const wide = c.w >= c.d ? [Math.cos(c.yaw), -Math.sin(c.yaw)] : [Math.sin(c.yaw), Math.cos(c.yaw)]; // the long axis
+  const across = [-wide[1], wide[0]];
+  const inset = 0.5;
+  const hl = long / 2 - inset;
+  const hs = short / 2 - inset;
+  const ring = [];
+  const nl = Math.ceil((2 * hl) / 0.9);
+  const ns = Math.ceil((2 * hs) / 0.9);
+  for (let i = 0; i <= nl; i++) { const u = -hl + (2 * hl * i) / nl; ring.push([u, -hs], [u, hs]); }
+  for (let j = 1; j < ns; j++) { const v = -hs + (2 * hs * j) / ns; ring.push([-hl, v], [hl, v]); }
+  for (const [u, v] of ring) {
+    const x = Math.round((c.x + wide[0] * u + across[0] * v) * 100) / 100;
+    const z = Math.round((c.z + wide[1] * u + across[1] * v) * 100) / 100;
+    if (!out.some((o) => Math.hypot(x - o.x, z - o.z) < o.r - 0.7)) out.push(Object.freeze({ x, z, r: 0.7 }));
+  }
   return out;
 }
 export const snowvilleColliders = () => [
@@ -237,8 +253,10 @@ export const snowvilleColliders = () => [
   Object.freeze({ x: ARCH.x + ARCH.w / 2 - 0.35, z: ARCH.z, r: 0.5 }),
   ...COTTAGES.flatMap(cottageColliders),
   Object.freeze({ x: SQUARE_FIR.x, z: SQUARE_FIR.z, r: 0.9 }),
-  Object.freeze({ x: STALL.x + 0.6, z: STALL.z, r: 1.1 }), Object.freeze({ x: STALL.x + 0.6, z: STALL.z - 1.1, r: 0.9 }), Object.freeze({ x: STALL.x + 0.6, z: STALL.z + 1.1, r: 0.9 }),
-  Object.freeze({ x: BOARD.x, z: BOARD.z, r: 0.7 }),
+  // the stall's footprint is x 5.6 to 7.4, z 6 to 9 (its counter faces west): four circles cover all of it, the open step (the cup spot, x 4.3) stays free
+  ...[-1.2, -0.4, 0.4, 1.2].map((dz) => Object.freeze({ x: STALL.x, z: STALL.z + dz, r: 1 })),
+  // the postcard board: two posts and a 2.2 m board, along its own width
+  ...[-0.9, 0, 0.9].map((u) => Object.freeze({ x: Math.round((BOARD.x + u * Math.cos(BOARD.yaw)) * 100) / 100, z: Math.round((BOARD.z - u * Math.sin(BOARD.yaw)) * 100) / 100, r: 0.5 })),
   Object.freeze({ x: SNOWMAN.x, z: SNOWMAN.z, r: 0.7 }),
   ...LAMPS.map((l) => Object.freeze({ x: l.x, z: l.z, r: 0.3 })),
   Object.freeze({ x: BRAZIER.x, z: BRAZIER.z, r: 0.8 }),
