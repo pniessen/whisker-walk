@@ -103,6 +103,29 @@ describe('chapter one on a walk', () => {
   });
 });
 
+describe('a carried shell rides steady on the cat', () => {
+  it('sits at the cat\'s mouth point, upright and unturned, however the cat turns (it does not swing round her or spin)', () => {
+    const r = rigged({ step: 1 });
+    const s0 = S.SHELLS[0];
+    expect(press(r, at(s0.x + 0.8, s0.z)).k).toBe('pick');
+    const cat = new THREE.Group();
+    cat.position.set(s0.x, P.reefY(s0.x, s0.z), s0.z);
+    const head = new THREE.Group(); head.position.set(0, 0.78, -0.28); cat.add(head);
+    cat.userData.parts = { head };
+    const shell = r.mar.shells[0];
+    const seen = [];
+    for (const yaw of [0, 1.1, 2.3, 4.0]) {
+      cat.rotation.y = yaw; cat.updateMatrixWorld(true);
+      r.mar.update(0.05, 1, cat.position, null, { cat }, 0);
+      const mouth = head.localToWorld(new THREE.Vector3(0, -0.08, -0.24));
+      expect(shell.position.distanceTo(mouth)).toBeLessThan(1e-6);
+      seen.push(shell.rotation.y);
+      expect(shell.rotation.x).toBe(0); expect(shell.rotation.z).toBe(0);
+    }
+    expect(new Set(seen).size).toBe(1); // the same heading every frame: no spin with a turn
+  });
+});
+
 describe('a carried shell is never lost and never sent to the den, however the walk ends', () => {
   const carryShellOne = () => {
     const r = rigged({ step: 1, shells: 0 });

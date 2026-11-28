@@ -49,8 +49,8 @@ function makeBeacon(hex, baseY) {
   const L = W.LANTERN_LOOK;
   const c = new THREE.Color(hex);
   const col = (g, f) => { const n = g.attributes.position.count; const a = new Float32Array(n * 3); for (let i = 0; i < n; i++) { const k = f(g.attributes.position.getY(i)); a[i * 3] = c.r * k; a[i * 3 + 1] = c.g * k; a[i * 3 + 2] = c.b * k; } g.setAttribute('color', new THREE.BufferAttribute(a, 3)); return g; };
-  const column = col(new THREE.CylinderGeometry(0.7, 1.15, L.column, 10, 1, true).translate(0, L.column / 2, 0), (y) => Math.max(0, 1 - y / L.column) ** 1.4 * 0.9);
-  const ring = col(new THREE.RingGeometry(L.ringIn, L.ringOut, 18).rotateX(-Math.PI / 2).translate(0, 0.07, 0), (y) => (y >= 0 ? 1 : 0));
+  const column = col(new THREE.CylinderGeometry(0.7, 1.15, L.column, 10, 1, true).translate(0, L.column / 2, 0), (y) => Math.max(0, 1 - y / L.column) ** 1.4 * 0.7);
+  const ring = col(new THREE.RingGeometry(L.ringIn, L.ringOut, 18).rotateX(-Math.PI / 2).translate(0, 0.07, 0), (y) => (y >= 0 ? 0.3 : 0)); // additive on pale sand: a full-strength ring added up to flat white, so it is a tint (0.3) that keeps the sand's grain
   const m = new THREE.Mesh(mergeGeometries([column.toNonIndexed(), ring.toNonIndexed()]), new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: true }));
   m.position.y = baseY;
   m.castShadow = false; m.receiveShadow = false;

@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en" class="tv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reef on the TV: goal line, arrival card, prompt, badges (picture page)</title>
+<!-- The real createHud + style.css + tv.css, with the real Reef guide (world/reefguidelive.js) on top and a stub Marlo. NOT in the game's page.
+     Usage with scripts/record-page.mjs, --size 1920x1080 or 1280x720. Shots: goal card prompt worst. ?html=notv leaves html.tv off (phone/desktop check). -->
+<style>html,body{margin:0;overflow:hidden}#scene{position:fixed;inset:0;background:linear-gradient(#2a8aa6,#1d5f78 60%,#d8c28a 60%)}#hud{position:fixed;inset:0;pointer-events:none;color:#fff;font-family:Avenir,-apple-system,sans-serif}</style>
+</head>
+<body>
+<script type="module">
+  const q = new URLSearchParams(location.search);
+  if (q.get('tv') !== '0') document.documentElement.classList.add('tv');
+  await import('/src/style.css');
+  if (q.get('tv') !== '0') {
+    await import('/src/tv/fonts.css'); await import('/src/tv/tv.css');
+    const { uiScale } = await import('/src/tv/scale.js');
+    document.documentElement.style.setProperty('--tv-s', String(uiScale(innerWidth)));
+    document.documentElement.style.fontSize = `${24 * uiScale(innerWidth)}px`;
+  }
+  const PR = await import('/src/profile.js');
+  if (q.get('tv') !== '0') PR.forceTv(true, document);
+  PR.startProfile(window, document, () => 'auto');
+  document.body.insertAdjacentHTML('beforeend', '<div id="scene"></div><div id="hud"></div>');
+  const { createHud } = await import('/src/ui/hud.js');
+  const hud = createHud();
+  hud.setPoints(125); hud.setRank('Neighborhood Legend'); hud.setArea('The Reef');
+  const disc = document.createElement('div'); disc.className = 'hud-map-disc'; disc.style.background = '#f4efe4';
+  hud.mapHost.insertBefore(disc, hud.mapHost.firstChild);
+  hud.show();
+  hud.setGoals([
+    { text: 'Spot 4 sea animals', how: 'how.spot-critters', type: 'critter', target: 4, progress: 1, done: false },
+    { text: 'Pick up 2 shells', how: 'how.collect', type: 'collectible', target: 2, progress: 0, done: false },
+    { text: 'Take a photo', how: 'how.photo', type: 'photo', target: 1, progress: 1, done: true },
+  ]);
+  hud.setBadges((await import('/src/skills.js')).SKILL_IDS.slice(0, 9));
+  const { createProgression } = await import('/src/progression.js');
+  const memory = { _m: {}, getItem(k) { return this._m[k] ?? null; }, setItem(k, v) { this._m[k] = String(v); }, removeItem(k) { delete this._m[k]; } };
+  const progression = createProgression(memory);
+  await import('/src/world/reefwords.js'); await import('/src/world/reeflabwords.js'); await import('/src/world/reeferrandwords.js');
+  const { createReefGuideLive } = await import('/src/world/reefguidelive.js');
+  const goal = { g: { kind: 'shell', shell: 0 }, x: 10, y: 1, z: -10 };
+  const marlo = { goalNow: () => goal, marlo: { x: 4, z: 0 }, bubble: { sprite: { visible: false } } };
+  const guide = createReefGuideLive({ doc: document, win: window, marlo, errand: null, progression });
+  guide.look();
+  const catPos = { x: 0, y: 0, z: 0 };
+  const shots = {
+    goal: () => { guide.closeCard(); hud.setPrompt(null); },
+    card: () => { hud.setPrompt(null); },
+    prompt: () => { guide.closeCard(); hud.setPrompt('E — Give Marlo the shell', false); },
+    worst: () => { guide.closeCard(); hud.setPrompt('E — Give Marlo the shell', false); hud.setHint('Swim up to the surface and look around.', '🐾'); hud.setObjective('Find the lost kitten', 38); },
+  };
+  window.__shot = (n) => { shots[n]?.(); guide.look(); return n; };
+  window.__ready = true;
+</script>
+</body>
+</html>
