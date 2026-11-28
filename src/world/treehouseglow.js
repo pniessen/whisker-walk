@@ -211,6 +211,8 @@ uniform float uRain;
 uniform vec3 uRainDir;
 uniform vec4 uWx;
 uniform vec2 uWx2;
+uniform vec4 uVz;
+uniform vec4 uVz2;
 varying vec3 vTw;
 varying vec3 vNw;
 varying float vGf;
@@ -238,6 +240,8 @@ const EMISSIVE_FRAG = (leaves) => `#include <emissivemap_fragment>
     totalEmissiveRadiance += vec3(0.62, 0.74, 0.86) * smoothstep(0.045, 0.0, abs(rd - ph * 0.5)) * (1.0 - ph) * step(0.6, ph0) * uWx.x * 0.6;
   }
   totalEmissiveRadiance += base * vec3(0.55, 0.6, 0.9) * uWx2.y * 0.9;
+  // VISTA (treehousevista.js): a warm key on the focal point (the bell, the kite, the oak's face), strongest on what faces her
+  if (uVz2.z > 0.001) { vec3 fd = vTw - uVz.yzw; float fa = clamp(1.0 - dot(fd, fd) / 40.0, 0.0, 1.0); totalEmissiveRadiance += (base + vec3(0.04, 0.02, 0.0)) * vec3(1.0, 0.64, 0.28) * fa * fa * clamp(dot(normalize(vNw), -normalize(fd + vec3(0.0, 0.001, 0.0))) * 0.5 + 0.6, 0.0, 1.0) * uVz2.z; }
   // RAINBOW: a band of colour round a point low in the north (red outside, violet inside), laid over the leaves and walls it crosses
   if (uRain > 0.001) {
     vec3 vdir = normalize(vTw - cameraPosition);
@@ -282,6 +286,19 @@ float talGlow = 0.0;
   diffuseColor.rgb = mix(diffuseColor.rgb, blos * (0.85 + lum * 1.2), bl * 0.9);
   float frl = wi * (0.25 + 0.6 * smoothstep(0.3, 0.95, vNw.y)) * (0.55 + 0.45 * sin(vTw.x * 0.2) * sin(vTw.z * 0.17));
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.86, 0.92, 0.97), frl * 0.75);` : `diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.9, 0.94, 0.98), wi * smoothstep(0.6, 0.95, vNw.y) * 0.85);`}
+  // VISTA: a warm grade, three bands of haze (warm near, green between, blue far) and the frame's edges dimmed (the leaves there go deeper green, a frame of boughs round the picture)
+  if (uVz2.x > 0.001) {
+    vec3 vd = vTw - cameraPosition; float dv = length(vd); float vl = dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11));
+    diffuseColor.rgb *= mix(vec3(1.0), vec3(1.08, 1.0, 0.88), 0.8 * uVz2.x);
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0, 0.72, 0.4) * (0.5 + vl), 0.2 * uVz2.x * smoothstep(4.0, 9.0, dv) * (1.0 - smoothstep(11.0, 17.0, dv)));
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.5, 0.78, 0.42) * (0.45 + vl), 0.17 * uVz2.x * smoothstep(12.0, 18.0, dv) * (1.0 - smoothstep(24.0, 34.0, dv)));
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.5, 0.68, 0.95) * (0.6 + vl), 0.2 * uVz2.x * smoothstep(24.0, 36.0, dv));
+    float ed = smoothstep(0.92, 0.64, dot(vd / max(dv, 0.001), -vec3(viewMatrix[0][2], viewMatrix[1][2], viewMatrix[2][2]))) * uVz2.y;
+    diffuseColor.rgb *= 1.0 - ${leaves ? '0.36' : '0.2'} * ed;
+    ${leaves ? 'diffuseColor.rgb *= mix(vec3(1.0), vec3(0.8, 0.96, 0.72), ed);' : ''}
+  }
+  ${leaves ? '' : `// BARK: the great oak's trunk gets slow vertical furrows (it was one smooth brown slab close up)
+  { vec2 oc = vTw.xz - vec2(0.0, -6.0); float orad = length(oc); if (orad < 3.5 && vTw.y > 0.3 && vTw.y < 16.0 && vNw.y < 0.5) { float oa = atan(oc.y, oc.x); float fur = sin(oa * 34.0 + sin(vTw.y * 0.8 + oa * 4.0) * 1.7) * 0.5 + 0.5; diffuseColor.rgb *= 0.78 + 0.34 * smoothstep(0.15, 0.85, fur); } }`}
   if (uTale > 0.5) { vec4 tl = tale(vTw, talGlow); diffuseColor.rgb = mix(diffuseColor.rgb, tl.rgb, tl.a); talGlow *= tl.a; }
 }`;
 
@@ -292,7 +309,7 @@ function patch(material, uniforms, leaves) {
     shader.vertexShader = shader.vertexShader.replace('#include <common>', COMMON_VERT).replace('#include <begin_vertex>', BEGIN_VERT(leaves));
     shader.fragmentShader = shader.fragmentShader.replace('#include <common>', COMMON_FRAG).replace('#include <color_fragment>', COLOR_FRAG(leaves)).replace('#include <emissivemap_fragment>', EMISSIVE_FRAG(leaves));
   };
-  material.customProgramCacheKey = () => (leaves ? 'treehouse-sky-leaves-v4' : 'treehouse-sky-paint-v4');
+  material.customProgramCacheKey = () => (leaves ? 'treehouse-sky-leaves-v5' : 'treehouse-sky-paint-v5');
 }
 // The lit windows (the glow material, unlit): only the tales are painted on them.
 function patchGlow(material, uniforms) {
@@ -311,7 +328,7 @@ export function skyPatch(M) {
   const decA = Array.from({ length: TALE_SLOTS }, (_, i) => { const d = decals[i]; return d ? new THREE.Vector4(d.x, d.y, d.z, d.yaw) : new THREE.Vector4(0, -100, 0, 0); });
   const decB = Array.from({ length: TALE_SLOTS }, (_, i) => { const d = decals[i]; return d ? new THREE.Vector4(d.hw, d.hh, d.kind, d.tol) : new THREE.Vector4(0, 0, 0, 0); });
   const rd = new THREE.Vector3(RAIN_DIR.x, RAIN_DIR.y, RAIN_DIR.z).normalize();
-  const uniforms = { uSeason: { value: new THREE.Vector4(0, 0, 1, 0) }, uRain: { value: 0 }, uRainDir: { value: rd }, uWx: { value: new THREE.Vector4() }, uWx2: { value: new THREE.Vector2() }, uTale: { value: 1 }, uDecA: { value: decA }, uDecB: { value: decB }, uTime: { value: 0 }, uSway: { value: 1 }, uCat: { value: new THREE.Vector4(0, -100, 0, 0) }, uReact: { value: new THREE.Vector3() }, uLamp: { value: Array.from({ length: LAMP_SLOTS }, () => new THREE.Vector4(0, -100, 0, 0)) } };
+  const uniforms = { uSeason: { value: new THREE.Vector4(0, 0, 1, 0) }, uRain: { value: 0 }, uRainDir: { value: rd }, uWx: { value: new THREE.Vector4() }, uWx2: { value: new THREE.Vector2() }, uVz: { value: new THREE.Vector4() }, uVz2: { value: new THREE.Vector4() }, uTale: { value: 1 }, uDecA: { value: decA }, uDecB: { value: decB }, uTime: { value: 0 }, uSway: { value: 1 }, uCat: { value: new THREE.Vector4(0, -100, 0, 0) }, uReact: { value: new THREE.Vector3() }, uLamp: { value: Array.from({ length: LAMP_SLOTS }, () => new THREE.Vector4(0, -100, 0, 0)) } };
   patch(M.paint, uniforms, false);
   patch(M.leaves, uniforms, true);
   if (M.glow) patchGlow(M.glow, uniforms);
@@ -330,6 +347,8 @@ export function skyPatch(M) {
     setRain(k) { sky.rk = k; uniforms.uRain.value = Math.max(k, sky.bow); },
     // the weather's own state (treehouseweather.js): rain, mist, golden hour, storm wind, steam, a flash, and the rainbow it leaves behind
     setWx(rain, mist, gold, storm, steam, flash, bow) { uniforms.uWx.value.set(rain, mist, gold, storm); uniforms.uWx2.value.set(steam, flash); sky.storm = storm; sky.bow = bow; uniforms.uRain.value = Math.max(sky.rk, bow); },
+    // the vista's look (treehousevista.js): the focal point (x, y, z), the grade and haze, the edge dimming, the focal glow (0 = off)
+    setVista(fx, fy, fz, grade, edge, focal) { uniforms.uVz.value.set(0, fx, fy, fz); uniforms.uVz2.value.set(grade, edge, focal, 0); },
     rk: 0, bow: 0, storm: 0,
     season: [0, 0, 1, 0],
     // Watches her speed and her falls: a drop of LAND.minFall m/s or more that ends is a landing (the strength grows to LAND.fullFall). Never allocates.

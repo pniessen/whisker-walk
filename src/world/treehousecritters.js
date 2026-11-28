@@ -17,6 +17,7 @@ import './treehousecritterwords.js';
 import { seasonWeights } from './treehouseseason.js';
 import * as SU from './treehousesurprise.js';
 import { createLiving } from './treehouseliving.js';
+import { createVista } from './treehousevista.js';
 
 export const TAU = Math.PI * 2;
 export const hash01 = (n, s) => { let h = (Math.imul(n | 0, 0x9e3779b1) ^ Math.imul((s | 0) + 0x7f4a7c15, 0x85ebca6b)) | 0; h ^= h >>> 15; h = Math.imul(h, 0x2c1b3c6d); h ^= h >>> 12; return (h >>> 0) / 4294967296; };
@@ -284,6 +285,7 @@ export function createTreehouseCritters(ctx) {
 
   owl.position.set(OWL.x, OWL.y, OWL.z); owl.rotation.y = OWL.yaw; owl.scale.setScalar(OWL_SCALE);
   const living = createLiving(ctx, { dotTexture, hash01, season, reducedMotion, rung }); // beauty pass 5: creatures, the day's rhythm and the sound beds (treehouseliving.js)
+  const vista = createVista(ctx, { rung, reducedMotion, hash01, dotTexture, chime: (i) => chimeNote(audio, 40 + i, living.pitch) }); // beauty pass 7: photogenic vistas and the golden moment (treehousevista.js)
 
   function draw(t) {
     for (let i = 0; i < birds.length; i++) {
@@ -413,6 +415,7 @@ export function createTreehouseCritters(ctx) {
       if (burst && t - showerAt <= BURST.life + 0.1) shower(t);
       runSurprise(t, catPos, camera);
       living.update(dt, t, catPos);
+      vista.update(t, catPos, camera);
       if (t - arriveAt < 2.7) L.o.material.size = 0.46 + (reducedMotion ? 0 : 0.6 * Math.max(0, 1 - (t - arriveAt) / 2.6)); // the leaves swell for a breath
       if (!arrived && catPos && catPos.y > WOOD_Y) { arrived = true; if (burst) { showerAt = t; sx = catPos.x; sy = catPos.y; sz = catPos.z; } chimeNote(audio, 3, living.pitch); arriveAt = t; } // her first step onto a platform: leaves swirl and a chime
       if (living.stormK > 0.3 && t >= stormChime) { stormChime = t + 1.7 + 1.2 * hash01(chimes, 33); chimeNote(audio, chimes + 3, living.pitch); chimeNote(audio, chimes + 5, living.pitch * 1.0595); chimes++; } // the storm sets the chimes clashing (a note and its neighbour a semitone up)
@@ -435,7 +438,7 @@ export function createTreehouseCritters(ctx) {
       }
     },
     dispose() {
-      living.dispose(); sky?.setRain(0);
+      vista.dispose(); living.dispose(); sky?.setRain(0);
       scene.remove(...birds, owl, ledge, F.o, L.o, LP.o);
       for (const g of Object.values(geos)) g.dispose();
       ledge.geometry.dispose(); lit.dispose(); F.g.dispose(); F.o.material.dispose(); L.g.dispose(); L.o.material.dispose(); LP.g.dispose(); LP.o.material.dispose();
