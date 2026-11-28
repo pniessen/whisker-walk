@@ -98,6 +98,7 @@ export const STAGED_AREAS = Object.freeze([
     ['reeflab', 'lab', ['src/world/reefstagelab.js']],
     ['reefwreck', 'wreck', ['src/world/reefstagewreck.js']],
     ['reefride', 'ride', ['src/world/reefstageride.js']],
+    ['reefstory', 'story', ['src/world/reefstagestory.js']], // Marlo, the errand, the light, the critters and the guide: the walk's life side, out of the landing
   ] },
   { id: 'crystal', label: 'crystal stages ', stageCeiling: 65, totalCeiling: 120, stages: [
     ['crystalwingc', 'wingc', ['src/world/crystalstagewingc.js']],

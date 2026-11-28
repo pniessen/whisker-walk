@@ -14,8 +14,6 @@ import { withLocalUuids } from './localuuids.js';
 import { installSuitKit } from '../cat/suitkit.js';
 import * as P from './reefplan.js';
 import * as K from './reefparts.js';
-import { createReefStoryLife } from './reefstorylife.js';
-import { drawLedge } from './reefmarlo.js';
 import { storyColliders } from './reefstory.js';
 import { reefCollectibles, createReefFindsLife } from './reeffinds.js';
 import { drawFindMarks, drawBubbleColumns } from './reeffindparts.js';
@@ -24,7 +22,6 @@ import { REEF_SCENICS } from './reeffindsplan.js';
 import { drawDeep } from './reefdeepparts.js';
 import { drawTufts, drawDecor } from './reefdecorparts.js';
 import { createReefDeepLife } from './reefdeeplife.js';
-import { createReefGuideLive } from './reefguidelive.js';
 import { createReefSealsLife } from './reefsealslive.js';
 import { createReefMoreLife } from './reefmorelive.js';
 import { lifeColliders } from './reefseals.js';
@@ -65,7 +62,7 @@ export function build(scene, opts) {
     K.drawCoral(kit, M);
     K.drawPebbles(kit, M);
     K.drawSeabedLife(kit, M); // round 6: seagrass, starfish and sea urchins
-    drawLedge(kit, M); // the coral ledge that holds shell two (R2)
+    ST.story.drawLedge(kit, M); // the coral ledge that holds shell two (R2)
     drawCave(kit, M); // wing B (R5): the shallow cave that holds shell three, the lantern corals' stalks and the clumps at three heights
     drawLanternStalks(kit, M);
     drawWingClumps(kit, M);
@@ -111,7 +108,7 @@ export function build(scene, opts) {
       ground: P.createReefGround(),
       // the light, the kelp's sway, Marlo and chapter one (world/reefstorylife.js), with the finds on top
       life: (ctx) => {
-        const base = createReefStoryLife(ctx); // the light, the kelp, Marlo and chapter one (milestone R2)
+        const base = ST.story.createStoryLife(ctx); // the light, the kelp, Marlo and chapter one (milestone R2)
         const finds = createReefFindsLife(ctx); // the six discoveries (milestone R3)
         const deep = createReefDeepLife({ ...ctx, say: base.say }); // the plankton and the Deep's three soft lines (R8)
         const sea = createReefSealsLife(ctx); // the seals, octopuses and dolphin family (photo and journal subjects through `spottable`)
@@ -129,7 +126,7 @@ export function build(scene, opts) {
             mouthFree: () => base.marlo.state.carrying == null,
           },
         });
-        const guide = createReefGuideLive({ doc: ctx.doc ?? globalThis.document, win: ctx.win ?? globalThis.window, marlo: base.marlo, errand: base.errand, progression: ctx.progression, lab: story }); // the written guide: goal line, arrow, chip, arrival card
+        const guide = ST.story.createGuideLive({ doc: ctx.doc ?? globalThis.document, win: ctx.win ?? globalThis.window, marlo: base.marlo, errand: base.errand, progression: ctx.progression, lab: story }); // the written guide: goal line, arrow, chip, arrival card
         const ride = ST.ride.createRideLive(rideKit, ctx, area, base, P); // the two mounts (R12)
         const sealRide = ST.ride.createSealRide({ ride: sea.ride, reefY: P.reefY, player: ctx.player, say: base.say, log: ctx.log, progression: ctx.progression, sendEvent: ctx.sendEvent }); // a free ride on a swimming seal
         const wreck = ST.wreck.life?.({ ...ctx, say: base.say, THREE }); // the galleon's flag, journal spot and soft lines (R16)
