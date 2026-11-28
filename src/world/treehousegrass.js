@@ -15,6 +15,7 @@ import * as P from './treehouseplan.js';
 import { paint, placed, pad } from './treehouseparts.js';
 import { TRACK } from './treehousebeauty.js';
 import { drawDetail } from './treehousedetail.js';
+import { drawTrimTufts } from './treehousetrim.js';
 
 const LEVELS = Object.freeze([0.0165, 0.0175, 0.0185, 0.0195, 0.0205, 0.0215, 0.0225]); // half-way between the other ground layers' heights (beauty's 0.017 to 0.022, the track's 0.024)
 const TONES = Object.freeze([0x4a7a38, 0x5a8a40, 0x6c9a48, 0x86a850, 0xa0b05a, 0xb4ac5c]); // dark, mid, mid-light, sunny, yellow-green, dry
@@ -107,5 +108,6 @@ export function drawGrass(kit, M) {
     }
   }
   drawDetail(a, blade);
+  drawTrimTufts(a, blade); // the flower boxes' blooms (round four)
   kit.put('tufts', M.leaves, a.geometry(), { noCast: true });
 }
