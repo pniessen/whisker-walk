@@ -4,7 +4,7 @@
 // Near each one, and only there (it eases in and out as she walks):
 //   * the day's light is graded after the weather's: the sun a warmer gold, the fill warm (it is the rim on her fur), the fog a violet far band, the frame a little darker;
 //   * three bands of haze (warm sand, teal sea, violet horizon) and a soft glow at the focal point: pooled points, no triangle;
-//   * the beach bushes nearest the spot grow a third so the screen's edge is framed;
+//   * the sand a little warmer and deeper, so the frame's foreground dims;
 //   * a GOLDEN MOMENT: stand still 3 s and sparkle plays on the water (or round the door) with one soft chime (the walk's own audio only), once per vista per visit.
 // Draws no random number and reads no clock (time arrives as `t`). Reduced motion: the grade and haze stand still, no golden moment. Lite: fewer points.
 // =============================================================================
@@ -26,7 +26,8 @@ export const VISTAS = Object.freeze([
 ]);
 export const VISTA_R = 5;
 export const GOLDEN = Object.freeze({ still: 3, hold: 9, fade: 2.5 });
-export const V7 = Object.freeze({ band: Object.freeze({ high: 9, low: 6, lite: 3 }), glow: Object.freeze({ high: 2, low: 2, lite: 1 }), trail: Object.freeze({ high: 6, low: 4, lite: 2 }), glit: Object.freeze({ high: 24, low: 16, lite: 8 }) });
+// [bands, glows, trail, glitter] on the full and the lite rung
+export const V7 = Object.freeze({ high: Object.freeze([9, 2, 6, 24]), lite: Object.freeze([3, 1, 2, 8]) });
 const BAND = Object.freeze([{ d: 14, spread: 8, g: 0.11, rgb: [1, 0.72, 0.4] }, { d: 28, spread: 14, g: 0.06, rgb: [0.4, 0.78, 0.8] }, { d: 50, spread: 24, g: 0.13, rgb: [0.72, 0.6, 0.96] }]);
 
 /** The nearest vista and how strongly she is in it: fills out { v, w } (v = index or -1, w 0..1). Pure. */
@@ -98,13 +99,13 @@ const pts = (size, att, name, n, rootScene) => {
 };
 
 /** The vistas' life: update(dt, t, catPos, wx (the weather: state + rig), sound) after the weather's own update; dispose(). */
-export function createLighthouseVistas({ scene, ground = null, reducedMotion = false, lite = false, low = false } = {}) {
-  const rung = lite ? 'lite' : low ? 'low' : 'high'; const still = !!reducedMotion;
+export function createLighthouseVistas({ scene, ground = null, reducedMotion = false, lite = false } = {}) {
+  const R = lite ? V7.lite : V7.high; const still = !!reducedMotion;
   const dpr = typeof window !== 'undefined' ? Math.min(2, window.devicePixelRatio || 1) : 1;
-  const nH = V7.band[rung]; const nG = V7.glow[rung]; const n = { trail: V7.trail[rung] }; const nS = n.trail + V7.glit[rung];
+  const nH = R[0]; const nG = R[1]; const n = { trail: R[2] }; const nS = n.trail + R[3];
   const haze = pts(8, true, 'lighthouse:vistas-haze', nH, scene); const glow = pts(90 * dpr, false, 'lighthouse:vistas-glow', nG, scene); const spark = pts(15 * dpr, false, 'lighthouse:vistas-spark', nS, scene);
   const vs = { v: -1, w: 0 }; const tg = { v: -1, w: 0 }; const gold = newGolden(); const o = { x: 0, y: 0, z: 0, g: 0 }; const cat = { x: 0, y: 0, z: 0 };
-  let last = null; let disposed = false; let bushes = null; let sand = null; let sand0 = null; const count = { chimes: 0 };
+  let last = null; let disposed = false; let sand = null; let sand0 = null;
   const rgbOf = (kind, i, k) => (kind === 'haze' ? BAND[i % 3].rgb : kind === 'glow' ? [1, 0.8, 0.5] : i < n.trail ? [1, 0.85, 0.45] : [1, 0.9, 0.62]).map((v) => v * k);
   function fill(group, kind, t, c, gy, k) {
     for (let i = 0; i < group.n; i++) {
@@ -114,14 +115,6 @@ export function createLighthouseVistas({ scene, ground = null, reducedMotion = f
     }
     group.geo.attributes.position.needsUpdate = true; group.geo.attributes.color.needsUpdate = true;
   }
-  function findBushes() {
-    bushes = [];
-    for (const [x, z] of [[-6, 38], [26, -12], [24, 38], [-26, 36], [-2, 26], [34, 24]]) {
-      let hit = null; scene?.children?.forEach((c) => { if (!hit && Math.abs(c.position.x - x) < 0.01 && Math.abs(c.position.z - z) < 0.01 && !c.isMesh && !c.isPoints) hit = c; });
-      if (hit) bushes.push({ o: hit, x, z, s: hit.scale.x });
-    }
-  }
-
   function update(dt, t, catPos, wx = null, sound = null) {
     if (disposed) return;
     const st = wx?.state ?? { storm: 0, fog: 0, stars: 0 };
@@ -131,7 +124,7 @@ export function createLighthouseVistas({ scene, ground = null, reducedMotion = f
     if (still) { vs.v = tg.v; vs.w = tg.w; } else easeVista(vs, tg, dt);
     const moving = !!(catPos && last) && dt > 0 && Math.hypot(catPos.x - last.x, catPos.z - last.z) / dt > 0.6;
     last = catPos ? { x: catPos.x, z: catPos.z } : null;
-    if (!still && goldenStep(gold, dt, tg.w * (1 - q), moving)) { count.chimes++; sound?.chime?.(); }
+    if (!still && goldenStep(gold, dt, tg.w * (1 - q), moving)) { sound?.chime?.(); }
     if (wx?.rig) gradeVista(vs, q, { fog: wx.rig.fog, sun: wx.rig.sun, fill: wx.rig.fill, scene });
     const on = vs.v >= 0 && vs.w > 0.004;
     haze.p.visible = glow.p.visible = on && q < 0.6; // (clear weather only)
@@ -145,16 +138,12 @@ export function createLighthouseVistas({ scene, ground = null, reducedMotion = f
     // the foreground: the sand a little warmer and deeper while she is in a vista (the frame's edge dims)
     if (sand === null) { scene?.traverse?.((m) => { if (!sand && m.userData?.duskLawnTint && m.material?.color) sand = m; }); sand = sand || false; if (sand) sand0 = sand.material.color.clone(); }
     if (sand) { const w = vs.v < 0 ? 0 : vs.w * (1 - q); sand.material.color.setRGB(sand0.r * (1 - 0.1 * w), sand0.g * (1 - 0.17 * w), sand0.b * (1 - 0.27 * w)); }
-    // framing: the beach bushes nearest the spot grow a third while she is there
-    if (!bushes) findBushes();
-    for (const b of bushes) { const w = vs.v < 0 ? 0 : Math.max(0, 1 - Math.hypot(b.x - VISTAS[vs.v].x, b.z - VISTAS[vs.v].z) / 14) * vs.w; b.o.scale.setScalar(b.s * (1 + 0.33 * w * (1 - q))); }
   }
   function dispose() {
     if (disposed) return;
     disposed = true;
     for (const g of [haze, glow, spark]) { scene?.remove(g.p); g.geo.dispose(); g.p.material.map?.dispose(); g.p.material.dispose(); }
-    for (const b of bushes ?? []) b.o.scale.setScalar(b.s);
     if (sand) sand.material.color.copy(sand0);
   }
-  return { update, dispose, state: vs, gold, count, haze: haze.p, glow: glow.p, spark: spark.p };
+  return { update, dispose, state: vs, gold, haze: haze.p, glow: glow.p, spark: spark.p };
 }

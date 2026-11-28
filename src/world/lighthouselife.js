@@ -170,7 +170,7 @@ export function createLighthouseLife(ctx = {}) {
   // the weather as events (lighthouseweather.js, beauty pass 6): storm, fog, the golden sunset, a starry night; its state is read by the beam and the sea
   const wx = withLocalUuids('lighthouse-weather', () => createLighthouseWeather({ scene, sun: ctx.sun ?? null, fill: ctx.fill ?? null, waterFx: ctx.waterFx ?? [], weather: ctx.weather ?? null, hour: ctx.hour, night: ctx.night ?? 0, seed, reducedMotion: !!ctx.reducedMotion, lite: lowTier, force: ctx.wx ?? (ctx.hour === undefined ? 'off' : null), waters: ctx.waters ?? [] }));
   // the five photogenic vistas (lighthousebeauty7.js, beauty pass 7): a grade, haze and a golden moment where she stands still
-  const vistas = withLocalUuids('lighthouse-vistas', () => createLighthouseVistas({ scene, ground, reducedMotion: !!ctx.reducedMotion, lite: lowTier, low: tier?.name === 'medium' }));
+  const vistas = withLocalUuids('lighthouse-vistas', () => createLighthouseVistas({ scene, ground, reducedMotion: !!ctx.reducedMotion, lite: lowTier }));
   const alive = withLocalUuids('lighthouse-alive', () => createLighthouseAlive({ scene, reducedMotion: !!ctx.reducedMotion, tier, sound, seed, wonder: ctx.wonder ?? null, tone: ctx.tone ?? null, night: ctx.night ?? 0, wx: wx.state }));
   const looks = createFindLooks({ scene, ground, reducedMotion: !!ctx.reducedMotion });
   const cats = createKeeperCats({ scene, ground, colliders: ctx.colliders, waters: ctx.waters, sound, log, progression, roomSeed: seed, visits: ctx.visits, reducedMotion: !!ctx.reducedMotion });
