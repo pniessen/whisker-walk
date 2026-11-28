@@ -65,6 +65,7 @@ const FIELDS = [
   ['rustle', 'late (walk.js): bush rustles as the cat brushes past'],
   ['fightCam', 'late (walk.js): the fight camera, or null where no fight can happen'],
   ['minimap', 'late (walk.js): the corner map, or null in the den'],
+  ['minimapKit', 'late (walk.js): { createMinimap, buildMapLayer } for the split HUD second corner maps, or null in the den'],
   ['minimapShown', "late (walk.js, main.js): the player's engaged state the corner map last showed, or null"],
   ['raceRingShown', 'late (walk.js, main.js): the race ring the HUD last pointed at, or null'],
 
