@@ -10,7 +10,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { litMaterial } from '../render/materials.js';
 import * as P from './crystalplan.js';
-import { planDecor, decorRung } from './crystaldecor.js';
+import { planDecor, planBeauty, decorRung } from './crystaldecor.js';
 
 const _a = new THREE.Color(); const _b = new THREE.Color();
 const HUE = P.HUE_COLOURS;
@@ -71,6 +71,59 @@ function pebbles(list, stone) {
   }));
 }
 
+// Secondary small crystals round the great clusters: a hue-tinted shard (dark at its foot, pale at its tip) and, on some, a glint on the tip (two crossed diamonds in the additive mesh).
+function shards(list, glow, light) {
+  list.forEach((g, i) => g.parts.forEach((p, j) => {
+    const hex = HUE[g.hue]; const x = g.x + p.dx; const z = g.z + p.dz;
+    glow.push(put(tone(cone(p.s, p.h, 4), darken(hex, 0.5), lighten(hex, 0.5 + 0.1 * ((i + j) % 3)), p.h), x, z, { lean: p.lean, yaw: p.yaw }));
+    if (p.glint) light.push(glint(x, P.crystalY(x, z) + p.h + 0.06, z, 0.13 + 0.07 * ((i + j) % 3), hex, p.yaw));
+  }));
+}
+// two crossed diamonds, bright in the middle and black at the corners (so the additive blend leaves a four-point star)
+function glint(x, y, z, r, hex, yaw) {
+  _a.setHex(hex).lerp(_b.setScalar(1), 0.55);
+  const pos = []; const col = [];
+  for (const rot of [0, Math.PI / 2]) {
+    const ca = Math.cos(yaw + rot); const sa = Math.sin(yaw + rot);
+    const c = [[0, 0, 0.9], [r * 1.8, 0, 0], [0, r * 1.8, 0], [-r * 1.8, 0, 0], [0, -r * 1.8, 0]];
+    const v = (k) => { const q = c[k]; pos.push(x + q[0] * ca, y + q[1], z + q[0] * sa); const f = q[2]; col.push(_a.r * f, _a.g * f, _a.b * f); };
+    for (let k = 1; k <= 4; k++) { v(0); v(k); v(k === 4 ? 1 : k + 1); }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  return g;
+}
+// A glowing mineral vein: a thin ribbon wandering over the floor, brightest in the middle, black at both ends, with a short fork.
+function vein(v) {
+  const pos = []; const col = []; const hex = HUE[v.hue];
+  _a.setHex(hex).lerp(_b.setScalar(1), 0.4);
+  const ribbon = (ox, oz, ang, len, w, k) => {
+    const n = 5; const ca = Math.cos(ang); const sa = Math.sin(ang); const pts = [];
+    for (let s = 0; s <= n; s++) {
+      const t = s / n; const off = Math.sin(t * 5 + v.wob) * 0.18;
+      const cx = ox + ca * (t - 0.5) * len - sa * off; const cz = oz + sa * (t - 0.5) * len + ca * off;
+      const f = k * Math.sin(Math.PI * t) ** 0.8;
+      pts.push({ lx: cx - sa * w, lz: cz + ca * w, rx: cx + sa * w, rz: cz - ca * w, f });
+    }
+    for (let s = 0; s < n; s++) {
+      const a = pts[s]; const b = pts[s + 1];
+      const q = [[a.lx, a.lz, a.f], [a.rx, a.rz, a.f], [b.lx, b.lz, b.f], [b.rx, b.rz, b.f]];
+      for (const idx of [[0, 1, 2], [1, 3, 2]]) for (const m of idx) { const [px, pz, f] = q[m]; pos.push(px, P.crystalY(px, pz) + 0.04, pz); col.push(_a.r * f, _a.g * f, _a.b * f); }
+    }
+  };
+  ribbon(v.x, v.z, v.ang, v.len, 0.07, 0.6);
+  ribbon(v.x + Math.cos(v.ang) * 0.3, v.z + Math.sin(v.ang) * 0.3, v.ang + 0.8 + v.fork * 0.5, v.len * 0.45, 0.045, 0.45);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  return g;
+}
+// small floor stalagmites: a few short spikes in a clump, grey at the foot and hue-tinted at the tip
+function minis(list, stone) {
+  list.forEach((m, i) => m.parts.forEach((p, j) => {
+    stone.push(put(tone(cone(0.06 + p.s * 0.9, p.h, 5), 0x5a4a62, lighten(HUE[m.hue], 0.4), p.h), m.x + p.dx, m.z + p.dz, { yaw: p.yaw + i + j, lean: p.lean * 0.3, dy: -0.04 }));
+  }));
+}
+
 // A flat disc of rings that follows the floor: `col(t)` is the colour at t (0 in the middle, 1 at the rim); the rim colour is black, so the additive blend fades to nothing.
 function disc(x, z, r, wob, col, rings = 3, seg = 12) {
   const pos = []; const colr = []; const idx = [];
@@ -95,6 +148,8 @@ function disc(x, z, r, wob, col, rings = 3, seg = 12) {
 }
 const fade = (hex, k) => { _a.setHex(hex); return (t) => { const f = k * (1 - t) ** 1.6; return [_a.r * f, _a.g * f, _a.b * f]; }; };
 function lights(d, out) {
+  d.pockets.forEach((p) => out.push(disc(p.x, p.z, p.r, p.wob, (t) => { const f = 0.16 * (1 - t) ** 1.5; return [p.rgb[0] * f, p.rgb[1] * f, p.rgb[2] * f]; }, 3, 12)));
+  d.veins.forEach((v) => out.push(vein(v)));
   d.pools.forEach((p, i) => out.push(disc(p.x, p.z, p.r, i, fade(HUE[p.hue], 0.3 * p.k + 0.12), 3, 14)));
   d.moss.forEach((m, i) => {
     const c = [[0.22, 0.62, 0.34], [0.3, 0.7, 0.4], [0.18, 0.55, 0.5]][i % 3];
@@ -105,9 +160,9 @@ function lights(d, out) {
 // createCrystalDecor({ scene, tier }) -> { counts, dispose }: the three meshes added to the scene.
 export function createCrystalDecor({ scene, tier = null }) {
   const rung = decorRung(tier);
-  const d = planDecor(rung);
+  const d = { ...planDecor(rung), ...planBeauty(rung) };
   const stone = []; const glow = []; const light = [];
-  mushrooms(d.mush, stone, glow); gardens(d.garden, glow); stalagmites(d.stag, stone); pebbles(d.pebble, stone); lights(d, light);
+  mushrooms(d.mush, stone, glow); gardens(d.garden, glow); stalagmites(d.stag, stone); pebbles(d.pebble, stone); minis(d.mini, stone); lights(d, light); shards(d.sats, glow, light);
   const mats = [litMaterial(0xffffff, { vertexColors: true, roughness: 0.85 }), new THREE.MeshBasicMaterial({ vertexColors: true }),
     new THREE.MeshBasicMaterial({ vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false })];
   const meshes = [[stone, 'decorStone', true], [glow, 'decorGlow', false], [light, 'decorLight', false]].map(([geos, name, lit], i) => {
@@ -120,7 +175,7 @@ export function createCrystalDecor({ scene, tier = null }) {
   const triangles = meshes.reduce((s, m) => s + m.geometry.attributes.position.count / 3, 0);
   return {
     rung, meshes, triangles,
-    counts: { mush: d.mush.length, garden: d.garden.length, moss: d.moss.length, stag: d.stag.length, pools: d.pools.length, pebble: d.pebble.length, meshes: meshes.length },
+    counts: { mush: d.mush.length, garden: d.garden.length, moss: d.moss.length, stag: d.stag.length, pools: d.pools.length, pebble: d.pebble.length, sats: d.sats.length, veins: d.veins.length, mini: d.mini.length, pockets: d.pockets.length, meshes: meshes.length },
     dispose() { meshes.forEach((m) => { scene.remove(m); m.geometry.dispose(); }); mats.forEach((m) => m.dispose()); },
   };
 }

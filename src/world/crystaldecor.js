@@ -137,5 +137,53 @@ function lightPools(n) {
   return out.map((k) => Object.freeze({ x: k.x, z: k.z, r: clamp(k.s * (k.great ? 1.5 : 1.3) + 0.5, 0.9, 4.4), hue: k.hue, k: k.great ? 1 : 0.7 }));
 }
 
+// Three small glowing shards round each light pool's cluster (secondary crystals), one in hue-tinted gradient with a glint on its tip. Flat decoration at the pool's rim.
+function shardSatellites(pools, n) {
+  const rng = mulberry32(BEAUTY_SALTS.sat);
+  return pools.slice(0, n).map((p) => Object.freeze({
+    x: p.x, z: p.z, hue: p.hue, k: p.k,
+    parts: Array.from({ length: 3 }, (_, j) => {
+      const a = (j / 3) * Math.PI * 2 + rng() * 0.9; const d = p.r * (0.78 + rng() * 0.2);
+      return { dx: Math.cos(a) * d, dz: Math.sin(a) * d * 0.95, h: 0.28 + rng() * 0.5 + (p.k === 1 ? 0.2 : 0), s: 0.05 + rng() * 0.05, yaw: rng() * 6.28, lean: (rng() - 0.5) * 0.5, glint: j === 0 || rng() < 0.2 };
+    }),
+  }));
+}
+
+// Soft warm and cool pools of colour that cross the chambers' own hues (a teal one in the warm halls, an amber one in the cool ones). Round-robin over the chambers.
+const WARM = Object.freeze([1, 0.62, 0.28]); const COOL = Object.freeze([0.22, 0.8, 0.78]);
+function colourPockets(n) {
+  const rng = mulberry32(BEAUTY_SALTS.pocket);
+  return Array.from({ length: n }, (_, i) => {
+    const c = CH[i % CH.length]; const warm = c.hue === 'blue' || c.hue === 'heart';
+    let x = c.x; let z = c.z;
+    for (let t = 0; t < 40; t++) { const a = rng() * 6.28; const r = c.r * (0.2 + rng() * 0.6); x = c.x + Math.cos(a) * r; z = c.z + Math.sin(a) * r * 0.9; if (inside(x, z)) break; }
+    return Object.freeze({ x, z, r: 3 + rng() * 1.6, rgb: warm ? WARM : COOL, wob: rng() * 6 });
+  });
+}
+
 // Every small site a test must find clear: the centres of everything but the stalagmites and the light pools.
 export const smallSites = (rung = 'high') => { const d = planDecor(rung); return [...d.mush, ...d.garden, ...d.moss, ...d.pebble]; };
+
+// ---- beauty round 1 (2026-11-28) ------------------------------------------------------------------------------------------------------------------
+// More detail on the same three meshes, planned APART from planDecor so the recorded scatter hashes (test/crystalx0.test.js) stay what they were: mineral veins and
+// small floor stalagmites (own sites, clear of everything the first lists keep clear of AND of each other), shard satellites round the light pools' clusters, and
+// warm and cool pockets of colour. Same rule as the rest: LOW keeps about half, each list a prefix of HIGH. All still, so reduced motion changes nothing.
+export const BEAUTY_SALTS = Object.freeze({ vein: 0x7665696e, mini: 0x6d696e69, sat: 0x73617473, pocket: 0x706f636b });
+export const BEAUTY_COUNT = Object.freeze({
+  high: Object.freeze({ sats: 30, veins: 10, mini: 14, pockets: 8 }),
+  low: Object.freeze({ sats: 15, veins: 5, mini: 7, pockets: 4 }),
+});
+const _bcache = {};
+export function planBeauty(rung = 'high') {
+  if (_bcache[rung]) return _bcache[rung];
+  const N = BEAUTY_COUNT[rung === 'high' ? 'high' : 'low']; const full = BEAUTY_COUNT.high;
+  const taken = smallSites('high').map((m) => ({ x: m.x, z: m.z, rad: m.rad }));
+  const veins = sites(BEAUTY_SALTS.vein, full.veins, 1.1, (r) => ({ ang: r() * Math.PI, len: 1.6 + r() * 0.6, wob: r() * 6, fork: r() }), taken, 0.25, 0.9);
+  const mini = sites(BEAUTY_SALTS.mini, full.mini, 0.6, (r) => ({ parts: members(r, 3, 0.4, 0.04, 0.09).map((m) => ({ ...m, h: 0.2 + r() * 0.4 })) }), taken, 0.2, 1);
+  const sats = shardSatellites(planDecor('high').pools, full.sats);
+  const pockets = colourPockets(full.pockets);
+  const out = { sats: sats.slice(0, N.sats), veins: veins.slice(0, N.veins), mini: mini.slice(0, N.mini), pockets: pockets.slice(0, N.pockets) };
+  for (const k of Object.keys(out)) Object.freeze(out[k]);
+  return (_bcache[rung] = Object.freeze(out));
+}
+export const beautySites = (rung = 'high') => { const d = planBeauty(rung); return [...d.veins, ...d.mini]; };
