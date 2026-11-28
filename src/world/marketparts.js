@@ -726,11 +726,11 @@ export function createCobbleTexture() {
 // downwind. Both from the walk's seconds in uMkT, and an amplitude in uMkAmp that the life sets (0: still,
 // reduced motion and the lite rung). No mesh, no allocation per frame; the drawn pose is the build's.
 export const FLUTTER = Object.freeze({ awning: 0.075, flags: 0.2, rate: 2.3 });
-export function addFlutter(material, kind) {
+export function addFlutter(material, kind, react = null) {
   const uniforms = { uMkT: { value: 0 }, uMkAmp: { value: 0 } };
   const body = kind === 'flags'
     ? `{
-  float wv = aFlap * uMkAmp * ${FLUTTER.flags.toFixed(3)};
+  float wv = aFlap * uMkAmp * ${FLUTTER.flags.toFixed(3)} * mkNear();
   float ph = uMkT * ${FLUTTER.rate.toFixed(2)} + position.x * 1.3 + position.z * 0.9;
   float sw = sin(ph) * 0.65 + sin(ph * 1.9 + 1.3) * 0.35;
   transformed.x += 0.8 * wv * (0.55 + sw);
@@ -738,31 +738,35 @@ export function addFlutter(material, kind) {
   transformed.y += wv * 0.12 * abs(sw);
 }`
     : `{
-  float wv = (1.0 - fract(uv.y * ${ATLAS_ROWS.toFixed(1)})) * uMkAmp * ${FLUTTER.awning.toFixed(3)} * mix(1.0, 0.4, abs(objectNormal.y));
+  float wv = (1.0 - fract(uv.y * ${ATLAS_ROWS.toFixed(1)})) * uMkAmp * ${FLUTTER.awning.toFixed(3)} * mix(1.0, 0.4, abs(objectNormal.y)) * mkNear();
   float ph = uMkT * ${FLUTTER.rate.toFixed(2)} + position.x * 2.1 + position.z * 1.4;
   transformed += objectNormal * wv * (sin(ph) * 0.65 + sin(ph * 1.7 + 0.8) * 0.35);
 }`;
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
+    if (react) { shader.uniforms.uMkCat = react.uMkCat; shader.uniforms.uMkSway = react.uMkSway; }
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>
 uniform float uMkT;
-uniform float uMkAmp;${kind === 'flags' ? '\nattribute float aFlap;' : ''}`)
+uniform float uMkAmp;${kind === 'flags' ? '\nattribute float aFlap;' : ''}${react ? `
+uniform vec3 uMkCat;
+uniform float uMkSway;
+float mkNear() { return 1.0 + uMkSway * 2.4 * (1.0 - smoothstep(0.8, 4.5, length((modelMatrix * vec4(position, 1.0)).xz - uMkCat.xz))); }` : '\nfloat mkNear() { return 1.0; }'}`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
 ${body}`);
   };
-  material.customProgramCacheKey = () => `market-flutter-${kind}-v1`;
+  material.customProgramCacheKey = () => `market-flutter-${kind}-v1${react ? 'r' : ''}`;
   material.userData.flutter = uniforms;
   return uniforms;
 }
 
 // The place's materials, made once per build (never at import).
-export function marketMaterials() {
+export function marketMaterials(react = null) {
   const { texture } = createMarketAtlas();
   const std = (color, roughness, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness, metalness: 0, ...extra });
   return {
     stall: std(0xffffff, 0.9, { map: texture }), // painted boards and signs: the atlas's cells, tinted by white
-    awning: (() => { const m = std(0xffffff, 0.95, { map: texture, side: THREE.DoubleSide }); addFlutter(m, 'awning'); return m; })(),
+    awning: (() => { const m = std(0xffffff, 0.95, { map: texture, side: THREE.DoubleSide }); addFlutter(m, 'awning', react); return m; })(),
     metal: std(0x6f777c, 0.5, { metalness: 0.5 }),
     lantern: std(0xffd078, 0.6, { emissive: 0xffb84a, emissiveIntensity: 0.6 }), // a warm glow by day (market.js LANTERN_DAY), lit fully at dusk by the build
     cloth: std(0xe6dcc2, 1, { side: THREE.DoubleSide }),

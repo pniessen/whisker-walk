@@ -8,6 +8,7 @@ import { hash01 } from './warehouselook.js';
 import { createMarketParts, marketMaterials, addFlutter, atlasCell, frontCell, buildTreatMesh, createCobbleTexture, bloomGeometry, BLOOMS, ATLAS_W, ATLAS_H } from './marketparts.js';
 import { buildAppleCrate, buildYarnBasket, buildPullToy } from './marketfruit.js';
 import { createMarketLife } from './marketlife.js';
+import { createReact, addSquareLife } from './marketreact.js';
 import {
   BASIN_PROFILE, SPIRE_PROFILE, BASIN_WATER, FOUNTAIN_STONE, fountainWaterMaterial, latheGeometry, dressFountain,
 } from './parkfountain.js';
@@ -403,17 +404,20 @@ export function build(scene, { water = {}, wind } = {}) { // eslint-disable-line
   return withLocalUuids('market-models', () => {
     own('market-sky', () => b.applySky(scene, MARKET_SKY.top, MARKET_SKY.horizon));
     const PARTS = createMarketParts();
-    const M = marketMaterials();
+    const react = createReact(PUDDLES); // beauty pass 3: the square's reactions (marketreact.js), the life's to drive
+    const reactGeo = { fx: FOUNTAIN.x, fz: FOUNTAIN.z, c0: 2.5 * FOUNTAIN_SCALE, c1: 2.5 * FOUNTAIN_SCALE + 0.3 };
+    const M = marketMaterials(react);
     const paint = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0 });
+    addSquareLife(paint, 'paint', react, reactGeo);
     const flags = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0, side: THREE.DoubleSide });
-    addFlutter(flags, 'flags'); // the breeze in the bunting (the life sets its amplitude)
+    addFlutter(flags, 'flags', react); // the breeze in the bunting (the life sets its amplitude)
     const barrel = new THREE.CylinderGeometry(0.5, 0.5, 1, 12).translate(0, 0.5, 0);
     const wheel = new THREE.CylinderGeometry(0.5, 0.5, 1, 14).translate(0, 0.5, 0);
     const disc = new THREE.CircleGeometry(0.5, 10).rotateX(-Math.PI / 2);
     const quad = new THREE.PlaneGeometry(1, 1);
 
-    own('market-ground', () => drawGround(scene));
-    drawFountain(scene, M, water);
+    own('market-ground', () => drawGround(scene, react, reactGeo));
+    drawFountain(scene, M, water, react, reactGeo);
     const lanterns = []; // world spots of every lantern bulb
     const poles = []; // the bunting's pole tops, one per stall
     const basketKit = makeKit('marketBaskets');
@@ -577,6 +581,8 @@ export function build(scene, { water = {}, wind } = {}) { // eslint-disable-line
       look: { lantern: M.lantern, windows: winLit, packing, baskets, level: 0 },
       // the breeze in the awnings and the bunting: uniforms { uMkT, uMkAmp }, the life's to drive (marketlife.js)
       flutter: [M.awning.userData.flutter, flags.userData.flutter],
+      // beauty pass 3: the shared uniforms of the square's reactions (marketreact.js), the life's to drive
+      react,
     };
     record.life = (ctx) => createMarketLife(record, ctx);
     return record;
@@ -597,7 +603,7 @@ function groupOf(name, kit) {
 }
 
 // --- the cobbles and the flagstones round the fountain
-function drawGround(scene) {
+function drawGround(scene, react, reactGeo) {
   const ground = b.ground(GROUND_SIZE, MARKET_COBBLE, { surface: 'cobble' });
   // the square's own setts (COBBLE_TILE), keeping builder.ground's macro patches (vertex colours)
   const n = Math.round(GROUND_SIZE / COBBLE_TILE);
@@ -613,6 +619,7 @@ function drawGround(scene) {
     col.setXYZ(i, col.getX(i) * k, col.getY(i) * k, col.getZ(i) * k);
   }
   col.needsUpdate = true;
+  addSquareLife(ground.material, 'ground', react, reactGeo);
   ground.name = 'marketCobbles';
   scene.add(ground);
   const ring = new THREE.RingGeometry(FLAG_RING.r0, FLAG_RING.r1, 48, 1);
@@ -623,6 +630,7 @@ function drawGround(scene) {
   for (let i = 0; i < pos.count; i++) uv.setXY(i, pos.getX(i) / tile, pos.getZ(i) / tile);
   const flags = new THREE.Mesh(ring, litMaterial(FLAG_RING.color, { surface: 'flagstone', repeat: [1, 1] }));
   flags.position.set(FOUNTAIN.x, FLAG_RING.y, FOUNTAIN.z);
+  addSquareLife(flags.material, 'ground', react, reactGeo);
   flags.name = 'marketFlagstones';
   flags.userData.ground = true;
   flags.receiveShadow = true;
@@ -630,7 +638,7 @@ function drawGround(scene) {
 }
 
 // --- the fountain: the Park's, scaled, with a third bowl and the bunting's mast
-function drawFountain(scene, M, water) {
+function drawFountain(scene, M, water, react, reactGeo) {
   const stoneMat = surfaceMaterialNoMap('cobble', FOUNTAIN_STONE.color, { roughness: FOUNTAIN_STONE.roughness });
   const stone = () => stoneMat; // one material for the basin, the spire and the top bowl
   const f = new THREE.Group();
@@ -640,6 +648,7 @@ function drawFountain(scene, M, water) {
   const pool = new THREE.Mesh(
     new THREE.CylinderGeometry(BASIN_WATER.r, BASIN_WATER.r, BASIN_WATER.h, BASIN_WATER.segments),
     fountainWaterMaterial());
+  addSquareLife(pool.material, 'water', react, reactGeo); // beauty pass 3: sparse glints (the life sets uMkSpark)
   pool.position.y = BASIN_WATER.top - BASIN_WATER.h / 2;
   pool.name = 'fountainWater';
   // flat in the basin: no shadow, and kept apart from the upper water so the
@@ -1558,7 +1567,7 @@ function drawGroundDecor(K, { paint, quad, disc }) {
   for (let i = 0; i < 7; i++) {
     const t = hash01(i, 23, 107) * Math.PI * 2;
     const r = 2.5 * FOUNTAIN_SCALE + 0.05 + 0.1 * hash01(i, 29, 109);
-    flat(disc, FOUNTAIN.x + Math.cos(t) * r, FOUNTAIN.z + Math.sin(t) * r, { sx: 0.07, sz: 0.07, dy: 0.158 }, i % 3 === 0 ? 0xd9dde2 : 0xe9be3c);
+    flat(disc, FOUNTAIN.x + Math.cos(t) * r, FOUNTAIN.z + Math.sin(t) * r, { sx: 0.12, sz: 0.12, dy: 0.158 }, i % 3 === 0 ? 0xd9dde2 : 0xe9be3c);
   }
   // petals dropped in front of the flower stall
   const fl = stallById('flowers');
