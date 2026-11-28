@@ -9,6 +9,7 @@
 
 import * as THREE from 'three';
 import { mulberry32 } from '../rng.js';
+import { seasonWeights } from './treehouseseason.js';
 
 export const DAPPLE = Object.freeze({ size: 72, opacity: 0.2, drift: 0.004, tile: 3 }); // metres across, how dark, texture turns a second, how many times it repeats
 export const SHAFT_OPACITY = 0.2; // the shafts' drawn strength (the same number as treehousebeauty.js's, kept here so stage A never imports the lift stage)
@@ -45,7 +46,7 @@ export function dappleTexture() {
 }
 
 // createTreehouseLight({ scene, tier, reducedMotion, weather }) -> { dapple, light, setGlow(x, y, z, intensity), update(dt, t), dispose() }
-export function createTreehouseLight({ scene, tier = null, reducedMotion = false, weather = null }) {
+export function createTreehouseLight({ scene, tier = null, reducedMotion = false, weather = null, season = null, now = null }) {
   weather?.setSheltered?.(true); // the leaves keep the rain off the village
   const low = isLowTier(tier);
   let dapple = null;
@@ -75,6 +76,7 @@ export function createTreehouseLight({ scene, tier = null, reducedMotion = false
   // the lamp pools, the golden-hour lean, the autumn pops and the gusts (treehouseglow.js, drawn into the paint and leaves materials by the lift stage): driven here, once a frame
   const sky = scene.getObjectByName('treehouse:leaves')?.material?.userData?.sky ?? null;
   const rung = tier && tier.shadows === false ? 'lite' : low ? 'low' : 'high';
+  sky?.setSeason(seasonWeights({ season, now })); // the year's own look (beauty pass 4: spring blossom, summer green, autumn gold, winter frost), by the date
   const shaftCol = shafts && !low ? shafts.geometry.attributes.color : null;
   const shaftBase = shaftCol ? Float32Array.from(shaftCol.array) : null;
   let lastShimmer = -1;

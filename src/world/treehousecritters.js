@@ -14,6 +14,8 @@ import * as P from './treehouseplan.js';
 import { paint } from './treehouseparts.js';
 import { isLowTier } from './treehouselight.js';
 import './treehousecritterwords.js';
+import { seasonWeights } from './treehouseseason.js';
+import * as SU from './treehousesurprise.js';
 
 export const TAU = Math.PI * 2;
 export const hash01 = (n, s) => { let h = (Math.imul(n | 0, 0x9e3779b1) ^ Math.imul((s | 0) + 0x7f4a7c15, 0x85ebca6b)) | 0; h ^= h >>> 15; h = Math.imul(h, 0x2c1b3c6d); h ^= h >>> 12; return (h >>> 0) / 4294967296; };
@@ -22,6 +24,12 @@ const smooth = (u) => (u <= 0 ? 0 : u >= 1 ? 1 : u * u * (3 - 2 * u));
 
 export const lifeRung = (tier) => (tier && tier.shadows === false ? 'lite' : isLowTier(tier) ? 'low' : 'high');
 export const COUNTS = Object.freeze({ high: Object.freeze({ birds: 3, flies: 18, leaves: 30, motes: 14 }), low: Object.freeze({ birds: 2, flies: 12, leaves: 16, motes: 6 }), lite: Object.freeze({ birds: 1, flies: 6, leaves: 6, motes: 0 }) }); // motes: pollen in the sun (beauty pass 2), more falling leaves (their gust drift is leafAt's)
+export const FAIRY = Object.freeze({ high: 48, low: 30, lite: 16 }); // winter fairy lights strung along the deck rails (slots of the fireflies Points; beauty pass 4)
+export const SURPRISE_SLOTS = Object.freeze({ high: 72, low: 40, lite: 20 }); // the rare heart and lantern halos (the same Points); the lanterns' bodies are LANTERN_SLOTS of the falling-leaves Points
+export const LANTERN_SLOTS = Object.freeze({ high: 12, low: 8, lite: 5 });
+// The falling leaves by the year (beauty pass 4): blossom petals, summer greens, autumn gold, copper and crimson, winter flakes; the weights blend them near a boundary.
+export const LEAF_COLORS = Object.freeze([[0xf6b8cc, 0xfdeaf0, 0xcfe8a8], [0x7cbc54, 0x4f9a48, 0xb4d870], [0xd8b25a, 0xc9803a, 0xa8402a], [0xf4f8ff, 0xd6e6f2, 0xeaf0f6]]);
+export const FAIRY_COLORS = Object.freeze([0xffd890, 0xff6a5a, 0x7ae88a, 0x6aa8ff]); // warm white, red, green, blue
 export const BURST = Object.freeze({ high: 18, low: 10, lite: 0, life: 2.6, up: 2.2 }); // leaves a landing shakes loose (beauty pass 3: they are the last slots of the one falling-leaves Points), seconds they fall, metres above her they start
 export const STILL_LEAVES = 6; // reduced motion hangs a few leaves, no more
 export const RANGES = Object.freeze({ tl1: 9, tl2: 7, tl3: 8 }); // how near she must be (and facing it) to spot one
@@ -216,7 +224,8 @@ export function nearBridge(x, z) {
 }
 
 // createTreehouseCritters(ctx) -> { spottable, update(dt, t, catPos), dispose(), counts }; ctx is walk.js's life context (scene, reducedMotion, tier, audio).
-export function createTreehouseCritters({ scene, reducedMotion = false, tier = null, audio = null }) {
+export function createTreehouseCritters(ctx) {
+  const { scene, reducedMotion = false, tier = null, audio = null } = ctx;
   const rung = lifeRung(tier);
   const N = { ...COUNTS[rung] };
   if (reducedMotion) N.leaves = Math.min(N.leaves, STILL_LEAVES);
@@ -236,9 +245,17 @@ export function createTreehouseCritters({ scene, reducedMotion = false, tier = n
     const o = mark(new THREE.Points(g, mat)); o.name = name; o.frustumCulled = false; scene.add(o);
     return { pos, col, g, o };
   };
-  const F = points(N.flies + N.motes, 'treehouse:fireflies', new THREE.PointsMaterial({ map: dotTexture(), alphaTest: 0.02, size: 0.34, sizeAttenuation: true, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: true }));
+  const season = seasonWeights(ctx); // [spring, summer, autumn, winter]
+  const nFairy = FAIRY[rung]; const nSur = SURPRISE_SLOTS[rung]; const nLant = LANTERN_SLOTS[rung];
+  const fairyOff = N.flies + N.motes; const surOff = fairyOff + nFairy;
+  const F = points(surOff + nSur, 'treehouse:fireflies', new THREE.PointsMaterial({ map: dotTexture(), alphaTest: 0.02, size: 0.34, sizeAttenuation: true, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: true }));
   const burst = reducedMotion ? 0 : BURST[rung];
   const L = points(N.leaves + burst, 'treehouse:fallingleaves', new THREE.PointsMaterial({ map: dotTexture(), alphaTest: 0.02, size: 0.46, sizeAttenuation: true, vertexColors: true, transparent: true, opacity: 0.95, depthWrite: false, fog: true }));
+
+  // the paper lanterns of the rare dusk surprise: one Points of big soft discs, hidden until then (not a mesh: it adds no triangle, and no draw outside the surprise)
+  const LP = points(nLant, 'treehouse:lanterns', new THREE.PointsMaterial({ map: dotTexture(), alphaTest: 0.3, size: 1.5, sizeAttenuation: true, vertexColors: true, transparent: true, opacity: 0.95, depthWrite: false, fog: true }));
+  LP.pos.fill(0); for (let k = 0; k < nLant; k++) LP.pos[k * 3 + 1] = -200;
+  LP.o.visible = false;
 
   // the journal subjects, one entry for each kind (the walk awards once a kind a walk)
   const spottable = [
@@ -247,7 +264,21 @@ export function createTreehouseCritters({ scene, reducedMotion = false, tier = n
     { type: 'tl3', label: phrase('treehouse.life.firefly'), pos: new THREE.Vector3(), range: RANGES.tl3 },
   ];
   const pose = {}; const fly = {}; const leaf = {};
-  const cFly = new THREE.Color(COL.fly); const cLeaf = [new THREE.Color(COL.leaf), new THREE.Color(COL.leaf2), new THREE.Color(COL.leaf3)]; const cFloor = new THREE.Color(P.TREE_LOOK.floorLeaf); const cTmp = new THREE.Color();
+  const cFly = new THREE.Color(COL.fly);
+  const cLeaf = [0, 1, 2].map((j) => { const c = new THREE.Color(0); for (let q = 0; q < 4; q++) c.r += new THREE.Color(LEAF_COLORS[q][j]).r * season[q], c.g += new THREE.Color(LEAF_COLORS[q][j]).g * season[q], c.b += new THREE.Color(LEAF_COLORS[q][j]).b * season[q]; return c; });
+  const cFair = FAIRY_COLORS.map((h) => new THREE.Color(h));
+  // the fairy lights: festoons along each deck's three rails (the south side keeps its gap), sagging between the posts, thinned to the slot count
+  const fairy = [];
+  if (nFairy && season[3] > 0.3) {
+    const all = [];
+    for (const k of P.DECKS) {
+      const x0 = k.x - k.w / 2; const x1 = k.x + k.w / 2; const z0 = k.z - k.d / 2; const z1 = k.z + k.d / 2; const y = k.y + P.RAIL_H - 0.04;
+      const edge = (ax, az, bx, bz, ox, oz) => { const len = Math.hypot(bx - ax, bz - az); const m = Math.max(2, Math.round(len / 0.6)); for (let i = 0; i < m; i++) { const t = (i + 0.5) / m; all.push({ x: ax + (bx - ax) * t + ox, z: az + (bz - az) * t + oz, y: y - 0.12 * Math.abs(Math.sin(t * len * Math.PI / 1.4)) }); } };
+      edge(x0, z0, x1, z0, 0, -0.06); edge(x0, z0, x0, z1, -0.06, 0); edge(x1, z0, x1, z1, 0.06, 0);
+    }
+    const stride = Math.max(1, all.length / nFairy);
+    for (let i = 0; i < nFairy; i++) fairy.push(all[Math.min(all.length - 1, Math.floor(i * stride))]);
+  } const cFloor = new THREE.Color(P.TREE_LOOK.floorLeaf); const cTmp = new THREE.Color();
 
   owl.position.set(OWL.x, OWL.y, OWL.z); owl.rotation.y = OWL.yaw;
 
@@ -272,6 +303,13 @@ export function createTreehouseCritters({ scene, reducedMotion = false, tier = n
       const gl = reducedMotion ? 0.35 : fly.glow;
       F.col[i * 3] = cFly.r * gl; F.col[i * 3 + 1] = cFly.g * gl; F.col[i * 3 + 2] = cFly.b * gl * 0.8;
     }
+    for (let k = 0; k < nFairy; k++) { // winter's strings of fairy lights (out of sight in any other season)
+      const i = fairyOff + k; const f = fairy[k];
+      if (!f) { F.pos[i * 3 + 1] = -200; continue; }
+      F.pos[i * 3] = f.x; F.pos[i * 3 + 1] = f.y; F.pos[i * 3 + 2] = f.z;
+      const tw = season[3] * (reducedMotion ? 0.85 : 0.6 + 0.4 * Math.sin(t * 2.1 + k * 1.7)); const c = cFair[k % 4];
+      F.col[i * 3] = c.r * tw; F.col[i * 3 + 1] = c.g * tw; F.col[i * 3 + 2] = c.b * tw;
+    }
     spottable[2].pos.set(F.pos[0], F.pos[1], F.pos[2]);
     for (let i = 0; i < N.leaves; i++) {
       leafAt(i, t, leaf);
@@ -280,6 +318,7 @@ export function createTreehouseCritters({ scene, reducedMotion = false, tier = n
       L.col[i * 3] = cTmp.r; L.col[i * 3 + 1] = cTmp.g; L.col[i * 3 + 2] = cTmp.b;
     }
     for (let k = 0; k < burst; k++) { const i = N.leaves + k; L.pos[i * 3 + 1] = -200; } // the shower waits out of sight
+    for (let k = 0; k < nSur; k++) F.pos[(surOff + k) * 3 + 1] = -200; // so do the surprise's glows
     F.g.attributes.position.needsUpdate = true; F.g.attributes.color.needsUpdate = true; L.g.attributes.position.needsUpdate = true; L.g.attributes.color.needsUpdate = true;
   }
   draw(0);
@@ -299,12 +338,68 @@ export function createTreehouseCritters({ scene, reducedMotion = false, tier = n
     }
     L.g.attributes.position.needsUpdate = true; L.g.attributes.color.needsUpdate = true;
   };
+  // the rare surprise (treehousesurprise.js): lanterns, rainbow, owl glide or a firefly heart; nothing at all under reduced motion
+  const spec = reducedMotion ? null : SU.planSurprise({ seed: ctx.roomSeed ?? 0, visits: ctx.visits ?? 0, dusk: !!ctx.dusk, raining: ctx.weather?.condition === 'rain', forced: ctx.surprise ?? null, forcedAt: ctx.surpriseAt ?? 1 });
+  const sur = { active: false, lifted: false, hooted: 0, anchor: { x: 0, y: 0, z: 0, rx: 1, rz: 0 }, have: false };
+  const sp = {}; const cHeart = new THREE.Color(0xffc468);
+  owl.rotation.order = 'YXZ';
+  function stopSurprise() {
+    sur.active = false; sur.lifted = false; sur.hooted = 0; sur.have = false;
+    sky?.setRain(0);
+    owl.position.set(OWL.x, OWL.y, OWL.z); owl.rotation.x = 0; owl.rotation.z = 0; owl.scale.x = 1; owl.scale.z = 1;
+    LP.o.visible = false;
+    for (let k = 0; k < nSur; k++) F.pos[(surOff + k) * 3 + 1] = -200;
+    F.g.attributes.position.needsUpdate = true; L.g.attributes.position.needsUpdate = true;
+  }
+  function runSurprise(t, catPos, camera) {
+    if (!spec) return;
+    const age = t - spec.at;
+    if (!(age >= 0 && age <= SU.DUR[spec.kind])) { if (sur.active) stopSurprise(); return; }
+    sur.active = true;
+    if (spec.kind === 'rainbow') sky?.setRain(SU.rainK(age));
+    else if (spec.kind === 'lanterns') {
+      if (!sur.lifted) { sur.lifted = true; LP.o.visible = true; chimeNote(audio, 5); }
+      LP.g.attributes.position.needsUpdate = true; LP.g.attributes.color.needsUpdate = true;
+      for (let k = 0; k < nLant; k++) {
+        SU.lanternAt(k, nLant, age, sp);
+        const h = sp.hue; const f = sp.fade;
+        LP.pos[k * 3] = sp.x; LP.pos[k * 3 + 1] = f > 0.05 ? sp.y : -200; LP.pos[k * 3 + 2] = sp.z; // the paper body: one big soft orange disc, lit from within
+        LP.col[k * 3] = h[0]; LP.col[k * 3 + 1] = h[1] * 0.78; LP.col[k * 3 + 2] = h[2] * 0.5;
+        for (let m = 0; m < 4; m++) { // a soft glow of four halos packed about the paper body (a lantern is wider than one dot)
+          const q = surOff + k + m * nLant;
+          const dx = m === 2 ? 0.15 : m === 3 ? -0.15 : 0; const dy = m === 0 ? 0.2 : m === 1 ? -0.2 : 0;
+          F.pos[q * 3] = sp.x + dx; F.pos[q * 3 + 1] = sp.fade > 0 ? sp.y + dy : -200; F.pos[q * 3 + 2] = sp.z + (m === 3 ? 0.08 : 0);
+          F.col[q * 3] = h[0] * f * 0.3; F.col[q * 3 + 1] = h[1] * f * 0.2; F.col[q * 3 + 2] = h[2] * f * 0.08;
+        }
+      }
+    } else if (spec.kind === 'heart') {
+      if (!sur.have && catPos) { // the heart hangs in front of the cat, facing the camera, and stays where it formed
+        const cx = camera?.position ? catPos.x - camera.position.x : 0; const cz = camera?.position ? catPos.z - camera.position.z : -1;
+        const d = Math.hypot(cx, cz) || 1; const ux = cx / d; const uz = cz / d;
+        Object.assign(sur.anchor, { x: catPos.x + ux * 0.9, y: (catPos.y ?? 0) + 3.2, z: catPos.z + uz * 0.9, rx: -uz, rz: ux });
+        sur.have = true;
+      }
+      for (let k = 0; k < nSur; k++) {
+        SU.heartAt(k, nSur, age, sur.anchor, sp);
+        const j = surOff + k;
+        F.pos[j * 3] = sp.x; F.pos[j * 3 + 1] = sp.y; F.pos[j * 3 + 2] = sp.z;
+        F.col[j * 3] = cHeart.r * sp.glow * 1.3; F.col[j * 3 + 1] = cHeart.g * sp.glow * 1.3; F.col[j * 3 + 2] = cHeart.b * sp.glow * 1.3;
+      }
+    } else if (spec.kind === 'owl') {
+      SU.owlAt(age, OWL, sp);
+      owl.position.set(sp.x, sp.y, sp.z);
+      owl.rotation.set(sp.pitch, sp.yaw, sp.bank);
+      owl.scale.set(1 + 0.9 * sp.spread, 1 - 0.25 * sp.spread + 0.08 * Math.sin(age * 6), 1 + 0.3 * sp.spread);
+      while (sur.hooted < SU.OWL_HOOTS.length && age >= SU.OWL_HOOTS[sur.hooted]) { SU.hootNote(audio, sur.hooted); sur.hooted++; }
+    }
+    F.g.attributes.position.needsUpdate = true; F.g.attributes.color.needsUpdate = true; L.g.attributes.position.needsUpdate = true; L.g.attributes.color.needsUpdate = true;
+  }
   let nextChime = CHIME_GAP.first; let nearUntil = 0; let wasNear = false; let chimes = 0; let steps = 0; let walked = 0; let lx = 0; let lz = 0; let have = false;
   return {
     rung,
     spottable,
     counts: { rung, ...N, meshes: birds.length + 2 },
-    update(dt, t, catPos) {
+    update(dt, t, catPos, camera) {
       const d = dt > 0 ? Math.min(dt, 1) : 0;
       if (!reducedMotion) draw(t);
       if (sky && catPos && sky.reaction.landedAt !== seenLand) { // she has just landed: a shower of leaves from the boughs over her and a soft thump (the leaves only when motion is allowed)
@@ -313,6 +408,7 @@ export function createTreehouseCritters({ scene, reducedMotion = false, tier = n
         thumpNote(audio, sky.reaction.land);
       }
       if (burst && t - showerAt <= BURST.life + 0.1) shower(t);
+      runSurprise(t, catPos, camera);
       if (t >= nextChime) { chimeNote(audio, chimes); chimes++; nextChime = t + CHIME_GAP.min + CHIME_GAP.span * hash01(chimes, 32); } // (the schedule runs on while muted: no catching up)
       if (catPos && Number.isFinite(catPos.y)) { // a brush past a wind chime sets it ringing (once on coming near, then not again for a few seconds)
         const near = nearChime(catPos.x, catPos.y, catPos.z);
@@ -332,9 +428,10 @@ export function createTreehouseCritters({ scene, reducedMotion = false, tier = n
       }
     },
     dispose() {
-      scene.remove(...birds, owl, ledge, F.o, L.o);
+      sky?.setRain(0);
+      scene.remove(...birds, owl, ledge, F.o, L.o, LP.o);
       for (const g of Object.values(geos)) g.dispose();
-      ledge.geometry.dispose(); lit.dispose(); F.g.dispose(); F.o.material.dispose(); L.g.dispose(); L.o.material.dispose();
+      ledge.geometry.dispose(); lit.dispose(); F.g.dispose(); F.o.material.dispose(); L.g.dispose(); L.o.material.dispose(); LP.g.dispose(); LP.o.material.dispose();
     },
   };
 }
