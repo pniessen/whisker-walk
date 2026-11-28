@@ -5,7 +5,7 @@
 //   * MOTHS flit round the stall bulbs at dusk; LADYBIRDS crawl on the hay bales;
 //   * ARRIVAL: a ticket-bell and a puff of confetti as she walks in under the gate's arch; the big wheel sparkles round its rim as she first comes near;
 //   * ONE WIND (WIND) for the bunting's confetti, steam, lanterns and the balloon; ONE BEAT (the calliope's bar) for the pennants' flutter and the lights' pulse;
-//   * SOUND BEDS that cross-fade with where she stands (the barkers' murmur, a sizzle by the food stalls, birds, a cow and hens in the fields beyond), a slow blend, never a switch.
+//   * SOUND BEDS that cross-fade with where she stands (the hawkers' murmur, a sizzle by the food stalls, birds, a cow and hens in the fields beyond), a slow blend, never a switch.
 // Reduced motion: the stray and the ladybirds stand still, nothing else is drawn. Lite: fewer. Hash of counters only; no Math.random.
 // =============================================================================
 import * as THREE from 'three';
@@ -28,7 +28,7 @@ export const PALS = Object.freeze({
   moths: 8, ladybirds: 8, sparkle: 14, wheelNear: 26, welcomeLen: 3.2, welcomeEvery: 90,
   // sound beds: where each is loud (x, z, r), how often it sounds and how loud it is at its loudest
   beds: Object.freeze({
-    barkers: Object.freeze({ zones: [[0, 30, 17]], every: 2.9, vol: 0.8 }),
+    hawkers: Object.freeze({ zones: [[0, 30, 17]], every: 2.9, vol: 0.8 }),
     sizzle: Object.freeze({ zones: [[-5.7, 40, 9], [5.7, 40, 9], [-5.7, 15.5, 8]], every: 0.9, vol: 0.4 }),
     birds: Object.freeze({ zones: [[3, 36, 14]], every: 3.7, vol: 0.45 }),
     farm: Object.freeze({ zones: [[-40, -4, 22], [11, -38, 20], [38, 38, 20]], every: 8.5, vol: 0.5 }),
@@ -99,7 +99,7 @@ export function createFairPals({ scene, reducedMotion = false, scale = 1, makePo
     const h = PALS.homes[i % PALS.homes.length]; const sparrow = i % 3 === 2;
     return { i, hx: h[0] + (i >= PALS.homes.length ? 0.5 : 0), hz: h[1], x: h[0], z: h[1], y: 0.13, st: 0, t: 0, dx: 1, dz: 0, fx: 0, fz: 0, ax: 0, az: 0, sparrow, away: 0 };
   });
-  const lvl = { barkers: 0, sizzle: 0, birds: 0, farm: 0 }; const due = { barkers: 1, sizzle: 0.3, birds: 2, farm: 3 };
+  const lvl = { hawkers: 0, sizzle: 0, birds: 0, farm: 0 }; const due = { hawkers: 1, sizzle: 0.3, birds: 2, farm: 3 };
   const strayAt = { x: PALS.stray.x, z: PALS.stray.z, ox: 0, oz: 0 };
   const ladyDefs = Array.from({ length: nLady }, (_, i) => { const b = BALE_SEATS[i % BALE_SEATS.length]; return { b, ph: hash(i, 91) * 6.28, sp: 0.06 + hash(i, 92) * 0.05, wp: hash(i, 93) * 6.28 }; });
   let lastCat = null; let arrivedAt = -999; let welcomeAt = -999; let welcomeEnded = true; let drawnStatic = false;

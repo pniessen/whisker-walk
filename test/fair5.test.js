@@ -17,8 +17,8 @@ describe('fair beauty pass 5', () => {
   });
   it('the sound beds blend with where she stands, and the carousel takes its share', () => {
     const mid = bedWeights(0, 30, 0); const far = bedWeights(60, -60, 0);
-    expect(mid.barkers).toBeGreaterThan(0.9); expect(far.barkers + far.sizzle + far.birds + far.farm).toBe(0);
-    expect(bedWeights(0, 30, 1).barkers).toBeCloseTo(mid.barkers * 0.5, 6);
+    expect(mid.hawkers).toBeGreaterThan(0.9); expect(far.hawkers + far.sizzle + far.birds + far.farm).toBe(0);
+    expect(bedWeights(0, 30, 1).hawkers).toBeCloseTo(mid.hawkers * 0.5, 6);
     let prev = bedWeights(5.7, 40, 0).sizzle; // walking away from a stall fades smoothly
     for (let z = 40; z > 20; z -= 0.5) { const w = bedWeights(5.7, z, 0).sizzle; expect(Math.abs(w - prev)).toBeLessThan(0.2); prev = w; }
   });
