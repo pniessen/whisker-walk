@@ -37,6 +37,7 @@ import { createGreenhouseSound } from './greenhousesound.js';
 import './greenhousewords.js';
 import { createFindCues } from './greenhousecues.js';
 import { createGreenhouseIntro } from './greenhouseintro.js';
+import * as Story from './greenhousestory.js';
 
 export const GH_SEED_SALT = 0x6e5d1;
 export const GH_WATER_SALT = 0x6e5d2;
@@ -108,6 +109,17 @@ export function createGreenhouseLife(ctx) {
   let restWas = false;
   let sheltered = false;
   // G5: the near sounds (greenhousesound.js); none without the walk's audio, silent while muted
+  // beauty pass 4: the season (by the calendar; ctx.season or ctx.now for pictures and tests) and the rare surprise moments
+  const season = ctx.season ?? Story.seasonOf(ctx.now ?? new Date());
+  Story.applySeason(scene, season);
+  G.FROST.value = season === 'winter' ? 1 : 0;
+  const moments = withLocalUuids('greenhouse-moments', () => Story.createMoments({ scene, audio: ctx.audio ?? null, reducedMotion, lite: ctx.quality === 'low', visits: ctx.visits ?? 0 }));
+  const walkSeed = ctx.roomSeed === undefined || ctx.roomSeed === null ? ctx.visits ?? 0 : Number(ctx.roomSeed) % 9973;
+  const walkMoment = hash01(walkSeed, 5, Story.GH_STORY_SALT + 5) < Story.MOMENT_CHANCE.walk ? (ctx.dusk ? 'moonbloom' : 'sprinkler') : null;
+  const walkMomentAt = 20 + 40 * hash01(walkSeed, 6, Story.GH_STORY_SALT + 5);
+  let momentDone = false;
+  let rainsEnded = 0;
+  let wasRaining = false;
   const sound = ctx.audio ? createGreenhouseSound(ctx.audio, { weather, dusk: !!ctx.dusk, reducedMotion }) : null;
 
   // ---- the seeds
@@ -185,6 +197,9 @@ export function createGreenhouseLife(ctx) {
   const intro = createGreenhouseIntro({ progression, visits: ctx.visits ?? 0, state: () => ({ seeds, watered: wateredCount() }) }); // the first-visit arrival card
 
   return {
+    get season() { return season; },
+    moments,
+    startMoment(kind, at) { return disposed ? false : moments.start(kind, clock, at); }, // (pictures and tests; the walk starts its own)
     get state() { return { seeds, seedState, held, watered: wateredCount(), thirsty: thirsty.slice(), set: set.map((s) => ({ ...s })), allWatered }; },
     get meshes() { return { cues: cues.mesh, packets, sprouts, can, pots: pots.map((p) => p.leaves), clouds: pots.map((p) => p.cloud) }; },
     promptAt(catPos) {
@@ -243,7 +258,7 @@ export function createGreenhouseLife(ctx) {
         const gain = react.gain * cloud;
         const warm = ctx.dusk ? 1 : 0;
         for (const sh of [shafts, ...roomShafts]) { if (sh) { sh.userData.shaft.uGain.value = gain; sh.userData.shaft.uWarm.value = warm; } }
-        for (const mm of [mist, roomMist]) if (mm) mm.userData.mist.uWarm.value = warm;
+        for (const mm of [mist, roomMist]) if (mm) mm.userData.mist.uWarm.value = Math.max(warm, season === 'winter' ? 0.65 : 0); // winter: the lamps' halos stay warm all day
         if (catPos && !reducedMotion) {
           const v = react.has && step > 0 ? Math.hypot(catPos.x - react.x, catPos.z - react.z) / step : 0;
           react.speed += (Math.min(1, v / 3) - react.speed) * Math.min(1, step * 6);
@@ -251,6 +266,16 @@ export function createGreenhouseLife(ctx) {
           G.CAT_NEAR.value.set(catPos.x, catPos.z, react.speed, 1);
         } else G.CAT_NEAR.value.set(0, 0, 0, 0);
       }
+      // beauty pass 4: a rain's end may bring a rainbow; a walk may bring a sprinkler (day) or a night-blooming flower (dusk), once, when she is near
+      if (wasRaining && !(weather?.isRaining?.())) {
+        if (hash01(walkSeed, ++rainsEnded, Story.GH_STORY_SALT + 6) < Story.MOMENT_CHANCE.rainbow) moments.start('rainbow', clock);
+      }
+      wasRaining = !!weather?.isRaining?.();
+      if (!momentDone && walkMoment && clock >= walkMomentAt && catPos) {
+        const site = walkMoment === 'sprinkler' ? { x: 0, z: 22.6 } : Story.moonbloomSpot(ctx.visits ?? 0);
+        if (dist(catPos, site) < 24 && moments.start(walkMoment, clock)) momentDone = true;
+      }
+      moments.update(clock);
       intro.update(dt);
       cues.update(reducedMotion ? 0 : t);
       if (koi) koi.userData.koi.uTime.value = reducedMotion ? KOI_FROZEN_TIME : t;
@@ -342,6 +367,8 @@ export function createGreenhouseLife(ctx) {
       disposed = true;
       G.CAT_NEAR.value.set(0, 0, 0, 0);
       G.RAIN_ON.value = 0;
+      G.FROST.value = 0;
+      moments.dispose();
       intro.dispose();
       cues.dispose();
       sound?.dispose();

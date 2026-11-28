@@ -23,7 +23,7 @@ const frame = house.children.find((c) => c.name === 'palmHouse-frame');
 const tris = (m) => (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3;
 
 describe('the pane mesh is transparent, frosted, not a caster, front-sided and NOT a fading window', () => {
-  it('is one transparent mesh with a frosted (25 to 35 percent) green-white gradient', () => {
+  it('is one transparent mesh with a frosted (20 to 25 percent a layer since pass 4) green-white gradient', () => {
     expect(glass.material.transparent).toBe(true);
     expect(isTransparentMat(glass.material)).toBe(true);
     expect(glass.material.depthWrite).toBe(false);
@@ -35,8 +35,8 @@ describe('the pane mesh is transparent, frosted, not a caster, front-sided and N
     const col = glass.geometry.attributes.color;
     expect(col.itemSize).toBe(4);
     const alphas = Array.from({ length: col.count }, (_, i) => col.getW(i));
-    expect(Math.max(...alphas)).toBeLessThanOrEqual(0.35 + 1e-6);
-    expect(Math.min(...alphas)).toBeGreaterThanOrEqual(0.25);
+    expect(Math.max(...alphas)).toBeLessThanOrEqual(0.25 + 1e-6);
+    expect(Math.min(...alphas)).toBeGreaterThanOrEqual(0.2);
     expect(Math.max(...alphas)).toBeLessThanOrEqual(G.GLASS_ALPHA.roof + G.GLASS_ALPHA.wet + 1e-6);
     // tinted green-white: the green channel is the highest, and it is light
     const rgb = (i) => [col.getX(i), col.getY(i), col.getZ(i)];
@@ -205,7 +205,7 @@ describe('the record and the scaffold', () => {
     expect(area.waterFx).toHaveLength(1);
   });
   it('two builds are identical', () => {
-    const LIFE = /^(ghPacket|ghSprouts|ghCan|ghCloud|ghSpray|ghGoalRing|greenhouse:findcues)/; // (made by a life, not by the build)
+    const LIFE = /^(ghPacket|ghSprouts|ghCan|ghCloud|ghSpray|ghGoalRing|greenhouse:findcues|greenhouse:moments)/; // (made by a life, not by the build)
     const sig = (sc) => sc.children.filter((c) => !LIFE.test(c.name)).map((c) => { let n = 0; c.traverse((o) => { if (o.isMesh) n += o.geometry.attributes.position.count; }); return `${c.name}:${n}:${c.position.toArray().join(',')}`; }).join('|');
     const s2 = new THREE.Scene();
     build(s2);
