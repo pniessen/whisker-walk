@@ -20,6 +20,7 @@ import { callNote, patterNote, croakNote } from './junglecritters.js';
 import { topHalf, tri3, seasonOf, SEASON, surpriseAt, bloomAt, bloomRamp, bloomSpots, spiralAt } from './junglebeauty4.js';
 import { B5, SLOTH_REST, creaturePlan, createCreatures, snakeIndex, snakeHex, gazeAt, zoneWeights, easeWeights, zoneColor, arrivalDue, bloomLight, chimeNote, createBeds, WIND } from './junglebeauty5.js';
 import { weatherPoints, weatherAt, eventsAt, swayBoost, gradeWeather, clothTint, shaftBoost, shaftTint, thunderDue, MIST_FAST, MIST_MORE } from './junglebeauty6.js';
+import { vistaAt, easeVista, goldenStep, newGolden, vistaPoints, vistaPoint, gradeVista, vistaCloth, vistaShaft } from './junglebeauty7.js';
 import { dayAt, brush, brushOffset, createPool, REACT, RIPPLE, PETALS, DAY } from './junglereact.js';
 const SURPRISE_DUR = { spiral: 15, monkeys: 10 };
 
@@ -409,6 +410,7 @@ export function createJungleBeauty2({ scene, tier = null, reducedMotion = false,
   const crit = createCreatures(rung);
   crit.points().forEach((p) => pts.push(p));
   (rung === 'lite' ? [2.6] : [5, 2.6, 1.2]).forEach((size, k) => pts.push({ kind: 'lbloom', k, size, rgb: [0.5, 0.95, 0.8] }));
+  vistaPoints(rung).forEach((p) => pts.push(p)); // pass 7: the five vistas' haze bands, focal glow and golden-moment sparkle: more points of the same mesh
   weatherPoints(rung).forEach((p) => pts.push(p)); // pass 6: weather as events (rain, steam, dawn mist, golden hour, gust): more points of the same mesh
   const nP = pts.length;
   const mPos = new Float32Array(nP * 3); const mCol = new Float32Array(nP * 3); const mSize = Float32Array.from(pts, (p) => p.size);
@@ -492,6 +494,7 @@ export function createJungleBeauty2({ scene, tier = null, reducedMotion = false,
   motes.userData.zones = zw; // read by the picture page
   const lbloom = { on: false, t0: 0, x: 0, y: 0, z: 0 }; const arrive = { clearing: false, river: false }; let forcedArrival = null;
   const beds = createBeds(audio);
+  const vst = { v: -1, w: 0 }; const vtg = { v: -1, w: 0 }; const gold = newGolden(); let goldens = 0; // pass 7
   function drawMotes(t, rain, day) {
     const dim = 1 - 0.8 * Math.min(1, rain); // the shafts and the dust fade in a shower
     for (let i = 0; i < nP; i++) {
@@ -514,6 +517,8 @@ export function createJungleBeauty2({ scene, tier = null, reducedMotion = false,
         g = (0.35 + 0.4 * Math.sin(t * 0.9 + p.d.ph) ** 2) * s.bright * dim * Math.min(1.4, day.shaft);
       } else if (p.kind === 'wx') {
         weatherAt(p, t, ev, catAt, _cr); x = _cr.x; y = _cr.y; z = _cr.z; g = _cr.g; mSize[i] = _cr.size;
+      } else if (p.kind === 'vs') {
+        vistaPoint(p, t, vst, gold.k, catAt, Math.min(1, rain), _cr); x = _cr.x; y = _cr.y; z = _cr.z; g = _cr.g; mSize[i] = _cr.size;
       } else if (p.kind === 'night') {
         const o = bloomNow(t); const sm = o * o * (3 - 2 * o); const s = p.s;
         x = s.x; z = s.z; y = s.y + 0.25 + 0.15 * sm; g = sm * (p.halo ? 0.3 : 0.85 + 0.15 * Math.sin(t * 2.1 + p.i)); mSize[i] = p.size * (0.15 + 0.85 * sm);
@@ -600,7 +605,7 @@ export function createJungleBeauty2({ scene, tier = null, reducedMotion = false,
       if (reducedMotion) return;
       // her: how fast she goes (to know a stroll from a stand), the foliage she brushes, the river she wades, the flowers she touches
       const moving = !!(catPos && last) && dt > 0 && Math.hypot(catPos.x - last.x, catPos.z - last.z) / dt > 0.6;
-      if (catPos) { catAt.x = catPos.x; catAt.z = catPos.z; }
+      if (catPos) { catAt.x = catPos.x; catAt.z = catPos.z; vistaAt(catPos.x, catPos.z, vtg); easeVista(vst, vtg, dt); if (goldenStep(gold, dt, vst.w, moving)) { try { chimeNote(audio, 40 + goldens, 0.7); } catch { /* the walk's audio only */ } goldens++; } }
       if (catPos && dt > 0) {
         const n = brush(soup.pieces, react, awayX, awayZ, catPos, dt, moving); stirred += n;
         if (n > 0 && t >= nextRustle) { patterNote(audio, 1.5, 0.75); nextRustle = t + REACT.rustleGap; }
@@ -623,11 +628,11 @@ export function createJungleBeauty2({ scene, tier = null, reducedMotion = false,
         }
         last = { x: catPos.x, z: catPos.z };
       }
-      draw(t, rain, camera, day); grade(day); gradeWeather(ev, { fog, sun, fill, scene });
+      draw(t, rain, camera, day); grade(day); gradeWeather(ev, { fog, sun, fill, scene }); gradeVista(vst, { fog, sun, fill, scene });
       weatherVoice(t, day, rain);
-      clothTint(ev, clothC);
+      clothTint(ev, clothC); vistaCloth(vst, clothC);
       sway.material.color.setRGB(SE.tint[0] * (1 - 0.1 * day.noon) * (0.86 + 0.28 * zc[0]) * clothC[0], SE.tint[1] * (1 - 0.06 * day.noon) * (0.86 + 0.28 * zc[1]) * clothC[1], SE.tint[2] * (1 - 0.1 * day.noon) * (0.86 + 0.28 * zc[2]) * clothC[2]); // pass 4: the saturated blossoms ease a little in the noon glare
-      if (shafts) { shafts.material.opacity = SHAFT.opacity * Math.min(1.3, day.shaft) * shaftBoost(ev) * (0.85 + 0.15 * Math.sin(t * 0.27)) * (1 - 0.7 * Math.min(1, rain)); const st = shaftTint(ev); shafts.material.color.setRGB(day.warm[0] * st[0], day.warm[1] * st[1], day.warm[2] * st[2]).lerp(tintC, 0.75 * (1 - 0.5 * ev.gold)); }
+      if (shafts) { shafts.material.opacity = SHAFT.opacity * Math.min(1.3, day.shaft) * shaftBoost(ev) * vistaShaft(vst) * (0.85 + 0.15 * Math.sin(t * 0.27)) * (1 - 0.7 * Math.min(1, rain)); const st = shaftTint(ev); shafts.material.color.setRGB(day.warm[0] * st[0], day.warm[1] * st[1], day.warm[2] * st[2]).lerp(tintC, 0.75 * (1 - 0.5 * ev.gold)); }
     },
     dispose() {
       if (base.sunC) { sun.color.copy(base.sunC); sun.intensity = base.sunI; } if (fill && base.fillI) { fill.color.copy(base.fillC); fill.intensity = base.fillI; } if (base.env !== null) { scene.environmentIntensity = base.env; scene.backgroundIntensity = 1; }
