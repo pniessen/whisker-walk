@@ -11,6 +11,7 @@
 import * as THREE from 'three';
 import { hash01 } from './builder.js';
 import * as P from './lighthouseplan.js';
+import { seasonData } from './lighthouseseason.js';
 import { COL, paint, paintBy, bx, bm, cy, sp, boulder, PLATEAU_PATH_LINES } from './lighthouseparts.js';
 
 const _c = new THREE.Color();
@@ -163,7 +164,8 @@ export const sandOk = (x, z) => ((x > -5.4 && x < 35.2) || (z > 5.4 && x > -38.5
 function drawLawn(kit, M) {
   const S = new Soup();
   const F = new Soup();
-  const greens = [0x6f9a45, 0x7aa24e, 0x5f8a40, 0x86a85a];
+  const SEA = seasonData();
+  const greens = SEA.greens;
   let n = 0;
   for (let gx = -39.4; gx < -7; gx += 1.6) {
     for (let gz = -62; gz < 3.4; gz += 1.6) {
@@ -173,11 +175,11 @@ function drawLawn(kit, M) {
       if (!lawnOk(x, z)) continue;
       n++;
       const g = greens[Math.floor(h01(n, 7, 307) * 4) % 4];
-      tuft(S, x, P.PLATEAU_Y, z, n, 0.26 + 0.22 * h01(n, 9, 309), shadeHex(g, 0.55), mixHex(g, 0xe8e08e, 0.45), 4);
+      tuft(S, x, P.PLATEAU_Y, z, n, 0.26 + 0.22 * h01(n, 9, 309), shadeHex(g, 0.55), mixHex(g, SEA.tip, 0.45), 4);
     }
   }
   // flower clusters: white daisies, buttercups, sea pinks, clover purple; a few more along the sea-side lip
-  const pal = [0xf6f1e4, 0xf2cf3a, 0xe892ae, 0xb98fd2];
+  const pal = SEA.flowers;
   for (let i = 0; i < 44; i++) {
     const lip = i % 3 === 0;
     const cx = lip ? -39.2 + 1.2 * h01(i, 1, 311) : -39 + 32 * h01(i, 2, 311);
@@ -257,6 +259,7 @@ function drawSand(kit, M) {
     shell(W, x, 0.02, z, 0.08 + 0.09 * h01(i, 3, 351), i, shellTones[i % 4]);
   }
   for (const [x, z, r, hex] of [[14.5, 20.5, 0.22, 0xe0793c], [19.5, 8.2, 0.2, 0xd9663b], [26.8, 28.5, 0.24, 0xe58a4a], [11, 33.4, 0.18, 0xe0793c], [27.5, 4, 0.2, 0xd9663b], [3.5, 12, 0.2, 0xe58a4a]]) starfish(W, x, 0.03, z, r, x, hex);
+  const SEA = seasonData();
   // marram on the low dunes under the cliffs and round the boulders: clumps of long grey-green blades
   const MC = [];
   for (let i = 0; i < 260 && MC.length < 44; i++) {
@@ -269,7 +272,8 @@ function drawSand(kit, M) {
   }
   MC.forEach(([x, z], i) => {
     const hh = 0.5 + 0.4 * h01(i, 1, 363);
-    tuft(G, x, 0.02, z, 700 + i, hh, 0x6f7d4a, 0xd4c98a, 7);
+    const bloom = SEA.dune.bloom; // (spring: a third of the clumps flower on their tips, the dunes' wildflowers)
+    tuft(G, x, 0.02, z, 700 + i, hh, SEA.dune.base, bloom && i % 3 === 0 ? bloom[(i / 3 | 0) % bloom.length] : SEA.dune.tip, 7);
   });
   // pebble drifts and a few bigger stones across the sand in front of the arrival, so the near ground is never bare
   for (let i = 0; i < 46; i++) {
