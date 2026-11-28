@@ -26,6 +26,11 @@ describe('the registry', () => {
     const { SEAL } = await import('../src/coop/seatreef.js');
     expect(SEAL).toEqual({ reach: SEAL_RIDE.reach, seconds: SEAL_RIDE.seconds, seatUp: SEAL_RIDE.seatUp, journalKey: SEAL_RIDE.journalKey, journalPage: SEAL_RIDE.journalPage });
   });
+  it('the Moon seat\'s own copies of Dot\'s numbers equal the plan\'s (it imports no Moon file)', async () => {
+    const m = await import('../src/coop/seatmoon.js');
+    expect(m.DOT_REACH).toBe(MoonP.DOT_REACH);
+    expect(m.DOT_SEATS).toEqual(DOT_SEATS);
+  });
   it('has rows for the places with a seat for cat two only; a place with no row has none', async () => {
     expect(Object.keys(SEATS).sort()).toEqual(['crystal', 'greenhouse', 'jungle', 'lighthouse', 'moon', 'reef', 'snowville', 'treehouse']);
     expect(await loadSeat('farm', {})).toBeNull();
