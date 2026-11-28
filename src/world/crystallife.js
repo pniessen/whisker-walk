@@ -154,7 +154,7 @@ function sparkles(n, size, color, opacity, map) {
 }
 
 // One soft note, quiet, on the walk's audio context. Asks for nothing when muted (no context is requested and no node made).
-export function humNote(audio, stone = 0, ratio = 1, delay = 0) {
+export function humNote(audio, stone = 0, ratio = 1, delay = 0, { level = 1, tail = 1 } = {}) { // (beauty pass 5: level scales the loudness, tail > 1 lengthens the echo and the ring, for the farewell when she leaves a chamber)
   if (!audio || typeof audio.getContext !== 'function' || audio.isMuted?.()) return false;
   const ac = audio.getContext();
   if (!ac) return false;
@@ -162,15 +162,15 @@ export function humNote(audio, stone = 0, ratio = 1, delay = 0) {
   const now = ac.currentTime + Math.max(0, delay); // (beauty round 4: a note may start a moment later, for a rising chord)
   const g = ac.createGain();
   g.gain.setValueAtTime(0.0001, now);
-  g.gain.exponentialRampToValueAtTime(0.03, now + 0.25);
-  g.gain.exponentialRampToValueAtTime(0.0001, now + 2.4);
+  g.gain.exponentialRampToValueAtTime(0.03 * level, now + 0.25);
+  g.gain.exponentialRampToValueAtTime(0.0001, now + 2.4 * tail);
   g.connect(dest);
   // beauty round 3: a soft cave ECHO (two quieter, later repeats off one delay line), only where the context has a delay node
   if (typeof ac.createDelay === 'function') {
     try {
-      const dl = ac.createDelay(1); dl.delayTime.value = 0.34;
-      const fb = ac.createGain(); fb.gain.value = 0.38;
-      const wet = ac.createGain(); wet.gain.value = 0.45;
+      const dl = ac.createDelay(1); dl.delayTime.value = 0.34 * Math.min(1.4, tail);
+      const fb = ac.createGain(); fb.gain.value = tail > 1 ? 0.55 : 0.38;
+      const wet = ac.createGain(); wet.gain.value = 0.45 * Math.min(1.5, tail);
       g.connect(dl); dl.connect(fb); fb.connect(dl); dl.connect(wet); wet.connect(dest);
     } catch { /* an echo is a nicety; the note still sings */ }
   }
@@ -181,7 +181,7 @@ export function humNote(audio, stone = 0, ratio = 1, delay = 0) {
     o.frequency.value = f;
     o.connect(g);
     o.start(now);
-    o.stop(now + 2.5);
+    o.stop(now + 2.5 * tail + (tail > 1 ? 1.5 : 0));
   }
   return true;
 }

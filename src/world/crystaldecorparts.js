@@ -246,7 +246,7 @@ function ripple(r) {
 }
 // The shader: one time uniform; positions are world positions (the meshes sit at the origin).
 function animate(mat, uT, U, key = 'cat') {
-  mat.customProgramCacheKey = () => 'crystalMove4';
+  mat.customProgramCacheKey = () => 'crystalMove5';
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uT = uT; sh.uniforms.uCat = U[key]; sh.uniforms.uRip = U.rip; sh.uniforms.uBloom = U.bloom;
     sh.vertexShader = `attribute vec4 aMove;\nattribute vec3 aCen;\nuniform float uT;\nuniform vec4 uCat;\nuniform vec4 uRip[3];\nuniform vec4 uBloom;\nvarying float vKk;\nvarying vec3 vTint;\nvarying float vBand;\nvarying vec3 vPrism;\n${sh.vertexShader}`
@@ -267,6 +267,9 @@ function animate(mat, uT, U, key = 'cat') {
         float band = exp(-pow((db - uBloom.x) / 9.0, 2.0)) * uBloom.y;
         kk *= 1.0 + band * 1.7;
         vBand = clamp(band, 0.0, 1.0); vPrism = 0.5 + 0.5 * cos(6.2832 * (db * 0.045 + vec3(0.0, 0.33, 0.67)));
+        // beauty pass 5: ONE slow breath for the whole cave (every glowing thing swells and eases together, a little later the farther from the middle: it rolls outward like a tide), and the ARRIVAL bloom (uBloom.w, 1 as she enters a chamber, easing out): everything within reach of her glows a little more
+        kk *= 0.93 + 0.1 * sin(uT * 0.8 - db * 0.09);
+        kk *= 1.0 + uBloom.w * 0.55 * smoothstep(14.0, 1.5, dc);
         vKk = kk;`)
     ;
     sh.fragmentShader = `varying float vKk;\nvarying vec3 vTint;\nvarying float vBand;\nvarying vec3 vPrism;\n${sh.fragmentShader}`.replace('#include <color_fragment>', '#include <color_fragment>\n        float lum = dot(diffuseColor.rgb, vec3(0.333)); diffuseColor.rgb = mix(diffuseColor.rgb * vKk * vTint, vPrism * lum * 2.0 * vKk, vBand * 0.8);');
@@ -300,6 +303,9 @@ export function createCrystalDecor({ scene, tier = null, reducedMotion = false }
   d2.wash.forEach((w) => light.push(wash(w.hue === 'blue' || w.hue === 'gold' ? { ...w, rgb: w.rgb.map((v) => v * (w.hue === 'blue' ? 0.6 : 0.78)) } : w))); d2.shafts.forEach((sh) => light.push(shaft(sh))); d2.motes.forEach((m) => light.push(mote(m))); d2.ripples.forEach((r) => light.push(ripple(r)));
   const mists = lowR ? d2mist.slice(0, 3) : d2mist; mists.forEach((m) => light.push(mist(m)));
   if (!lowR) for (let k = 0; k < 3; k++) light.push(pawRing(k));
+  // beauty pass 5: the journey's first colour, the Entry Hall's lantern amber: a warm wash under the arch and two soft amber shafts (the chambers' own shafts and washes carry rose, blue, gold and violet on from there)
+  light.push(wash({ x: 0, z: 21.5, r: 9, rgb: ZONE_RGB.amber.map((v) => v * 0.55) }));
+  if (!lowR) { light.push(shaft({ x: -2.2, z: 20, lx: 1.4, lz: -1.0, w: 1.0, rgb: ZONE_RGB.amber, ph: 0.3 })); light.push(shaft({ x: 3.4, z: 21.5, lx: -1.0, lz: -1.2, w: 0.9, rgb: ZONE_RGB.amber, ph: 0.7 })); }
   drawTales({ tone, cone, raw, tag, glint, disc }, rung, { stone, glow, light }); // beauty round 4: a small story in each chamber, the same three meshes
   untagged(glow, 4); untagged(light, 0);
   const mats = [litMaterial(0xffffff, { vertexColors: true, roughness: 0.85 }), new THREE.MeshBasicMaterial({ vertexColors: true }),

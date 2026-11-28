@@ -22,7 +22,7 @@ export const CAMP = f({ x: -11, z: 19.8, yaw: yawTo(1, -0.3), r: 1.4, k: 1.6 });
 export const WHEEL = f({ x: -29.5, z: 9.5, yaw: yawTo(1, 0.4), r: 1.9, k: 1 });
 export const BENCH = f({ x: 22.5, z: -10.2, yaw: yawTo(POOL.x - 22.5, POOL.z + 10.2), r: 1.4, k: 1.35 });
 export const MURAL = f({ x: 20, z: -32.9, yaw: 0, w: 6.4, h: 4.2 }); // a slab just OUTSIDE the walkable edge (z -32), its painted face toward +z
-export const BED = f({ x: -15, z: -24, yaw: 0.6, r: 1.2, k: 1 });
+export const BED = f({ x: -15, z: -24, yaw: 0.6, r: 1.2, k: 1.3 });
 // the Blue Pool's rainbow: a standing arc over the water, its plane turned toward the way she comes in from the north-west
 export const RAINBOW = f({ x: POOL.x, z: POOL.z, R: 4.8, tx: 0.92, tz: 0.4 });
 
@@ -32,6 +32,14 @@ export const WAYMARKS = f([
   f({ x: 3.5, z: 14, to: 'pool', yaw: yawTo(14 - 3.5, -4 - 14) }),
   f({ x: 0, z: 13.5, to: 'gold', yaw: yawTo(-6, -22 - 13.5) }),
 ]);
+
+// beauty pass 5: a SLEEPING STONE CAT beside the way to the Blue Pool, curled up with its head on its paws. Its eyes are two dim embers that glow gold as she passes (crystalalive.js).
+// Local +z is the way its face points; eyeSpots() gives the two eyes in the world.
+export const STATUE = f({ x: 7.5, z: 16.5, yaw: yawTo(-1, 0.45), r: 1.0, k: 2.1 });
+export const eyeSpots = () => [-1, 1].map((sd) => {
+  const lx = sd * 0.08 * STATUE.k; const lz = 0.6 * STATUE.k; const c = Math.cos(STATUE.yaw); const s = Math.sin(STATUE.yaw);
+  return f({ x: Math.round((STATUE.x + lx * c + lz * s) * 100) / 100, z: Math.round((STATUE.z - lx * s + lz * c) * 100) / 100, y: 0.26 * STATUE.k });
+});
 
 // The glow-worms round the moss bed: where they sit (x, z, height), computed from the ring so a test can find them.
 export const WORMS = f(Array.from({ length: 8 }, (_, i) => {

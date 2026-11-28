@@ -13,9 +13,10 @@ import { dotTexture } from './crystalparts.js';
 import { planCreatures, hueNear, ZONE_RGB } from './crystaldecor.js';
 import * as W from './crystalwingplan.js';
 import * as P from './crystalplan.js';
-import { WORMS, talesRung } from './crystaltalesplan.js';
+import { WORMS, talesRung, eyeSpots, STATUE } from './crystaltalesplan.js';
+import { planBeauty2 } from './crystaldecor.js';
 
-export const ALIVE = Object.freeze({ sparks: 18, creatures: 14, trail: 12, step: 0.55, sparkLife: 1.1, meteorEvery: 24, meteorAt: 5, meteorLen: 1.5, ringLife: 1.7, ringStep: 0.5, glowIn: 2.5 });
+export const ALIVE = Object.freeze({ sparks: 18, creatures: 14, trail: 12, step: 0.55, sparkLife: 1.1, meteorEvery: 24, meteorAt: 5, meteorLen: 1.5, ringLife: 1.7, ringStep: 0.5, glowIn: 2.5, arrive: 3 });
 // beauty round 4: two RARE surprise moments, both pure functions of the walk's clock (no random number):
 //   * the PRISMATIC BLOOM: a band of rainbow light rolls out from the cave's middle (the decor shader's uBloom), every crystal flares as it passes, a rainbow shows in the
 //     Blue Pool's mist, and the crystals sing a rising chord (the cue the sound plays);
@@ -32,6 +33,44 @@ export function bloomAt(t) {
 }
 // star at clock t: { cyc, s }, s = seconds into this star's cycle (-1 before the first)
 export function starAt(t) { const E = EVENTS; if (t < E.starFirst) return { cyc: -1, s: -1 }; const cyc = Math.floor((t - E.starFirst) / E.starEvery); return { cyc, s: t - E.starFirst - cyc * E.starEvery }; }
+// beauty pass 5: LIVING CREATURES, all pooled points (no mesh, no light, no collider, nothing to stand on or catch), each a pure function of the clock and where she is:
+//   * GLOW-MOTHS circle a crystal cluster, then settle on it for a while (dim, wings still) and take off again;
+//   * CAVE FISH school in the Blue Pool and scatter away from her paws when she wades;
+//   * CRYSTAL-SPRITES peek out from the side of a formation, and slip back behind it when she looks their way;
+//   * the sleeping STONE CAT's two eyes glow gold as she passes (the stone itself is the tales' drawing).
+export const BEINGS = Object.freeze({ moths: 8, fish: 10, sprites: 6, mothLap: 15, mothSettle: 5, fishFright: 3.4, lookCos: 0.93, peekFrom: 11, peekTo: 3, eyeReach: 7 });
+export const mothSites = () => planBeauty2('high').hero.slice(0, BEINGS.moths); // (the hero crystals, the four greats included: planned so a prefix has every colour)
+export const spriteSites = () => { // a formation of each colour in turn, spread at least 9 m apart
+  const by = {}; for (const k of P.scatterClusters().filter((q) => q.s >= 1.0 && !q.great).sort((a, b) => b.s - a.s || a.x - b.x)) (by[k.hue] ??= []).push(k);
+  const out = []; for (let r = 0; out.length < BEINGS.sprites && r < 6; r++) for (const h of P.HUES) { const k = (by[h] ?? []).filter((q) => out.every((o) => Math.hypot(o.x - q.x, o.z - q.z) > 9))[0]; if (k && out.length < BEINGS.sprites) { out.push(k); by[h] = by[h].filter((q) => q !== k); } }
+  return out;
+};
+export function mothAt(i, t, site) { // { x, y, z, rest (0..1, 1 = settled) }
+  const lap = BEINGS.mothLap; const per = lap + BEINGS.mothSettle; const ph = (i * 4.7) % per; const u = ((t + ph) % per);
+  const settled = u > lap; const e = settled ? Math.min(1, (u - lap) / 0.8) * (1 - Math.min(1, Math.max(0, (u - per + 0.8) / 0.8))) : 0;
+  const a = (t + ph) * (0.7 + 0.12 * (i % 3)) + i * 1.9; const rad = site.s * 0.7 + 0.5 + 0.25 * Math.sin(t * 1.9 + i);
+  const ox = Math.cos(a) * rad; const oz = Math.sin(a) * rad; const oy = 1.5 + 1.1 * (0.5 + 0.5 * Math.sin(a * 0.6 + i)) + 0.12 * Math.sin(t * 7 + i * 2);
+  const sr = site.s * 0.2 + 0.12; const sx = Math.cos(i) * sr; const sz = Math.sin(i) * sr; const sy = 0.9 + 0.2 * (i % 3);
+  return { x: site.x + ox + (sx - ox) * e, y: oy + (sy - oy) * e, z: site.z + oz + (sz - oz) * e, rest: e };
+}
+// the school's heart wanders the pool; each fish keeps its own spot about it; she pushes them away when near (and the push is clamped inside the water)
+export function fishAt(i, t, cat, pool) {
+  const cx = pool.x + Math.cos(t * 0.13) * pool.r * 0.35; const cz = pool.z + Math.sin(t * 0.17) * pool.r * 0.3;
+  const a = i * 2.4 + t * (0.5 + 0.05 * (i % 4)); const rr = 0.9 + 0.3 * (i % 5);
+  let x = cx + Math.cos(a) * rr * 1.6; let z = cz + Math.sin(a) * rr; let fright = 0;
+  if (cat) { const dx = x - cat.x; const dz = z - cat.z; const d = Math.hypot(dx, dz) || 0.01; if (d < BEINGS.fishFright) { fright = 1 - d / BEINGS.fishFright; const push = fright * fright * 3.2; x += dx / d * push; z += dz / d * push; } }
+  const off = Math.hypot(x - pool.x, z - pool.z); const lim = pool.r * 0.88; if (off > lim) { x = pool.x + (x - pool.x) / off * lim; z = pool.z + (z - pool.z) / off * lim; }
+  return { x, z, fright, hx: -Math.sin(a), hz: Math.cos(a) };
+}
+// 0..1: how much the sleeping cat's eyes glow with her at (x, z)
+export const eyeGlow = (x, z) => { const k = Math.min(1, Math.max(0, 1 - (Math.hypot(x - STATUE.x, z - STATUE.z) - 1.5) / BEINGS.eyeReach)); return k * k * (3 - 2 * k); };
+let _crisp = null; // a firm round dot with a soft rim, so a moth or a fish keeps its colour (the sparks' dot is all glow)
+function crispDot() {
+  if (_crisp) return _crisp;
+  const n = 32; const data = new Uint8Array(n * n * 4);
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const r = Math.hypot(x + 0.5 - n / 2, y + 0.5 - n / 2) / (n / 2); const k = (y * n + x) * 4; data[k] = data[k + 1] = data[k + 2] = 255; data[k + 3] = r >= 1 ? 0 : Math.round(255 * Math.min(1, (1 - r) * 3.2)); }
+  _crisp = new THREE.DataTexture(data, n, n, THREE.RGBAFormat); _crisp.needsUpdate = true; return _crisp;
+}
 const hash = (n, s) => { let h = (Math.imul(n | 0, 0x9e3779b1) ^ Math.imul(s | 0, 0x85ebca6b)) | 0; h ^= h >>> 15; h = Math.imul(h, 0x2c1b3c6d); h ^= h >>> 13; return (h >>> 0) / 4294967296; };
 const lowTier = (tier) => !!tier && (tier.name === 'low' || tier.shadows === false || (tier.rung ?? 0) >= 3);
 
@@ -39,7 +78,9 @@ const lowTier = (tier) => !!tier && (tier.name === 'low' || tier.shadows === fal
 export function createCrystalAlive({ scene, decor, tier = null, reducedMotion = false }) {
   const low = lowTier(tier);
   const nSp = low ? 9 : ALIVE.sparks; const nCr = low ? 7 : ALIVE.creatures; const nTr = low || reducedMotion ? 0 : ALIVE.trail;
-  const nEv = 14; const R4 = talesRung(low ? 'low' : 'high'); const nWorm = R4.worms; const total = nSp + nCr + nEv + nWorm;
+  const nEv = 14; const R4 = talesRung(low ? 'low' : 'high'); const nWorm = R4.worms;
+  const nMoth = low ? 4 : BEINGS.moths; const nFish = low ? 5 : BEINGS.fish; const nSpr = low ? 3 : BEINGS.sprites; const nBeing = nWorm + nMoth * 2 + nFish * 3 + nSpr * 2 + 2;
+  const total = nSp + nCr + nEv + nWorm;
   const pos = new Float32Array(total * 3).fill(-999);
   const col = new Float32Array(total * 3);
   const geo = new THREE.BufferGeometry();
@@ -54,6 +95,12 @@ export function createCrystalAlive({ scene, decor, tier = null, reducedMotion = 
   Object.assign(points.userData, { noCast: true, noContactShadow: true, noMerge: true });
   scene.add(points);
 
+  // beauty pass 5: the creatures are their own Points too (bigger dots, so a moth or a fish reads from the play camera); one more draw, not a mesh and no light
+  const bPos = new Float32Array(nBeing * 3).fill(-999); const bCol = new Float32Array(nBeing * 4);
+  const bGeo = new THREE.BufferGeometry(); bGeo.setAttribute('position', new THREE.BufferAttribute(bPos, 3)); bGeo.setAttribute('color', new THREE.BufferAttribute(bCol, 4));
+  const beings = new THREE.Points(bGeo, new THREE.PointsMaterial({ map: crispDot(), alphaTest: 0.02, size: 0.55, sizeAttenuation: true, vertexColors: true, transparent: true, opacity: 1, blending: THREE.NormalBlending, depthWrite: false, fog: true }));
+  beings.name = 'crystal:beings'; beings.frustumCulled = false; beings.renderOrder = 5; /* after the additive light meshes, so their wash never covers a moth */ Object.assign(beings.userData, { noCast: true, noContactShadow: true, noMerge: true }); scene.add(beings);
+  const putB = (i, x, y, z, r, g, b, a = 1) => { bPos[i * 3] = x; bPos[i * 3 + 1] = y; bPos[i * 3 + 2] = z; bCol[i * 4] = r; bCol[i * 4 + 1] = g; bCol[i * 4 + 2] = b; bCol[i * 4 + 3] = a; }; // (normal blending with an alpha: a moth or a fish stays visible on the brightest pink or cyan, where additive dots wash out)
   // the shooting sparkle is its own little Points (bigger dots; hidden unless a streak is on)
   const mPos = new Float32Array(Math.max(1, nTr) * 3).fill(-999); const mCol = new Float32Array(Math.max(1, nTr) * 3);
   const mGeo = new THREE.BufferGeometry();
@@ -63,6 +110,7 @@ export function createCrystalAlive({ scene, decor, tier = null, reducedMotion = 
   Object.assign(meteor.userData, { noCast: true, noContactShadow: true, noMerge: true });
   if (nTr) scene.add(meteor);
   const creatures = planCreatures(ALIVE.creatures).slice(0, nCr);
+  const moths = mothSites(); const sprites = spriteSites().slice(0, nSpr); const eyes = eyeSpots(); const spriteVis = new Array(6).fill(0); const fishHue = [0.3, 0.8, 1];
   const sparks = Array.from({ length: nSp }, () => ({ age: 99, x: 0, y: 0, z: 0, rgb: [1, 1, 1] }));
   let slot = 0; let walked = 0; let ringWalked = 0; let ringSlot = 0; let n = 0;
   let lastBloom = -2; let last = null; let glow = reducedMotion ? 1 : 0;
@@ -72,7 +120,8 @@ export function createCrystalAlive({ scene, decor, tier = null, reducedMotion = 
   const pulsing = []; scene.traverse((o) => { if (o.isMesh && o.userData?.pulse) pulsing.push(o.material); });
   const fogBase = new THREE.Color(P.CAVE_LOOK.fog); const fogNow = fogBase.clone(); const fogTo = new THREE.Color(); const zc = new THREE.Color();
   const spot = { x: 0, z: 0, cyc: -2 }; let flared = false;
-  const cues = { bloom: 0, star: 0 };
+  const cues = { bloom: 0, star: 0, enter: 0 };
+  let arrive = 0; let zoneNow = null; // beauty pass 5: the arrival bloom (1 as she enters a chamber, easing out over ARRIVE seconds)
   const U = decor?.uniforms;
   const tmp = new THREE.Vector3(); const right = new THREE.Vector3(); const up = new THREE.Vector3(0, 1, 0);
 
@@ -85,7 +134,7 @@ export function createCrystalAlive({ scene, decor, tier = null, reducedMotion = 
 
   return {
     points,
-    counts: { sparks: nSp, creatures: nCr, trail: nTr, worms: nWorm },
+    counts: { sparks: nSp, creatures: nCr, trail: nTr, worms: nWorm, moths: nMoth, fish: nFish, sprites: nSpr },
     cues,
     meteorNow(t) { meteorShift = ALIVE.meteorEvery - ((t - ALIVE.meteorAt) % ALIVE.meteorEvery + ALIVE.meteorEvery) % ALIVE.meteorEvery; },
     update(dt, t, catPos, camera) {
@@ -95,21 +144,25 @@ export function createCrystalAlive({ scene, decor, tier = null, reducedMotion = 
       // the cave's colour grade: the fog leans a little toward the chamber she is in, and settles back between them (also with reduced motion: it is only a colour)
       if (scene.fog && catPos) {
         let w = 0; let hue = 'rose';
-        for (const z of P.ZONES.slice(2)) { const k = Math.min(1, Math.max(0, 1 - (Math.hypot(catPos.x - z.x, catPos.z - z.z) - z.r * 0.4) / (z.r * 1.1))); if (k > w) { w = k; hue = P.HUES[P.ZONES.indexOf(z) - 2]; } }
+        for (const z of P.ZONES) { const k = Math.min(1, Math.max(0, 1 - (Math.hypot(catPos.x - z.x, catPos.z - z.z) - z.r * 0.4) / (z.r * 1.1))); if (k > w) { w = k; hue = P.ZONES.indexOf(z) < 2 ? 'amber' : P.HUES[P.ZONES.indexOf(z) - 2]; } }
         const zr = ZONE_RGB[hue]; zc.setRGB(zr[0] * 0.5 + 0.1, zr[1] * 0.5 + 0.1, zr[2] * 0.5 + 0.1);
-        fogTo.copy(fogBase).lerp(zc, 0.22 * w * w * (3 - 2 * w));
+        fogTo.copy(fogBase).lerp(zc, (0.22 + 0.1 * arrive) * w * w * (3 - 2 * w));
         fogNow.lerp(fogTo, reducedMotion ? 1 : 1 - Math.exp(-dt * 1.4)); scene.fog.color.copy(fogNow);
       }
-      if (reducedMotion) { points.visible = false; meteor.visible = false; return; }
+      // the arrival bloom: stepping into another chamber lights the things round her up for a moment (a pure function of where she is and the time since)
+      if (catPos) { const zid = P.zoneAt(catPos.x, catPos.z); const zk = zid === 'court' ? 'entry' : zid; if (zk && zk !== zoneNow) { arrive = reducedMotion ? 0 : 1; zoneNow = zk; cues.enter++; if (!reducedMotion) { const rgb = ZONE_RGB[zk === 'entry' ? 'amber' : P.HUES[P.ZONES.findIndex((q) => q.id === zk) - 2]] ?? [1, 1, 1]; for (let q = 0; q < 6; q++) spawnSpark(catPos.x, catPos.y ?? 0, catPos.z, rgb); } } }
+      arrive = Math.max(0, arrive - dt / ALIVE.arrive);
+      if (U) U.bloom.value.w = arrive * arrive * (3 - 2 * arrive);
+      if (reducedMotion) { points.visible = false; meteor.visible = false; beings.visible = false; return; }
       // the prismatic bloom: the front and the rainbow into the decor shader, the flare onto the crystal meshes, the chord's cue
       const bl = bloomAt(t);
-      if (U) U.bloom.value.set(bl.x, bl.env, bl.rainbow, 0);
+      if (U) U.bloom.value.set(bl.x, bl.env, bl.rainbow, U.bloom.value.w);
       if (bl.cyc !== lastBloom) { lastBloom = bl.cyc; if (bl.cyc >= 0) cues.bloom++; }
       if (bl.env > 0.001 || flared) {
         flared = bl.env > 0.001;
         for (const m of pulsing) { if (low) m.color.setScalar(1 + 0.4 * bl.env); else m.color.multiplyScalar(1 + 0.4 * bl.env); }
       }
-      points.visible = true;
+      points.visible = true; beings.visible = true;
       // footsteps: a spark every ALIVE.step metres of walking; rings in the Blue Pool
       if (catPos) {
         if (last && dt > 0) {
@@ -165,7 +218,28 @@ export function createCrystalAlive({ scene, decor, tier = null, reducedMotion = 
       if (starTrail && nTr) { meteor.visible = true; mGeo.attributes.position.needsUpdate = true; mGeo.attributes.color.needsUpdate = true; }
       // the glow-worms round the moss bed: slow soft pulses in green and teal
       const w0 = nSp + nCr + nEv;
-      for (let i = 0; i < nWorm; i++) { const wm = WORMS[i]; const g = (0.35 + 0.35 * Math.sin(t * 0.9 + wm.ph * 1.4)) * (i % 2 ? 1 : 0.8); put(w0 + i, wm.x, P.crystalY(wm.x, wm.z) + wm.y, wm.z, 0.3 * g, 1.0 * g, 0.55 * g); }
+      // beauty pass 5: the living creatures
+      let bi = 0; const camFade = (x, y, z) => (camera ? smooth(0.9, 2.8, Math.hypot(x - camera.position.x, y - camera.position.y, z - camera.position.z)) : 1); // (a dot right at the lens would be a big blob)
+      for (let i = 0; i < nWorm; i++) { const wm = WORMS[i]; const g = 0.55 + 0.45 * Math.sin(t * 0.9 + wm.ph * 1.4); const wy = P.crystalY(wm.x, wm.z) + wm.y; putB(bi++, wm.x, wy, wm.z, 0.3, 1, 0.5, 0.4 + 0.5 * g * (i % 2 ? 1 : 0.8)); } // (the glow-worms round the moss bed, now firm dots that show on the golden floor)
+      for (let i = 0; i < nMoth; i++) { const site = moths[i % moths.length]; const m = mothAt(i, t, site); const flit = 0.78 + 0.22 * Math.sin(t * 9 + i * 2.1); const my = P.crystalY(m.x, m.z) + m.y; const ca = camFade(m.x, my, m.z); putB(bi++, m.x, my, m.z, 1, 0.58, 0.14, flit * (1 - 0.35 * m.rest) * ca); putB(bi++, m.x + 0.07, my + 0.05, m.z, 1, 0.9, 0.5, 0.8 * flit * (1 - m.rest) * ca); }
+      for (let i = 0; i < nFish; i++) { // warm gold against the cold water: a bright head and a tail that thins out
+        const fh = fishAt(i, t, catPos, W.POOL); const y = P.crystalY(W.POOL.x, W.POOL.z) + 0.2 + 0.03 * Math.sin(t * 2 + i); const sc = 0.85 + 0.15 * fh.fright;
+        const cf = camFade(fh.x, y, fh.z); putB(bi++, fh.x, y, fh.z, 1, 0.78 * sc, 0.28, cf);
+        putB(bi++, fh.x - fh.hx * 0.24, y, fh.z - fh.hz * 0.24, 1, 0.55, 0.2, 0.9 * cf); putB(bi++, fh.x - fh.hx * 0.46, y, fh.z - fh.hz * 0.46, 1, 0.42, 0.18, 0.6 * cf);
+      }
+      for (let i = 0; i < nSpr; i++) {
+        const k = sprites[i]; const rgb = ZONE_RGB[k.hue]; let want = 0; let dx = 0; let dz = 0;
+        if (catPos && camera) {
+          const dist = Math.hypot(catPos.x - k.x, catPos.z - k.z); camera.getWorldDirection(tmp);
+          dx = k.x - camera.position.x; dz = k.z - camera.position.z; const dl = Math.hypot(dx, dz) || 1; const cosA = (tmp.x * dx + tmp.z * dz) / (Math.hypot(tmp.x, tmp.z) * dl || 1);
+          const near = smooth(BEINGS.peekFrom, BEINGS.peekTo, dist); want = near * (cosA > BEINGS.lookCos ? 0 : 1);
+        }
+        spriteVis[i] += (want - spriteVis[i]) * (1 - Math.exp(-dt * (want < spriteVis[i] ? 6 : 1.6)));
+        const v = spriteVis[i]; const dl2 = Math.hypot(dx, dz) || 1; const side = (i % 2 ? 1 : -1) * (k.s * 0.6 + 0.3); const hx = k.x + (-dz / dl2) * side; const hz = k.z + (dx / dl2) * side;
+        const px = k.x + (hx - k.x) * v; const pz = k.z + (hz - k.z) * v; const py = P.crystalY(px, pz) + 0.15 + 0.35 * v + 0.05 * Math.sin(t * 3 + i);
+        const f = v * (0.8 + 0.2 * Math.sin(t * 5 + i)); putB(bi++, px, py, pz, rgb[0] * 0.5 + 0.5, rgb[1] * 0.5 + 0.5, rgb[2] * 0.5 + 0.5, Math.min(1, f * 1.2)); putB(bi++, px, py + 0.13, pz, 1, 1, 0.9, Math.min(1, f * 1.2));
+      }
+      { const g = catPos ? eyeGlow(catPos.x, catPos.z) : 0; for (const e of eyes) putB(bi++, e.x, P.crystalY(e.x, e.z) + e.y, e.z, 1, 0.72, 0.2, Math.min(1, 0.25 + 0.9 * g) * (0.9 + 0.1 * Math.sin(t * 1.2))); }
       // the shooting sparkle: every ALIVE.meteorEvery seconds, a streak across the upper view (placed from the camera so it is seen, not hidden behind the dome)
       if (nTr && camera && !starTrail) {
         const tt = t + meteorShift; const cyc = Math.floor((tt - ALIVE.meteorAt) / ALIVE.meteorEvery); const loc = tt - ALIVE.meteorAt - cyc * ALIVE.meteorEvery;
@@ -181,8 +255,8 @@ export function createCrystalAlive({ scene, decor, tier = null, reducedMotion = 
         }
         meteor.visible = on; mGeo.attributes.position.needsUpdate = true; mGeo.attributes.color.needsUpdate = true;
       }
-      geo.attributes.position.needsUpdate = true; geo.attributes.color.needsUpdate = true;
+      geo.attributes.position.needsUpdate = true; geo.attributes.color.needsUpdate = true; bGeo.attributes.position.needsUpdate = true; bGeo.attributes.color.needsUpdate = true;
     },
-    dispose() { scene.remove(points, meteor); geo.dispose(); points.material.dispose(); mGeo.dispose(); meteor.material.dispose(); },
+    dispose() { scene.remove(points, meteor, beings); bGeo.dispose(); beings.material.dispose(); geo.dispose(); points.material.dispose(); mGeo.dispose(); meteor.material.dispose(); },
   };
 }
