@@ -234,7 +234,7 @@ describe('the way in: a catalog row after the Farm, a region, a map place, the F
   it('has a loader and its own chunk, and the two stage modules are listed', () => {
     expect(typeof AREA_LOADERS.treehouse).toBe('function');
     expect(AREA_ENTRY_MODULES.treehouse).toEqual(['src/world/treehouse.js']);
-    expect(TREEHOUSE_STAGE_MODULES).toEqual(['src/world/treehousestagebranches.js', 'src/world/treehousestagelift.js']);
+    expect(TREEHOUSE_STAGE_MODULES).toEqual(['src/world/treehousestagebranches.js', 'src/world/treehousestagelift.js', 'src/world/treehousestagestory.js']);
   });
   it('the Farm\'s north signpost and the village\'s own are twins, live only while the switch is on', () => {
     const out = endById('farm-treehouse');
@@ -268,7 +268,7 @@ describe('the two stage slots', () => {
     const a = loadTreehouseStages();
     expect(loadTreehouseStages()).toBe(a);
     expect(await a).toBe(ST);
-    expect(Object.keys(ST.branches)).toEqual(['finds', 'critters', 'colliders', 'perches', 'story', 'draw', 'cats', 'wing', 'errand']);
+    expect(Object.keys(ST.branches)).toEqual(['finds', 'colliders', 'perches', 'story', 'draw', 'wing', 'errand']);
     expect(Object.keys(ST.lift)).toEqual(['draw']); // the beauty round (T8)
     const area = build(new THREE.Scene());
     // every plan perch stands on a deck, a bridge or the landing, which is ground in the walk now (0 over it): none is offered as a hop

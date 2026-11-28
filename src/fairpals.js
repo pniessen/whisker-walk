@@ -24,7 +24,7 @@ export const BEAT = Object.freeze({ note: 0.26, bar: 0.78 });
 export const PALS = Object.freeze({
   birds: 8, flee: 2.3, fleeRun: 4.2, runSpeed: 3.2, flight: 2.6, away: 9, perch: 6,
   homes: Object.freeze([[3.4, 41.5], [2.9, 38.6], [-3.4, 41.8], [-2.8, 37.5], [3.1, 31], [-3.0, 28.5], [2.8, 20], [-2.9, 18.5]]),
-  stray: Object.freeze({ x: 6.2, z: 5.2, wary: 3.2, hide: 1.4, size: 1.3 }),
+  stray: Object.freeze({ x: 6.2, z: 5.2, wary: 3.2, hide: 1.4, size: 2.1 }),
   moths: 8, ladybirds: 8, sparkle: 14, wheelNear: 26, welcomeLen: 3.2, welcomeEvery: 90,
   // sound beds: where each is loud (x, z, r), how often it sounds and how loud it is at its loudest
   beds: Object.freeze({
@@ -83,11 +83,11 @@ export function createFairPals({ scene, reducedMotion = false, scale = 1, makePo
   const nLady = Math.max(2, Math.round(PALS.ladybirds * k));
   const nSpark = reducedMotion || k < 0.5 ? 0 : PALS.sparkle;
   const tex = strayTexture();
-  const body = makePoints(Math.max(1, nBirds), 0.45, false, 'fair:birds');
+  const body = makePoints(Math.max(1, nBirds), 0.65, false, 'fair:birds');
   const parts = makePoints(Math.max(1, nBirds * 3), 0.22, false, 'fair:birdparts');
-  const lady = makePoints(nLady, 0.12, false, 'fair:ladybirds');
-  const moth = makePoints(Math.max(1, nMoths), 0.2, true, 'fair:moths');
-  const spark = makePoints(Math.max(1, nSpark), 1.4, true, 'fair:wheelsparkle');
+  const lady = makePoints(nLady, 0.2, false, 'fair:ladybirds');
+  const moth = makePoints(Math.max(1, nMoths), 0.3, true, 'fair:moths');
+  const spark = makePoints(Math.max(1, nSpark), 2.0, true, 'fair:wheelsparkle');
   const stray = makePoints(1, PALS.stray.size, false, 'fair:stray');
   if (tex) { stray.pts.material.map = tex; stray.pts.material.alphaTest = 0.4; stray.pts.material.needsUpdate = true; stray.col.fill(1); stray.geo.attributes.color.needsUpdate = true; }
   const all = [body, parts, lady, moth, spark, stray];

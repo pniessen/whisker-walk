@@ -22,6 +22,7 @@ import { B5, SLOTH_REST, creaturePlan, createCreatures, snakeIndex, snakeHex, ga
 import { weatherPoints, weatherAt, eventsAt, swayBoost, gradeWeather, clothTint, shaftBoost, shaftTint, thunderDue, MIST_FAST, MIST_MORE } from './junglebeauty6.js';
 import { vistaAt, easeVista, goldenStep, newGolden, vistaPoints, vistaPoint, gradeVista, vistaCloth, vistaShaft, VISTAS } from './junglebeauty7.js';
 import { createReactions, inCamZone } from './junglebeauty8.js';
+import { nightPlan, nightPoint, gradeNight } from './junglebeauty9.js';
 import { bus } from '../events.js';
 import { dayAt, brush, brushOffset, createPool, REACT, RIPPLE, PETALS, DAY } from './junglereact.js';
 const SURPRISE_DUR = { spiral: 15, monkeys: 10 };
@@ -418,6 +419,7 @@ export function createJungleBeauty2({ scene, tier = null, reducedMotion = false,
   const rx = createReactions({ rung, motion: !reducedMotion, ground: P.jungleY, sloth: crit.sloth, voice: { call: (k) => callNote(audio, k), croak: (k) => croakNote(audio, k), chime: (k, v) => chimeNote(audio, k, v) }, targets: [...plan.mushrooms.map((m) => ({ x: m.x, z: m.z, y: P.jungleY(m.x, m.z) + 0.3 })), ...plan.shrubs.map((m) => ({ x: m.x, z: m.z, y: P.jungleY(m.x, m.z) + 0.9 }))] });
   rx.points().forEach((p) => pts.push(p)); // pass 8: the jungle answers her voice and moves (pooled points)
   const offRx = [bus.on('tip:did', (e) => { if (e && e.id === 'call') rx.meow(); }), bus.on('pounce:land', () => rx.land())];
+  nightPlan(rung, plan).forEach((p) => pts.push(p)); // pass 9: night life (points, dark by day)
   weatherPoints(rung).forEach((p) => pts.push(p)); // pass 6: weather as events (rain, steam, dawn mist, golden hour, gust): more points of the same mesh
   const nP = pts.length;
   const mPos = new Float32Array(nP * 3); const mCol = new Float32Array(nP * 3); const mSize = Float32Array.from(pts, (p) => p.size);
@@ -502,7 +504,9 @@ export function createJungleBeauty2({ scene, tier = null, reducedMotion = false,
   const lbloom = { on: false, t0: 0, x: 0, y: 0, z: 0 }; const arrive = { clearing: false, river: false }; let forcedArrival = null;
   const beds = createBeds(audio);
   const vst = { v: -1, w: 0 }; const vtg = { v: -1, w: 0 }; const gold = newGolden(); let goldens = 0; // pass 7
+  const hoot = { t: -9, i: -1 }; const _ng = { x: 0, y: 0, z: 0, g: 0, size: 1 };
   function drawMotes(t, rain, day) {
+    const N = day.night || 0; // pass 9: how deep the night is
     const dim = 1 - 0.8 * Math.min(1, rain); // the shafts and the dust fade in a shower
     for (let i = 0; i < nP; i++) {
       const p = pts[i]; let x; let y; let z; let g;
@@ -511,7 +515,8 @@ export function createJungleBeauty2({ scene, tier = null, reducedMotion = false,
         const sp = 0.34 * (0.8 + 0.4 * hash(p.i)) * MIST_FAST(ev); // pass 5: it drifts the way the wind (and the cloth) blows
         x = wrap(hash(p.i * 5 + 1) * 2 * B + t * sp * WIND.x, catAt.x); z = wrap(hash(p.i * 5 + 2) * 2 * B + t * sp * WIND.z, catAt.z);
         y = P.jungleY(x, z) + 2.0 + 0.5 * Math.sin(t * 0.2 + p.i); g = 0.5 * day.mist * SE.mist * (0.7 + 0.3 * Math.sin(t * 0.3 + p.i * 2)) * (0.8 + 0.3 * gustAt(t)) + MIST_MORE(ev) * 0.5 + 0.16 * (1 - zw.garden) * (0.7 + 0.3 * Math.sin(t * 0.4 + p.i)) * (1 - 0.6 * day.noon); // and takes the colour of the place she is in
-        mCol[i * 3] = (p.rgb[0] * 0.25 + zc[0] * 0.75) * g; mCol[i * 3 + 1] = (p.rgb[1] * 0.25 + zc[1] * 0.75) * g; mCol[i * 3 + 2] = (p.rgb[2] * 0.25 + zc[2] * 0.75) * g; mPos[i * 3] = x; mPos[i * 3 + 1] = y; mPos[i * 3 + 2] = z; continue;
+        g += 0.16 * N; const mw = 0.75 * (1 - 0.7 * N); // at night it glows blue in the moonbeams
+        mCol[i * 3] = (p.rgb[0] * (1 - mw) + zc[0] * mw) * g * (1 - 0.55 * N); mCol[i * 3 + 1] = (p.rgb[1] * (1 - mw) + zc[1] * mw) * g * (1 - 0.3 * N); mCol[i * 3 + 2] = (p.rgb[2] * (1 - mw) + zc[2] * mw) * g * (1 + 0.5 * N); mPos[i * 3] = x; mPos[i * 3 + 1] = y; mPos[i * 3 + 2] = z; continue;
       } else if (p.kind === 'ring') {
         pool.ringPoint(p.r, p.k, _pt); x = _pt.x; y = _pt.y; z = _pt.z; g = _pt.g * 0.9;
       } else if (p.kind === 'petal') {
@@ -523,22 +528,24 @@ export function createJungleBeauty2({ scene, tier = null, reducedMotion = false,
         x = s.x - SHAFT.lean[0] * (h - y0) + Math.cos(a) * r; z = s.z - SHAFT.lean[1] * (h - y0) + Math.sin(a) * r; y = h;
         g = (0.35 + 0.4 * Math.sin(t * 0.9 + p.d.ph) ** 2) * s.bright * dim * Math.min(1.4, day.shaft);
       } else if (p.kind === 'wx') {
-        weatherAt(p, t, ev, catAt, _cr); x = _cr.x; y = _cr.y; z = _cr.z; g = _cr.g; mSize[i] = _cr.size;
+        weatherAt(p, t, ev, catAt, _cr); x = _cr.x; y = _cr.y; z = _cr.z; g = _cr.g * (1 - 0.7 * N); mSize[i] = _cr.size;
       } else if (p.kind === 'vs') {
-        vistaPoint(p, t, vst, gold.k, catAt, Math.min(1, rain), _cr); x = _cr.x; y = _cr.y; z = _cr.z; g = _cr.g; mSize[i] = _cr.size;
+        vistaPoint(p, t, vst, gold.k, catAt, Math.min(1, rain), _cr); x = _cr.x; y = _cr.y; z = _cr.z; g = _cr.g * (1 - 0.7 * N); mSize[i] = _cr.size;
       } else if (p.kind === 'rx') {
         rx.at(p.i, t, _cr); mSize[i] = _cr.size; mCol[i * 3] = _cr.rgb[0] * _cr.g; mCol[i * 3 + 1] = _cr.rgb[1] * _cr.g; mCol[i * 3 + 2] = _cr.rgb[2] * _cr.g; mPos[i * 3] = _cr.x; mPos[i * 3 + 1] = _cr.y; mPos[i * 3 + 2] = _cr.z; continue;
+      } else if (p.kind === 'ng') {
+        nightPoint(p, t, N, catAt, hoot, _ng); x = _ng.x; y = _ng.y; z = _ng.z; g = _ng.g; mSize[i] = _ng.size;
       } else if (p.kind === 'night') {
-        const o = bloomNow(t); const sm = o * o * (3 - 2 * o); const s = p.s;
+        const o = Math.max(bloomNow(t), N * (0.7 + 0.3 * Math.sin(t * 1.7 + p.s.x * 0.3))); const sm = o * o * (3 - 2 * o); const s = p.s;
         x = s.x; z = s.z; y = s.y + 0.25 + 0.15 * sm; g = sm * (p.halo ? 0.3 : 0.85 + 0.15 * Math.sin(t * 2.1 + p.i)); mSize[i] = p.size * (0.15 + 0.85 * sm);
       } else if (p.kind === 'cr') {
         crit.at(p.c, t, day, _cr); x = _cr.x; y = _cr.y; z = _cr.z; g = _cr.g; mSize[i] = _cr.size;
       } else if (p.kind === 'lbloom') {
         const a = lbloom.on ? t - lbloom.t0 : -1; x = lbloom.x; z = lbloom.z; y = lbloom.y + 0.2 * p.k; g = bloomLight(a) * (p.k === 0 ? 0.07 : p.k === 1 ? 0.12 : 0.2);
       } else if (p.kind === 'halo') {
-        x = p.x; y = p.y; z = p.z; g = (0.32 + 0.1 * Math.sin(t * 2.3 + p.ph * 3) + 0.06 * Math.sin(t * 5.1 + p.ph)) * (0.6 + 0.4 * dim) * day.glow;
+        x = p.x; y = p.y; z = p.z; g = (0.32 + 0.1 * Math.sin(t * 2.3 + p.ph * 3) + 0.06 * Math.sin(t * 5.1 + p.ph)) * (0.6 + 0.4 * dim) * day.glow * (1 + 1.4 * N); // the lantern pools are warm and wide at night
       } else if (p.kind === 'mush') {
-        x = p.x; y = p.y; z = p.z; g = (0.22 + 0.12 * Math.sin(t * 0.9 + p.ph)) * (0.7 + 0.8 * day.glow);
+        x = p.x; y = p.y; z = p.z; g = (0.22 + 0.12 * Math.sin(t * 0.9 + p.ph)) * (0.7 + 0.8 * day.glow) * (1 + 2.2 * N * (0.55 + 0.45 * Math.sin(t * 1.7 - p.x * 0.3 - p.z * 0.2))); // a wave of light, in step with the fungus path
       } else {
         x = p.x; y = p.y; z = p.z; g = Math.max(0, Math.sin(t * p.w + p.ph)) ** 6 * dim * SE.glint * (0.7 + 0.5 * gustAt(t)); // the water glitters with the wind
       }
@@ -579,7 +586,7 @@ export function createJungleBeauty2({ scene, tier = null, reducedMotion = false,
     if (fill && base.fillI) fill.color.lerp(tintC, 0.85);
   }
   let nextCricket = 1.5; let crickets = 0; let nextDistant = SOUND_GAP.distant.first; let distant = 0; let nextDrip = 0;
-  let nextChime = 4; let chimes = 0; let nextFrog = 9; let frogs = 0; let nextWind = 3; let winds = 0; let nextRustle = 0; let nextMonkey = 0; let monkeys = 0; let stirred = 0; let lastFlush = -99; let last = null;
+  let hoot2 = 0; let nextOwl = 6; let owls = 0; let nextBreeze = 2; let nextChime = 4; let chimes = 0; let nextFrog = 9; let frogs = 0; let nextWind = 3; let winds = 0; let nextRustle = 0; let nextMonkey = 0; let monkeys = 0; let stirred = 0; let lastFlush = -99; let last = null;
   // pass 6: the weather's voice: far thunder, louder frogs in the rain, a dawn chorus that starts up bird by bird, a whoosh as a gust comes
   let nextRainFrog = 0; let rainFrogs = 0; let nextDawn = 0; let dawnCalls = 0; let gustKey = null;
   function weatherVoice(t, day, rain) {
@@ -601,12 +608,15 @@ export function createJungleBeauty2({ scene, tier = null, reducedMotion = false,
       // pass 5: where she stands sets the colour story and the sound beds; the weights ease so nothing jumps
       if (catPos) { zoneWeights(catPos.x, catPos.z, zt); if (!zInit) { Object.assign(zw, zt); zInit = true; } else easeWeights(zw, zt, dt); }
       const gust = gustAt(t); beds.update(zw, gust);
-      if (!rain && t >= nextChime && zw.porch > 0.12 && gust > 0.5) { chimeNote(audio, chimes, Math.min(1, zw.porch * 1.8) * gust); chimes++; nextChime = t + (3 + 4 * hash(chimes * 3 + 5)) / (0.4 + gust); } else if (t >= nextChime) nextChime = t + 1;
+      if (!rain && t >= nextChime && zw.porch > 0.12 && gust > 0.5 - 0.15 * day.night) { chimeNote(audio, chimes, Math.min(1, zw.porch * 1.8) * gust); chimes++; nextChime = t + (3 + 4 * hash(chimes * 3 + 5)) / (0.4 + gust); } else if (t >= nextChime) nextChime = t + 1;
       // (each schedule runs on while muted: no catching up) the day's voice: birds are loudest at dawn, crickets and frogs at dusk, a breath of wind through the leaves at noon
       if (rain > 0.05) { if (t >= nextDrip) { patterNote(audio, rain * 0.6, 0.9); nextDrip = t + SOUND_GAP.drip; } } else {
-        if (t >= nextCricket) { cricketNote(audio, crickets); crickets++; nextCricket = t + (SOUND_GAP.cricket.min + SOUND_GAP.cricket.span * hash(crickets * 3 + 7)) * (1.5 - 1.1 * day.dusk) * (1.9 - 1.3 * zw.garden - 0.4 * zw.river); } // the garden hums with insects, the porch and the rise less
+        if (t >= nextCricket) { cricketNote(audio, crickets); crickets++; nextCricket = t + (SOUND_GAP.cricket.min + SOUND_GAP.cricket.span * hash(crickets * 3 + 7)) * (1.5 - 1.1 * day.dusk) * (1 - 0.5 * day.night) * (1.9 - 1.3 * zw.garden - 0.4 * zw.river); } // the garden hums with insects, the porch and the rise less
         if (t >= nextDistant) { callNote(audio, 100 + distant * 3 + (day.dawn > 0.4 ? 47 : 0)); distant++; nextDistant = t + (SOUND_GAP.distant.min + SOUND_GAP.distant.span * hash(distant * 5 + 9)) * (1.7 - 1.15 * day.dawn) * (1.5 - 0.9 * zw.canopy - 0.3 * zw.garden); } // and the birds sing from the canopy
-        if (day.dusk > 0.4 && t >= nextFrog) { croakNote(audio, 60 + frogs); frogs++; nextFrog = t + 5 + 7 * hash(frogs * 7 + 3); }
+        if ((day.dusk > 0.4 || day.night > 0.3) && t >= nextFrog) { croakNote(audio, 60 + frogs); if (day.night > 0.3) croakNote(audio, 77 + frogs * 3); frogs++; nextFrog = t + (5 + 7 * hash(frogs * 7 + 3)) / (1 + day.night); } // pass 9: at night a chorus, one answering the next
+        if (hoot2 > 0 && t >= hoot2) { callNote(audio, 700 + owls * 11); hoot2 = 0; } // pass 9: an owl hoots twice, and its eyes brighten with it
+        if (day.night > 0.35 && t >= nextOwl) { callNote(audio, 650 + owls * 7); hoot.t = t; hoot.i = owls % 3; hoot2 = t + 0.7; owls++; nextOwl = t + 8 + 7 * hash(owls * 5 + 4); }
+        if (day.night > 0.2 && t >= nextBreeze) { patterNote(audio, 0.12 + 0.2 * gustAt(t), 1); nextBreeze = t + 4 + 4 * hash(t * 7 | 0); } // and a soft breeze
         const su = surpriseNow(t);
         if (su && su.kind === 'monkeys' && t >= nextMonkey) { (monkeys % 2 ? croakNote : callNote)(audio, 200 + monkeys * 5); monkeys++; nextMonkey = t + 0.3 + 0.55 * hash(monkeys * 3 + 1); } // a chorus of distant monkeys, calling back and forth
         if (day.noon > 0.3 && t >= nextWind) { patterNote(audio, 0.3 + 0.5 * gustAt(t), 1); winds++; nextWind = t + 3.5 + 3 * hash(winds * 5 + 1); }
@@ -638,11 +648,11 @@ export function createJungleBeauty2({ scene, tier = null, reducedMotion = false,
         }
         last = { x: catPos.x, z: catPos.z };
       }
-      draw(t, rain, camera, day); grade(day); gradeWeather(ev, { fog, sun, fill, scene }); gradeVista(vst, { fog, sun, fill, scene });
+      draw(t, rain, camera, day); grade(day); gradeWeather(ev, { fog, sun, fill, scene }); gradeVista(vst, { fog, sun, fill, scene }); gradeNight(day.night, { fog, sun, fill, scene });
       weatherVoice(t, day, rain);
       clothTint(ev, clothC); vistaCloth(vst, clothC);
-      sway.material.color.setRGB(SE.tint[0] * (1 - 0.1 * day.noon) * (0.86 + 0.28 * zc[0]) * clothC[0], SE.tint[1] * (1 - 0.06 * day.noon) * (0.86 + 0.28 * zc[1]) * clothC[1], SE.tint[2] * (1 - 0.1 * day.noon) * (0.86 + 0.28 * zc[2]) * clothC[2]); // pass 4: the saturated blossoms ease a little in the noon glare
-      if (shafts) { shafts.material.opacity = SHAFT.opacity * Math.min(1.3, day.shaft) * shaftBoost(ev) * vistaShaft(vst) * (0.85 + 0.15 * Math.sin(t * 0.27)) * (1 - 0.7 * Math.min(1, rain)); const st = shaftTint(ev); shafts.material.color.setRGB(day.warm[0] * st[0], day.warm[1] * st[1], day.warm[2] * st[2]).lerp(tintC, 0.75 * (1 - 0.5 * ev.gold)); }
+      sway.material.color.setRGB(SE.tint[0] * (1 - 0.1 * day.noon) * (0.86 + 0.28 * zc[0]) * clothC[0], SE.tint[1] * (1 - 0.06 * day.noon) * (0.86 + 0.28 * zc[1]) * clothC[1], SE.tint[2] * (1 - 0.1 * day.noon) * (0.86 + 0.28 * zc[2]) * clothC[2]); sway.material.color.r *= 1 - 0.6 * day.night; sway.material.color.g *= 1 - 0.45 * day.night; sway.material.color.b *= 1 - 0.25 * day.night; // pass 4: the saturated blossoms ease a little in the noon glare
+      if (shafts) { shafts.material.opacity = SHAFT.opacity * Math.min(1.3, day.shaft) * shaftBoost(ev) * vistaShaft(vst) * (0.85 + 0.15 * Math.sin(t * 0.27)) * (1 - 0.7 * Math.min(1, rain)); const st = shaftTint(ev); shafts.material.color.setRGB(day.warm[0] * st[0], day.warm[1] * st[1], day.warm[2] * st[2]).lerp(tintC, 0.75 * (1 - 0.5 * ev.gold)); shafts.material.color.lerp(tintC.setRGB(0.55, 0.72, 1), 0.85 * day.night); shafts.material.opacity *= 1 - 0.35 * day.night; } // moonbeams: silver blue
     },
     dispose() {
       if (base.sunC) { sun.color.copy(base.sunC); sun.intensity = base.sunI; } if (fill && base.fillI) { fill.color.copy(base.fillC); fill.intensity = base.fillI; } if (base.env !== null) { scene.environmentIntensity = base.env; scene.backgroundIntensity = 1; }

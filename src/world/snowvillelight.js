@@ -12,15 +12,14 @@ import * as THREE from 'three';
 import * as P from './snowvilleplan.js';
 import { dotTexture, LIGHT } from './snowvilleparts.js';
 import { litSpots } from './snowvillebeauty.js';
-import { createWonder } from './snowvillewonder.js';
-import { createLiving } from './snowvilleliving.js';
-import { createWeather } from './snowvilleweather.js';
-import { createVista } from './snowvillevista.js';
-import { createReactions } from './snowvillebeauty8.js';
-import { createAlive, waveAt, chase, glowNear, SHARED } from './snowvillealive.js';
+import { ST, loadSnowvilleStoryStage } from './snowvillestages.js'; // the stages' slots (filled by their chunks, loaded with this one: areas.js)
 import { coldStep, cheekTint, lineStep, nearWarm } from './snowvillewarmth.js';
 import { phrase } from '../clanphrases.js';
 import { bus } from '../events.js';
+
+// Under vitest the story stage loads here (the village's life side: passes 4 to 8's wonder, living, weather, vista, reactions and the alive creatures, and the sound), so every test that imports this file gets it.
+// (The flag is undefined in a build, so this line and its top-level await are dropped; the game's own loader awaits every stage with the base chunk.)
+if (import.meta.env?.VITEST) await loadSnowvilleStoryStage();
 
 export const FLAKE_LOOK = Object.freeze({ size: 0.14, opacity: 0.9, sway: 0.5 });
 export const GLINT_LOOK = Object.freeze({ size: 0.1, opacity: 0.85, wobble: 0.4, rate: 1.7 });
@@ -87,6 +86,7 @@ const _fw = new THREE.Vector3();
 
 // createSnowvilleLight({ scene, tier, reducedMotion }) -> { flakes, glints, light, cold, update(dt, t, catPos, camera, session), dispose() }
 export function createSnowvilleLight({ scene, tier = null, reducedMotion = false, audio = null, season = null, sun = null, fill = null, now = null }) {
+  const { createWonder, createLiving, createWeather, createVista, createReactions, createAlive, waveAt, chase, glowNear, SHARED } = ST.story;
   const low = isLowTier(tier);
   const nFlakes = reducedMotion ? P.FLAKES.reduced : low ? P.FLAKES.low : P.FLAKES.count;
 

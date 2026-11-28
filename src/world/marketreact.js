@@ -39,6 +39,7 @@ export function createReact(puddles = []) {
     uMkRip: { value: 0 },
     uMkSpark: { value: 0 },
     uMkSway: { value: 0 },
+    uMkVig: { value: 0 }, // beauty pass 7: how far the screen's edges dim at a vista (marketvista.js)
     uMkWet: { value: 0 }, // beauty pass 6: how wet the cobbles are (marketweather.js): the sheen and the drops' rings
     uMkSea: { value: new THREE.Vector4(0, 0, 0, 0) }, // beauty pass 4: the season's weights, x autumn, y winter, z spring, w summer (marketseason.js)
     uMkPud: { value: pud },
@@ -100,7 +101,8 @@ ${kind === 'ground' ? `    if (w.y < 0.03) {
   float low = 1.0 - smoothstep(0.25, 0.45, w.y);
   vec2 q = w.xz * 0.05 + vec2(uMkR * 0.021, uMkR * 0.009);
   float c = 0.5 * sin(q.x * 3.1 + sin(q.y * 2.3)) + 0.5 * sin(q.y * 2.7 + 1.7 - q.x * 1.1);
-  diffuseColor.rgb *= 1.0 - uMkCloud * 0.36 * smoothstep(0.0, 0.7, c) * low;${kind === 'paint' ? `
+  diffuseColor.rgb *= 1.0 - uMkCloud * 0.36 * smoothstep(0.0, 0.7, c) * low;
+  diffuseColor.rgb *= 1.0 - uMkVig * smoothstep(0.8, 1.6, length(vViewPosition.xy / max(0.1, vViewPosition.z)));${kind === 'paint' ? `
   if (w.y < 0.03 && uMkRip > 0.0) {
     float pr = 0.0;
     float r = length(w.xz - uMkCat.xz);
@@ -149,11 +151,11 @@ varying vec3 vMkW;
 varying vec3 vMkN;
 uniform float uMkR; uniform vec3 uMkCat; uniform vec3 uMkTone; uniform float uMkCloud; uniform float uMkRip; uniform float uMkSpark;
 uniform vec4 uMkPud[5];
-uniform vec4 uMkSea;\nuniform float uMkWet;\nuniform vec2 uMkDay;\nuniform vec4 uMkSt[10];\nuniform vec3 uMkStC[10];`)
+uniform vec4 uMkSea;\nuniform float uMkVig;\nuniform float uMkWet;\nuniform vec2 uMkDay;\nuniform vec4 uMkSt[10];\nuniform vec3 uMkStC[10];`)
       .replace('#include <color_fragment>', `#include <color_fragment>\n${colour}`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>\n${glow}`);
   };
-  material.customProgramCacheKey = () => `${prevKey ? prevKey.call(material) : ''}|market-life-${kind}-v4`;
+  material.customProgramCacheKey = () => `${prevKey ? prevKey.call(material) : ''}|market-life-${kind}-v5`;
 }
 
 // The part of the day for walk second t: 0 morning .. 1 evening, over `period` seconds, then back

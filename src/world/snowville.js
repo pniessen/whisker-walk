@@ -14,7 +14,6 @@ import * as P from './snowvilleplan.js';
 import * as K from './snowvilleparts.js';
 import { drawBeauty } from './snowvillebeauty.js';
 import { createSnowvilleLight, isLowTier, gustAt } from './snowvillelight.js';
-import { createSoundBed, createZoneBed } from './snowvillesound.js';
 import { createTilly, createSnowvillePrompts } from './snowvillelife.js';
 import './snowvillewords.js';
 import { ST } from './snowvillestages.js'; // the two stages' slots (filled by their chunks, loaded with this one: areas.js)
@@ -87,9 +86,9 @@ export function build(scene, opts = {}) {
         const prompts = createSnowvillePrompts(tilly, wing, errand, sled, skis, mobile);
         const finds = ST.b?.finds?.life(ctx); // the six discoveries (milestone V3)
         const strayNotes = ST.b?.strayNotes?.(); // a line the first time she meets each of the four friendly strays (round two)
-        const critters = ST.b?.critters?.(ctx); // the otters, hare, robin, fox kit, smoke, bells and crunch (milestone V4)
-        const bed = createSoundBed(ctx.audio, ctx.reducedMotion ? () => 0 : gustAt); // beauty pass 2: wind with the gusts, sleigh bells, a distant carol chime (silent when muted)
-        const zones = createZoneBed(ctx.audio, ctx.reducedMotion ? () => 0 : gustAt); // beauty pass 5: the pond's ice, the bakery's oven, the fir wood's wind and the village bell, cross-faded by where she stands
+        const critters = ST.story?.critters?.(ctx); // the otters, hare, robin, fox kit, smoke, bells and crunch (milestone V4, in the story stage)
+        const bed = ST.story.createSoundBed(ctx.audio, ctx.reducedMotion ? () => 0 : gustAt); // beauty pass 2: wind with the gusts, sleigh bells, a distant carol chime (silent when muted)
+        const zones = ST.story.createZoneBed(ctx.audio, ctx.reducedMotion ? () => 0 : gustAt); // beauty pass 5: the pond's ice, the bakery's oven, the fir wood's wind and the village bell, cross-faded by where she stands
         return {
           light,
           spottable: critters?.spottable ?? [],

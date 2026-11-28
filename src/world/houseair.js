@@ -14,7 +14,7 @@ const IN = 0.1; // the beam starts this far inside the wall
 const AMP = 0.12; // a mote's drift, m
 const SIDE = { n: [0, 1], s: [0, -1], w: [1, 0], e: [-1, 0] }; // inward (x, z)
 
-export function createHouseAir(scene, { windows, rooms, levels, dusk = false, reducedMotion = false }) {
+export function createHouseAir(scene, { windows, rooms, levels, dusk = false, reducedMotion = false, mood = null }) {
   const beams = [];
   const layers = [];
   if (dusk) return { beams, update() {}, dispose() {} };
@@ -123,10 +123,10 @@ export function createHouseAir(scene, { windows, rooms, levels, dusk = false, re
   }
 
   // beauty pass 3: a mote near the cat is swept round her as she walks (cat { x, y, z }, energy 0..1; none when she is still or motion is reduced)
-  let cx = 0, cy = 0, cz = 0, ce = 0, tone = 1;
+  let cx = 0, cy = 0, cz = 0, ce = 0, tone = 1, amp = AMP;
   function place(L, t) {
     const { base, phase, rate, mp, n } = L;
-    for (let j = 0; j < n * 3; j++) mp[j] = base[j] + AMP * Math.sin(t * rate[j] + phase[j]);
+    for (let j = 0; j < n * 3; j++) mp[j] = base[j] + amp * Math.sin(t * rate[j] + phase[j]);
     if (ce > 0.02) {
       for (let m = 0; m < n; m++) {
         const o = m * 3;
@@ -157,7 +157,8 @@ export function createHouseAir(scene, { windows, rooms, levels, dusk = false, re
       if (calm && !reducedMotion) lost += dt * 0.5;
       const t = t0 - lost;
       // beauty pass 2: the shafts breathe a little, as a high cloud passes (still under reduced motion)
-      beamMat.opacity = SUNBEAM.opacity * tone * (reducedMotion ? 1 : 1 + 0.18 * Math.sin(t * 0.45) * Math.sin(t * 0.17 + 1));
+      beamMat.opacity = SUNBEAM.opacity * tone * (reducedMotion ? 1 : 1 + 0.18 * Math.sin(t * 0.45) * Math.sin(t * 0.17 + 1)) * (mood ? Math.min(2, mood.sun + mood.flash * 2) : 1);
+      if (mood) { moteMat.size = 0.075 * mood.motes; amp = AMP * mood.motes; } // beauty pass 6: a sunny morning's motes are bigger and dance wider; a storm's flash lights the shafts
       for (let i = 0; i < layers.length; i++) {
         const L = layers[i];
         const show = full.has(L.level);

@@ -133,7 +133,7 @@ const TELEPORT = 25; // m/s: no ball rolls this fast
 const DOORS = [false, true].map((a) => [false, true].map((b) => Object.freeze({ secretOpen: a, wardrobeOpen: b })));
 
 export function createHouseLife(scene, house, {
-  reducedMotion = false, log = null, audio = null, toy = null, colliders = [], now, dusk = false, tier = null, rain = null, sun = null, fill = null,
+  reducedMotion = false, log = null, audio = null, toy = null, colliders = [], now, dusk = false, tier = null, rain = null, sun = null, fill = null, mood: moodForce = null,
 } = {}) {
   const { sections, sectionMeshes, panes } = house;
   const P = house.plan ?? OLD_HOUSE_PLAN; // the plan this house was built from (house.js)
@@ -179,13 +179,18 @@ export function createHouseLife(scene, house, {
   let partIn = 0;
   const rainy = rain !== null && rain !== undefined ? !!rain : (() => { const d = clockNow(); return hash01(d.getFullYear() * 400 + d.getMonth() * 31 + d.getDate(), 5, 0x4a11) < 0.25; })();
   const rainK = rainy ? 1 : 0;
+  const low = !!tier && (tier.name === 'low' || tier.name === 'lite' || tier.shadows === false || (tier.rung ?? 0) >= 3);
+  const day0 = clockNow();
   // the real lights take the day's colour too (the walk's own sun and fill, put back at dispose); a dusk walk keeps its own look
   const envBase = scene.environmentIntensity;
   const lights = !dusk && glowLive ? [sun, fill].filter(Boolean).map((l) => ({ l, c: l.color.clone(), g: l.groundColor ? l.groundColor.clone() : null })) : [];
+  // beauty pass 6 (housemood.js, the story stage): the weather and the hour make a mood (a storm night, a sunny morning, a snowy afternoon, a candle evening); none on a dusk walk
+  const mood = glowLive && !dusk ? ST.story.createHouseMood({ audio, reducedMotion, low, dayKey: day0.getFullYear() * 400 + day0.getMonth() * 31 + day0.getDate(), rainy, force: moodForce, scene, lights: lights.map((x) => x.l), part }) : null;
   const retone = () => {
     const d = clockNow();
     ST.story.dayPart(d.getHours() + d.getMinutes() / 60, part);
     ST.story.rhythm(part, rhy);
+    mood?.pick(d);
     if (lights.length && typeof envBase === 'number') scene.environmentIntensity = envBase * part.env;
     for (const x of lights) { x.l.color.copy(x.c).multiply(LIT.fromArray(part.lit)); if (x.g) x.l.groundColor.copy(x.g).multiply(LIT); }
     air.setTone?.(part.sun, dusk ? 1 : part.sunK * (1 - 0.5 * rainK));
@@ -197,23 +202,22 @@ export function createHouseLife(scene, house, {
     part: P === OLD_HOUSE_PLAN && !dusk ? part : null,
     rhythm: P === OLD_HOUSE_PLAN && !dusk ? rhy : null,
     gust: ST.story.gustAt,
+    mood: mood?.out ?? null,
     clock: (P === OLD_HOUSE_PLAN ? HOUSE_FINDS : house.finds ?? []).find((f) => f.id === 'clock') ?? null,
     stairs: P.stairs,
     attic: P.rooms.find((r) => r.id === 'attic') ?? null,
     fire: P === OLD_HOUSE_PLAN ? { x: ST.story.FIRE.x, z: ST.story.FIRE.z } : null,
   });
-  const air = ST.story.createHouseAir(scene, { windows: P.windows, rooms: P.rooms, levels: house.levels, dusk: !!dusk, reducedMotion });
+  const air = ST.story.createHouseAir(scene, { windows: P.windows, rooms: P.rooms, levels: house.levels, dusk: !!dusk, reducedMotion, mood: mood?.out ?? null });
   retone();
   // beauty pass 2 (houseglow.js): the light, firelight, curtains and garden sway are one shader patch on the house's material; LOW and LITE hold the flicker and sway still
   const glow = house.glow ?? null;
-  const low = !!tier && (tier.name === 'low' || tier.name === 'lite' || tier.shadows === false || (tier.rung ?? 0) >= 3);
   // beauty pass 4 (housestories.js): the season by the date, and the rare surprises (the music box, the cuckoo, the old house's ghost cat)
-  const day0 = clockNow();
   const surprises = glowLive ? ST.story.createSurprises({ scene, audio, reducedMotion, low, dayKey: day0.getFullYear() * 400 + day0.getMonth() * 31 + day0.getDate(), floorY: (x, z) => floor.y(x, z) }) : null;
-  const glowOpts = { still: reducedMotion, dusk: !!dusk, low, part: dusk ? null : part, rain: rainK, burst: 0, energy: 0, season: ST.story.seasonOf(day0), box: 0, cuckoo: 0, fireK: rhy.fire, warm: 1 };
+  const glowOpts = { still: reducedMotion, dusk: !!dusk, low, part: dusk ? null : part, rain: rainK, burst: 0, energy: 0, season: ST.story.seasonOf(day0), box: 0, cuckoo: 0, fireK: rhy.fire, warm: 1, mood: mood?.update(0, 0) };
   // beauty pass 5 (housealive.js): the creatures (none on a dusk walk), and the hall wall's standing for the robin's sill
   const hallS = ids.filter((id) => id.startsWith('hall-s-'));
-  const creatures = glowLive && !dusk ? ST.story.createHouseCreatures({ scene, audio, reducedMotion, low, dayKey: day0.getFullYear() * 400 + day0.getMonth() * 31 + day0.getDate(), lamps: P.lamps ?? NONE, rhythm: rhy, rain: rainy, wallUp: () => hallS.reduce((m, id) => Math.min(m, sink.fraction(id)), 1) }) : null;
+  const creatures = glowLive && !dusk ? ST.story.createHouseCreatures({ scene, audio, reducedMotion, low, dayKey: day0.getFullYear() * 400 + day0.getMonth() * 31 + day0.getDate(), lamps: P.lamps ?? NONE, rhythm: rhy, rain: rainy, mood: mood?.out, wallUp: () => hallS.reduce((m, id) => Math.min(m, sink.fraction(id)), 1) }) : null;
   let arriveT = -1; // s since she came in at the front door (the lamp warms, the door creaks, the clock chimes), -1 when she did not
   let ex = 0, ez = 0, eSeen = false, energy = 0; // her walking, as a smoothed 0..1 (the paws' dust and the curtains' swell)
   const guards = createLedgeGuards(colliders, floor);
@@ -347,6 +351,7 @@ export function createHouseLife(scene, house, {
       if (surprises) { const o = surprises.update(dt, catPos, drawing.full); glowOpts.box = o.box; glowOpts.cuckoo = o.cuckoo; }
       if (arriveT >= 0) { arriveT += dt; const w = Math.min(1, arriveT / 5); glowOpts.warm = 0.3 + 0.7 * w * w * (3 - 2 * w); if (arriveT >= 5) arriveT = -1; }
       glowOpts.fireK = rhy.fire;
+      mood?.update(dt, t);
       creatures?.update(dt, catPos, drawing.full);
       glow?.update(t, catPos, glowOpts);
       finds.update(dt, t, catPos, camera.position, partners); // after the camera's move: the bookcase's fade hold
@@ -364,6 +369,7 @@ export function createHouseLife(scene, house, {
     dispose() {
       tagRest.forEach((r, g) => { g.material.depthTest = r[0]; g.renderOrder = r[1]; });
       frontDoor.dispose();
+      mood?.dispose();
       if (lights.length && typeof envBase === 'number') scene.environmentIntensity = envBase;
       for (const x of lights) { x.l.color.copy(x.c); if (x.g) x.l.groundColor.copy(x.g); }
       guards.dispose();

@@ -46,7 +46,9 @@ const CRICKET_GAPS = Object.freeze([0.9, 0.2, 0.2, 1.1]);
 export const ARRIVE_CREAK_AT = 0.15;
 export const ARRIVE_CHIME_AT = 0.9; // the hall clock's ding, then its dong 0.7 s later
 
-export function createHouseSound(audio, { clock, stairs, attic, fire = null, wood = null, rain = false, part = null, rhythm = null, gust = null }) {
+export function createHouseSound(audio, { clock, stairs, attic, fire = null, wood = null, rain = false, part = null, rhythm = null, gust = null, mood = null }) {
+  const ck = () => mood?.creak ?? 1; // beauty pass 6: the storm's draught makes the boards creak louder
+  const pk = () => mood?.birds ?? 0; // and a sunny morning has more birds
   // each stair's footprint as numbers: x and z ranges
   const rects = stairs.map((s) => {
     const hw = s.width / 2;
@@ -76,11 +78,11 @@ export function createHouseSound(audio, { clock, stairs, attic, fire = null, woo
         if (++kettleN % 15 === 0 && rhythm.day < 0.95) audio.playTune?.(WHISTLE, 0.16 * wK * q); // now and then the kettle sings, in the morning and the evening
       }
     }
-    if (wA > 0.02) { bedIn[2] -= dt; if (bedIn[2] <= 0) { bedIn[2] += ATTIC_GAPS[atticK++ % 3]; audio.creak?.(0.34 * wA * g * q); } }
+    if (wA > 0.02) { bedIn[2] -= dt; if (bedIn[2] <= 0) { bedIn[2] += ATTIC_GAPS[atticK++ % 3]; audio.creak?.(ck() * 0.34 * wA * g * q); } }
     if (wG > 0.02 && !rain && g < 0.9) {
       bedIn[3] -= dt;
       if (bedIn[3] <= 0) {
-        if (rhythm.day > 0.5) { bedIn[3] += BIRD_GAPS[birdK++ % 4]; audio.peep?.(0.55 * wG * rhythm.day * q); }
+        if (rhythm.day > 0.5) { bedIn[3] += BIRD_GAPS[birdK++ % 4]; audio.peep?.(0.55 * wG * rhythm.day * q); bedIn[3] -= pk() * 1.5; }
         else { bedIn[3] += CRICKET_GAPS[cricketK++ % 4]; if (!part || part.night) audio.tick?.(0.2 * wG * q); else bedIn[3] += 3; }
       }
     }
@@ -103,11 +105,11 @@ export function createHouseSound(audio, { clock, stairs, attic, fire = null, woo
 
       if (arr >= 0) {
         arr += dt;
-        if (arrStage === 0 && arr >= ARRIVE_CREAK_AT) { arrStage = 1; audio.creak?.(0.5); }
+        if (arrStage === 0 && arr >= ARRIVE_CREAK_AT) { arrStage = 1; audio.creak?.(ck() * 0.5); }
         if (arrStage === 1 && arr >= ARRIVE_CHIME_AT) { arrStage = 2; audio.chime?.(); }
         if (arrStage === 2 && arr >= ARRIVE_CHIME_AT + 0.7) { arr = -1; audio.chime?.(); }
       }
-      if (doorOpen !== null) { if (door !== null && door !== doorOpen) audio.creak?.(0.32); door = doorOpen; } // the front door swings: it creaks each way
+      if (doorOpen !== null) { if (door !== null && door !== doorOpen) audio.creak?.(ck() * 0.32); door = doorOpen; } // the front door swings: it creaks each way
       if (rhythm) bedsUpdate(dt, x, catPos.y ?? 0, z, calm);
       const d = clock ? Math.hypot(x - clock.x, z - clock.z) : Infinity; // a plan without a clock never ticks
       if (d < TICK_R) {
@@ -123,11 +125,11 @@ export function createHouseSound(audio, { clock, stairs, attic, fire = null, woo
         }
       }
       settleIn -= dt * (part?.night ? 2 : 1);
-      if (settleIn <= 0) { audio.creak?.(0.22); settleIn += SETTLE_S; }
+      if (settleIn <= 0) { audio.creak?.(ck() * 0.22); settleIn += SETTLE_S; }
       if (wood) {
         let on = false;
         for (let i = 0; i < wood.length; i++) { const r = wood[i]; if (x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ) { on = true; break; } }
-        if (on) { woodM += moved; if (woodM >= WOOD_EVERY_M) { audio.creak?.(0.12); woodM -= WOOD_EVERY_M; } } else woodM = 0;
+        if (on) { woodM += moved; if (woodM >= WOOD_EVERY_M) { audio.creak?.(ck() * 0.12); woodM -= WOOD_EVERY_M; } } else woodM = 0;
       }
       if (rain) {
         rainIn -= dt;
@@ -135,7 +137,7 @@ export function createHouseSound(audio, { clock, stairs, attic, fire = null, woo
       }
       if (part && !part.night && part.lampK < 0.45 && part.sunK < 0.9 && !rain && audio.peep) {
         morningIn -= dt;
-        if (morningIn <= 0) { audio.peep?.(0.25); morningIn += MORNING_S; }
+        if (morningIn <= 0) { audio.peep?.(0.25 + 0.2 * pk()); morningIn += MORNING_S / (1 + 2 * pk()); }
       }
 
       let onStair = false;
@@ -145,13 +147,13 @@ export function createHouseSound(audio, { clock, stairs, attic, fire = null, woo
       }
       if (onStair) {
         stairM += moved;
-        if (stairM >= CREAK_EVERY_M) { audio.creak?.(0.5); stairM -= CREAK_EVERY_M; }
+        if (stairM >= CREAK_EVERY_M) { audio.creak?.(ck() * 0.5); stairM -= CREAK_EVERY_M; }
       } else stairM = 0;
 
       if (attic && x >= attic.minX && x <= attic.maxX && z >= attic.minZ && z <= attic.maxZ) {
         if (moved / dt > WALKING) {
           atticS += dt;
-          if (atticS >= ATTIC_CREAK_S) { audio.creak?.(0.35); atticS -= ATTIC_CREAK_S; }
+          if (atticS >= ATTIC_CREAK_S) { audio.creak?.(ck() * 0.35); atticS -= ATTIC_CREAK_S; }
         }
       } else atticS = 0;
     },

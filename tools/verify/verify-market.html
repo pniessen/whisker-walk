@@ -386,10 +386,12 @@
     const LT = Number(params.get('life'));
     const xz = params.has('cat') ? params.get('cat').split(',').map(Number) : [MARKET_SPAWN.x, MARKET_SPAWN.z];
     // beauty pass 6: ?force=rain|clearing|mist|golden|festival|gust holds that one weather event at full (force=off: no weather, the square as pass 5 drew it); ?festival=1 makes it a festival day
-    const plife = area.life({ scene, dusk: DUSK, reducedMotion: params.get('still') === '1', tier, critters: { list: [] }, now: new Date(2026, 9, 15), sun, fill, force: params.get('force') || undefined, festival: params.has('festival') ? params.get('festival') === '1' : undefined });
-    const away = { x: MARKET_SPAWN.x, y: 0, z: MARKET_SPAWN.z };
+    const plife = area.life({ scene, dusk: DUSK, reducedMotion: params.get('still') === '1', tier, critters: { list: [] }, now: new Date(2026, 9, 15), sun, fill, force: params.get('force') || undefined, festival: params.has('festival') ? params.get('festival') === '1' : undefined, vista: params.get('vista') || undefined, vgold: params.get('vgold') === '1' });
+    // beauty pass 7: ?vista=off is the square without the vistas, ?vgold=1 a quick golden moment, ?lead=<s> how long she stands at ?cat (default 1.5), ?away=x,z where she was before
+    const aw = params.has('away') ? params.get('away').split(',').map(Number) : [MARKET_SPAWN.x, MARKET_SPAWN.z];
+    const away = { x: aw[0], y: 0, z: aw[1] };
     const here = { x: xz[0], y: 0, z: xz[1] };
-    const lead = params.get('arrive') === '1' ? 0 : 1.5;
+    const lead = params.get('arrive') === '1' ? 0 : params.has('lead') ? Number(params.get('lead')) : 1.5;
     window.__shot(params.has('cam') ? 'view' : 'spawn'); // the camera where the shot will be, for the life's look at the lens
     let tt = 0;
     for (; tt < LT - lead; tt += 0.05) plife.update(0.05, tt, away, camera, {});

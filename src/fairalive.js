@@ -9,6 +9,7 @@
 import * as THREE from 'three';
 import { seasonLook } from './world/fairkit.js';
 import { createFairPals, syncToBeat, WIND } from './fairpals.js';
+import { createFairWx, wxCounts, gustAt } from './fairwx.js';
 
 // the balloon's silhouette: [height, radius] of the top and each ring (a round envelope, narrowing to the neck)
 const BALLOON = Object.freeze({ rings: Object.freeze([[6.15, 0], [5.85, 0.75], [5.15, 1.2], [4.3, 1.42], [3.45, 1.22], [2.85, 0.85], [2.4, 0.5]]), pal: Object.freeze([0xe8423a, 0x3aa0e0, 0xf6c92e, 0x4cb860]) });
@@ -19,7 +20,7 @@ export const ALIVE = Object.freeze({
   sky: Object.freeze([[-16, 17, -14], [15, 16, -20], [-6, 19, -34], [24, 17, -8], [-26, 18, -30]]),
   // beauty pass 4: rare surprises, each a pure function of the time of day (the same on every device)
   drift: 18, lanterns: 6, bulbs: Object.freeze([[-3.3, 40, 2.14], [-4.2, 34, 2.12], [-3.3, 26, 2.14], [-4.2, 15.5, 2.12], [4.2, 40, 2.12], [3.3, 34.5, 2.14], [3.3, 26.5, 2.14], [3.3, 16.5, 2.14]]), // a bulb on each stall's front
-  balloon: Object.freeze({ every: 420, len: 170, odds: 0.4, y: 14, s: 2.6 }),
+  balloon: Object.freeze({ every: 420, len: 170, odds: 0.4, y: 12, s: 3.4 }),
   cannon: Object.freeze({ every: 300, odds: 0.35, life: 4.5, n: 24 }),
   flock: Object.freeze({ every: 260, odds: 0.4, len: 60 }),
   lucky: Object.freeze({ every: 75, odds: 0.45, len: 40, near: 4.5 }),
@@ -75,21 +76,26 @@ function dot() {
 function makePoints(count, size, additive, name) {
   const pos = new Float32Array(count * 3).fill(-999);
   const col = new Float32Array(count * 3);
+  const siz = new Float32Array(count).fill(1); // beauty pass 6: each point's own size, a multiple of the pool's
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  const pts = new THREE.Points(geo, new THREE.PointsMaterial({
+  geo.setAttribute('aSize', new THREE.BufferAttribute(siz, 1));
+  const mat = new THREE.PointsMaterial({
     map: dot(), alphaTest: additive ? 0.02 : 0.4, size, sizeAttenuation: true, vertexColors: true, transparent: additive, opacity: 1,
     blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending, depthWrite: !additive, fog: !additive,
-  }));
+  });
+  mat.onBeforeCompile = (sh) => { sh.vertexShader = `attribute float aSize;\n${sh.vertexShader.replace('gl_PointSize = size;', 'gl_PointSize = size * aSize;')}`; };
+  mat.customProgramCacheKey = () => 'fair-pts-v1';
+  const pts = new THREE.Points(geo, mat);
   pts.name = name; pts.frustumCulled = false;
   Object.assign(pts.userData, { noCast: true, noContactShadow: true, noMerge: true });
-  return { pts, geo, pos, col };
+  return { pts, geo, pos, col, siz };
 }
 
 // createFairAlive({ scene, reducedMotion, scale }) -> { update(dt, T, catPos, lit, speed), counts, dispose() }
 // scale: the quality tier's ambientScale (1, 0.5, 0.25): the pools shrink with it.
-export function createFairAlive({ scene, reducedMotion = false, scale = 1, area = null, onEvent = () => {} }) {
+export function createFairAlive({ scene, reducedMotion = false, scale = 1, area = null, onEvent = () => {}, weather = null, ground }) {
   const k = Math.max(0.25, Math.min(1, Number.isFinite(scale) ? scale : 1));
   const nBits = reducedMotion ? 0 : Math.max(4, Math.round(ALIVE.bits * k));
   const nSteam = reducedMotion ? 0 : Math.max(2, Math.round(ALIVE.steam * k));
@@ -97,8 +103,9 @@ export function createFairAlive({ scene, reducedMotion = false, scale = 1, area 
   const nDrift = reducedMotion || !seasonLook().drift ? 0 : Math.round(ALIVE.drift * k); // petals, leaves or snow on the air
   const nLant = reducedMotion ? 0 : Math.round(ALIVE.lanterns * k);
   const nPaper = reducedMotion ? 0 : Math.round(ALIVE.cannon.n * k);
-  const bits = makePoints(Math.max(1, nBits + nDrift), 0.2, false, 'fair:bits');
-  const glow = makePoints(Math.max(1, nSteam + 2 + nLant), 0.6, true, 'fair:glow');
+  const wc = wxCounts(k, reducedMotion); // beauty pass 6: weather and atmosphere take the last slots of three pools
+  const bits = makePoints(Math.max(1, nBits + nDrift + wc.bits), 0.2, false, 'fair:bits');
+  const glow = makePoints(Math.max(1, nSteam + 2 + nLant + wc.glow), 0.6, true, 'fair:glow');
   const sky = makePoints(reducedMotion ? 1 : 49, 6.2, false, 'fair:sky'); // the balloon's envelope: a top and six rings of eight gores
   const basket = makePoints(reducedMotion ? 1 : 12, 0.9, false, 'fair:basket'); // its basket and ropes
   const paper = makePoints(Math.max(1, nPaper), 1.1, false, 'fair:paper'); // the cannons' confetti
@@ -106,12 +113,15 @@ export function createFairAlive({ scene, reducedMotion = false, scale = 1, area 
   if (area?.rides?.crystalBall) { area.rides.crystalBall.updateWorldMatrix(true, false); area.rides.crystalBall.getWorldPosition(ball); }
   if (area?.anchors?.wheelHub) hub.set(area.anchors.wheelHub.x, area.anchors.wheelHub.y + 0.5, area.anchors.wheelHub.z);
   let popped = -1; let luckyHit = -99; let luckyN = -1; let cannonN = -1; let me = null;
-  const fire = makePoints(Math.max(1, nSpark), 1.5, true, 'fair:fire'); // far off in the sky, so each spark is a big point
+  const fire = makePoints(Math.max(1, nSpark + wc.fire), 1.5, true, 'fair:fire'); // far off in the sky, so each spark is a big point
   bits.pts.visible = glow.pts.visible = fire.pts.visible = sky.pts.visible = basket.pts.visible = paper.pts.visible = false;
   if (!reducedMotion) scene.add(bits.pts, glow.pts, fire.pts, sky.pts, basket.pts, paper.pts);
   const kick = Array.from({ length: nBits }, () => ({ age: 99, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, r: 1, g: 1, b: 1 }));
   let slot = 0; let n = 0; let walked = 0; let last = null;
   const tint = new THREE.Color();
+  const calli = new THREE.Vector3(0, 2, 0); // the calliope's pipes, where its sparks rise
+  if (area?.rides?.merryGoRound?.musicBoxDrum) { area.rides.merryGoRound.musicBoxDrum.updateWorldMatrix(true, false); area.rides.merryGoRound.musicBoxDrum.getWorldPosition(calli); }
+  const wx = reducedMotion ? null : createFairWx({ scene, area, k, onEvent, weather, ground, hub, mgr: { x: 0, z: 0 }, calli, bulbs: ALIVE.bulbs, glow: { pos: glow.pos, col: glow.col, siz: glow.siz, at: nSteam + 2 + nLant }, bits: { pos: bits.pos, col: bits.col, siz: bits.siz, at: nBits + nDrift }, fire: { pos: fire.pos, col: fire.col, siz: fire.siz, at: nSpark, n: wc.fire } });
   const pals = createFairPals({ scene, reducedMotion, scale: k, makePoints, hub: area?.anchors?.wheelHub ? hub : null, onEvent, puff: (x, z) => { for (let i = 0; i < 16; i++) spawn(x, z, 9, 0); } });
 
   function spawn(x, z, speed, yaw) {
@@ -137,6 +147,8 @@ export function createFairAlive({ scene, reducedMotion = false, scale = 1, area 
       if (reducedMotion) return;
       syncToBeat(T);
       dt = Math.max(0, Math.min(dt, 0.25)) || 0;
+      const wxs = wx?.update(dt, T, catPos, lit, 1 - 0.55 * lit);
+      if (wxs) lit = wxs.lit; // the walk's weather and the clock may have brought the lamps up
       bits.pts.visible = glow.pts.visible = true;
       if (catPos) {
         me = catPos;
@@ -225,12 +237,12 @@ export function createFairAlive({ scene, reducedMotion = false, scale = 1, area 
       const bl = reducedMotion ? null : balloonAt(T);
       sky.pts.visible = basket.pts.visible = !!bl;
       if (bl) { // a round, striped envelope (a top and six rings of eight gores, wider at the shoulder), a basket and its ropes; one colour for the stripes, cream between
-        const S = ALIVE.balloon.s; const A = BALLOON.pal[bl.n % 4]; const band = BALLOON.pal[(bl.n + 2) % 4]; let p = 0;
+        const gu = wxs ? gustAt(T) : 0; const S = ALIVE.balloon.s; const A = BALLOON.pal[bl.n % 4]; const band = BALLOON.pal[(bl.n + 2) % 4]; let p = 0;
         for (let r = 0; r < BALLOON.rings.length; r++) {
           const [ry, rr] = BALLOON.rings[r]; const m = r === 0 ? 1 : 8;
           for (let g = 0; g < m; g++, p++) {
             const a = g * Math.PI / 4; tint.setHex(r === 4 ? band : g % 2 ? 0xfbf1dc : A); tint.multiplyScalar((0.62 + 0.38 * Math.min(1, ry / 5.2)) * dim * (0.9 + 0.1 * Math.cos(a)));
-            sky.pos[p * 3] = bl.x + Math.cos(a) * rr * S; sky.pos[p * 3 + 1] = bl.y + (ry - 3.4) * S; sky.pos[p * 3 + 2] = bl.z + Math.sin(a) * rr * S;
+            sky.pos[p * 3] = bl.x + Math.cos(a) * rr * S + (ry - 3.4) * S * 0.07 * gu; sky.pos[p * 3 + 1] = bl.y + (ry - 3.4) * S; sky.pos[p * 3 + 2] = bl.z + Math.sin(a) * rr * S;
             sky.col[p * 3] = tint.r; sky.col[p * 3 + 1] = tint.g; sky.col[p * 3 + 2] = tint.b;
           }
         }
@@ -256,10 +268,11 @@ export function createFairAlive({ scene, reducedMotion = false, scale = 1, area 
         }
         paper.geo.attributes.position.needsUpdate = paper.geo.attributes.color.needsUpdate = true;
       }
+      if (wxs) bits.geo.attributes.aSize.needsUpdate = glow.geo.attributes.aSize.needsUpdate = fire.geo.attributes.aSize.needsUpdate = true;
       bits.geo.attributes.position.needsUpdate = bits.geo.attributes.color.needsUpdate = true;
       glow.geo.attributes.position.needsUpdate = glow.geo.attributes.color.needsUpdate = true;
       if (on && fw.local >= ALIVE.rise && popped !== fw.n) { popped = fw.n; if (me) onEvent({ type: 'firework-pop', volume: Math.max(0.15, 0.6 * (1 - smooth(25, 90, Math.hypot(me.x - fw.x, me.z - fw.z)))) }); }
-      fire.pts.visible = on; fire.geo.attributes.position.needsUpdate = fire.geo.attributes.color.needsUpdate = true;
+      fire.pts.visible = on || !!wxs && wxs.fin >= 0; fire.geo.attributes.position.needsUpdate = fire.geo.attributes.color.needsUpdate = true;
     },
     dispose() {
       pals.dispose();

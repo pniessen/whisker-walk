@@ -3,17 +3,15 @@ import { withLocalUuids } from './localuuids.js';
 import { hash01 } from './builder.js';
 import { phrase } from '../clanphrases.js';
 import { bus } from '../events.js';
-import { createLighthouseAlive } from './lighthousealive.js';
-import { createLighthouseSound } from './lighthousesound.js';
-import { createLighthouseWeather } from './lighthouseweather.js';
-import { createLighthouseVistas } from './lighthousebeauty7.js';
-import { createLighthouseVoice } from './lighthousevoice.js';
 import './lighthousewords.js';
 import { TOWER, GALLERY_Y, LAMP_ROOM, LEVER, LEVER_KIND, BELL_KIND, BELL, GULL_ROCK, POOLS } from './lighthouseplan.js';
 import { findAt, noteLighthouseFind } from './lighthousefinds.js';
-import { createFindLooks } from './lighthousemoments.js';
-import { createKeeperCats } from './lighthousecats.js';
+import { ST, loadLighthouseStoryStage } from './lighthousestages.js'; // the story stage's slot (filled by its chunk, loaded with this one: areas.js)
 import { LIGHTHOUSE_JOB_PAGES } from '../lighthousepages.js';
+
+// Under vitest the story stage loads here (the headland's life side: the sound, the weather, the vistas, the alive creatures, the find looks and the keeper's cats), so every test that imports this file gets it.
+// (The flag is undefined in a build, so this line and its top-level await are dropped; the game's own loader awaits the stage with this chunk.)
+if (import.meta.env?.VITEST) await loadLighthouseStoryStage();
 
 // =============================================================================
 // THE LIGHTHOUSE'S LIFE (milestone 2: the lamp). Made once a walk by walk.js from the area's `life`
@@ -167,6 +165,7 @@ export function createLighthouseLife(ctx = {}) {
     return { beam, core, halo, glow, patch, all };
   });
   for (const m of parts.all) scene?.add(m);
+  const { createLighthouseSound, createLighthouseWeather, createLighthouseVistas, createLighthouseAlive, createFindLooks, createKeeperCats, createLighthouseVoice } = ST.story;
   const sound = createLighthouseSound(audio);
   // the weather as events (lighthouseweather.js, beauty pass 6): storm, fog, the golden sunset, a starry night; its state is read by the beam and the sea
   const wx = withLocalUuids('lighthouse-weather', () => createLighthouseWeather({ scene, sun: ctx.sun ?? null, fill: ctx.fill ?? null, waterFx: ctx.waterFx ?? [], weather: ctx.weather ?? null, hour: ctx.hour, night: ctx.night ?? 0, seed, reducedMotion: !!ctx.reducedMotion, lite: lowTier, force: ctx.wx ?? (ctx.hour === undefined ? 'off' : null), waters: ctx.waters ?? [] }));

@@ -12,6 +12,7 @@ import { hash01 } from './warehouselook.js';
 import { GH_STORY_SALT } from './greenhousestory.js';
 import * as P from './greenhouseplan.js';
 import { LAMP_HALOS } from './greenhouseglass.js';
+import { nightSlots } from './greenhousenight.js';
 
 const SALT = GH_STORY_SALT + 40;
 const B = P.POTTING;
@@ -36,12 +37,13 @@ function discSprite() {
     d.set([255, 255, 255, Math.round(255 * k * k * (3 - 2 * k))], (y * n + x) * 4);
   }
   const t = new THREE.DataTexture(d, n, n, THREE.RGBAFormat);
+  t.magFilter = t.minFilter = THREE.LinearFilter; // (pass 9: smooth when a glow is drawn big)
   t.needsUpdate = true;
   return t;
 }
 
 export function createCreatures({ scene, audio = null, reducedMotion = false, lite = false, dusk = false, seed = 0 } = {}) {
-  const FF = lite ? 8 : 16, POL = lite ? 10 : 20, N = 64 + FF + POL;
+  const FF = lite ? 8 : 16, POL = lite ? 10 : 20, NB = 64 + FF + POL, NX = nightSlots(lite), N = NB + NX; // (pass 9: NX spare slots at the end are the night life's, greenhousenight.js)
   const pos = new Float32Array(N * 3), col = new Float32Array(N * 4), size = new Float32Array(N);
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
@@ -55,6 +57,7 @@ export function createCreatures({ scene, audio = null, reducedMotion = false, li
   mat.customProgramCacheKey = () => 'greenhouse-creatures-v1';
   const points = new THREE.Points(geo, mat);
   points.name = 'greenhouse:creatures';
+  points.renderOrder = 3; // pass 9: after the panes, so the owl on the roof and the moth on the glass are not dimmed by them
   points.frustumCulled = false;
   Object.assign(points.userData, { noCast: true, noContactShadow: true, noMerge: true });
   points.castShadow = false;
@@ -149,6 +152,7 @@ export function createCreatures({ scene, audio = null, reducedMotion = false, li
 
   return {
     points,
+    pool: { count: NX, put: (k, ...a) => put(NB + k, ...a), hide: (k) => hide(NB + k) },
     get hummingbird() { return { ...hum }; },
     get arrived() { return arrivedAt >= 0; },
     yawn() { if (!reducedMotion && !disposed && (yawnAt < 0 || clock - yawnAt > 3)) yawnAt = clock; },
@@ -161,7 +165,7 @@ export function createCreatures({ scene, audio = null, reducedMotion = false, li
       if (dusk) night(1);
       if (!dusk) { for (let i = 0; i < 4; i++) hide(MOTH + i); for (let j = 0; j < FF; j++) hide(FIRE + j); }
       if (catPos) {
-        if (arrivedAt < 0 && under) { arrivedAt = clock; for (let i = POLLEN; i < N; i++) hide(i); }
+        if (arrivedAt < 0 && under) { arrivedAt = clock; for (let i = POLLEN; i < POLLEN + POL; i++) hide(i); }
         if (!chimed && under && Math.hypot(catPos.x - BLOOM.x, catPos.z - BLOOM.z) < CHIME_R) { chimed = true; chime(); }
       }
       arrival(catPos);

@@ -90,7 +90,7 @@ export function createSurprises({ scene, audio = null, reducedMotion = false, lo
     if (which === 'ghost' && !sprite) {
       try {
         sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: ghostTexture(), color: 0xffe6b0, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
-        sprite.scale.set(1.75, 2.15, 1); // pass 5: bigger, so she sees it at play distance
+        sprite.scale.set(2.1, 2.6, 1); // pass 6: bigger again, so she sees it at play distance
         sprite.userData.noCast = sprite.userData.noMerge = true;
       } catch (e) { sprite = null; return false; }
     }
@@ -125,7 +125,7 @@ export function createSurprises({ scene, audio = null, reducedMotion = false, lo
         // she shies kindly: near it, it fades sooner
         const shy = cat && Math.hypot(cat.x - SURPRISE_AT.stair.x, cat.z - SURPRISE_AT.stair.z) < 1.1 ? 0.35 : 1;
         sprite.visible = !full || (full.has('ground') && full.has('upstairs'));
-        sprite.material.opacity = 0.85 * fin(age, dur, 2.4, 3) * shy * (reducedMotion ? 1 : 0.88 + 0.12 * Math.sin(age * 2.1));
+        sprite.material.opacity = fin(age, dur, 2.4, 3) * shy * (reducedMotion ? 1 : 0.88 + 0.12 * Math.sin(age * 2.1));
         sprite.position.y = sy() + (reducedMotion ? 0 : 0.03 * Math.sin(age * 1.3));
       }
       return out;
@@ -193,6 +193,6 @@ return c;}
 vec3 storiesGlow(vec3 b,vec3 p,vec3 n,float S,float bx,float tm){vec3 a=vec3(0.);
 if(bx>0.){vec3 d=p-vec3(10.5,.7,7.);float f=clamp(1.-dot(d,d),0.,1.);a+=(b+vec3(.12,.08,.02))*vec3(1.,.82,.5)*f*f*bx*1.6;vec2 s=floor((p.xz-vec2(10.5,7.))*14.);a+=vec3(1.,.9,.55)*step(.93,H(s.x*3.+s.y*7.+floor(tm*1.7+s.x)))*f*bx*step(.7,n.y);}
 if(S<.5&&n.x<-.7&&abs(p.x-13.46)<.1&&p.z>6.05&&p.z<7.95&&p.y>1.&&p.y<1.31){float sw=1.22-.05*(1.-cos(mod(p.z-6.05,.95)/.95*6.2832)),li=floor(p.z*7.);
-a+=mix(vec3(1.,.75,.3),vec3(1.,.45,.35),step(.5,H(li+2.)))*(1.-smoothstep(.12,.34,length(vec2(fract(p.z*7.)-.5,(p.y-sw)*7.+.2))))*step(.45,H(li*1.3))*(.55+.45*sin(tm*2.+li*1.7));}
+a+=mix(vec3(1.,.75,.3),vec3(1.,.45,.35),step(.5,H(li+2.)))*(1.-smoothstep(.12,.34,length(vec2(fract(p.z*7.)-.5,(p.y-sw)*7.+.2))))*step(.45,H(li*1.3))*(.55+.45*sin(tm*(2.+4.*uSnow)+li*1.7))*(1.+1.2*uSnow);}
 return a;}
 `;

@@ -96,6 +96,9 @@ export const STAGED_AREAS = Object.freeze([
     ['housewing', 'wing', ['src/world/housestagewing.js']], // the east wing's drawing, far look and discoveries (housestages.js); there is no stage c
     ['housestory', 'story', ['src/world/housestagestory.js']], // the glow, the seasons' surprises, the sound and the air: the walk's ambient side, out of the landing
   ] },
+  { id: 'lighthouse', label: 'lighthouse stages ', stageCeiling: 65, totalCeiling: 150, stages: [
+    ['lighthousestory', 'story', ['src/world/lighthousestagestory.js']], // the sound, the weather, the vistas, the alive creatures, the find looks and the keeper's cats: the headland's life side, out of the landing
+  ] },
   { id: 'reef', label: 'reef stages   ', stageCeiling: 65, totalCeiling: 150, stages: [
     ['reeflab', 'lab', ['src/world/reefstagelab.js']],
     ['reefwreck', 'wreck', ['src/world/reefstagewreck.js']],
@@ -119,14 +122,17 @@ export const STAGED_AREAS = Object.freeze([
   { id: 'treehouse', label: 'treehouse     ', stageCeiling: 65, totalCeiling: 150, stages: [
     ['treehousebranches', 'branches', ['src/world/treehousestagebranches.js']],
     ['treehouselift', 'lift', ['src/world/treehousestagelift.js']],
+    ['treehousestory', 'story', ['src/world/treehousestagestory.js']], // the critters and the tree's cats: the walk's life side, out of the branches stage
   ] },
   { id: 'snowville', label: 'snowville stages ', stageCeiling: 65, totalCeiling: 150, stages: [
     ['snowvilleb', 'b', ['src/world/snowvillestageb.js']],
     ['snowvillec', 'c', ['src/world/snowvillestagec.js']],
+    ['snowvillestory', 'story', ['src/world/snowvillestagestory.js']], // the village's life side (wonder, living, weather, vista, reactions, alive, sound): out of the landing
   ] },
   { id: 'jungle', label: 'jungle stages ', stageCeiling: 65, totalCeiling: 150, stages: [
     ['jungleb', 'b', ['src/world/junglestageb.js']],
     ['junglec', 'c', ['src/world/junglestagec.js']],
+    ['junglestory', 'story', ['src/world/junglestagestory.js']], // the critters and Mossy's errand: the walk's life side, out of stage b
   ] },
   { id: 'moon', label: 'moon stages   ', stageCeiling: 65, totalCeiling: 150, stages: [
     ['moonhill', 'hill', ['src/world/moonstagehill.js']],

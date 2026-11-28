@@ -23,6 +23,7 @@
 // random number and reads no clock.
 // =============================================================================
 
+import { createNight } from './greenhousenight.js';
 import * as THREE from 'three';
 import { hash01 } from './warehouselook.js';
 import { withLocalUuids } from './localuuids.js';
@@ -121,6 +122,8 @@ export function createGreenhouseLife(ctx) {
   // beauty pass 5: creatures (one pooled Points) and the day by the real clock (hour handed in by ctx.now; morning mist, noon shafts, afternoon gold)
   const day = dayLook((ctx.now ?? new Date()).getHours?.() + ((ctx.now ?? new Date()).getMinutes?.() ?? 0) / 60);
   const creatures = withLocalUuids('greenhouse-creatures', () => createCreatures({ scene, audio: ctx.audio ?? null, reducedMotion, lite: ctx.quality === 'low', dusk: !!ctx.dusk }));
+  // beauty pass 9: night life (a dusk walk's grade, stars, moonbeams, glows; night creatures also at the real night hours); soundless here, the hoot goes to the sound below
+  const night = withLocalUuids('greenhouse-night', () => createNight({ pool: creatures.pool, scene, sun: ctx.sun ?? null, fill: ctx.fill ?? null, reducedMotion, lite: ctx.quality === 'low', dusk: !!ctx.dusk, hour: (ctx.now ?? new Date()).getHours?.() + ((ctx.now ?? new Date()).getMinutes?.() ?? 0) / 60, mist: [mist, roomMist].filter(Boolean), hoot: (lv) => sound?.hoot?.(lv), enabled: ctx.night !== false }));
   // beauty pass 6: the weather as events (rain on glass, a sun burst, morning haze, dusk glow, a rare wind); ctx.fx forces values for pictures
   const wx = withLocalUuids('greenhouse-weather', () => createWeatherFx({ scene, reducedMotion, lite: ctx.quality === 'low', dusk: !!ctx.dusk, day, force: ctx.fx ?? null }));
   // beauty pass 7: five photogenic vistas (a warm grade, a halo on the focal point) and the golden moment (still 3+ s: pollen sparkles and a chime, once a walk)
@@ -213,6 +216,7 @@ export function createGreenhouseLife(ctx) {
     get season() { return season; },
     moments,
     creatures,
+    night,
     vistas,
     voice,
     startMoment(kind, at) { return disposed ? false : moments.start(kind, clock, at); }, // (pictures and tests; the walk starts its own)
@@ -293,6 +297,7 @@ export function createGreenhouseLife(ctx) {
         if (dist(catPos, site) < 24 && moments.start(walkMoment, clock)) momentDone = true;
       }
       moments.update(clock);
+      night.update(dt, t, catPos, camera?.position ?? null);
       creatures.update(dt, t, catPos, P.underGlass(catPos?.x ?? 99, 0.5, catPos?.z ?? 99));
       intro.update(dt);
       cues.update(reducedMotion ? 0 : t);
@@ -389,6 +394,7 @@ export function createGreenhouseLife(ctx) {
       G.RAIN_ON.value = 0;
       G.FROST.value = 0;
       moments.dispose();
+      night.dispose();
       creatures.dispose();
       wx.dispose();
       vistas.dispose();
