@@ -21,6 +21,7 @@ import * as P from './lighthouseplan.js';
 import * as K from './lighthouseparts.js';
 import { drawBeauty } from './lighthousebeauty.js';
 import { drawDetail } from './lighthousedetail.js';
+import { drawBeauty2 } from './lighthousebeauty2.js';
 import { createLighthouseLife } from './lighthouselife.js';
 import './lighthousewords.js';
 import { phrase } from '../clanphrases.js';
@@ -78,6 +79,7 @@ export function build(scene, { water = {}, wind } = {}) {
     K.drawMarks(kit, M, plan.ground);
     drawBeauty(kit, M);
     drawDetail(kit, M);
+    drawBeauty2(kit, M);
     const place = new THREE.Group();
     place.name = 'lighthousePlace';
     for (const m of kit.meshes()) place.add(m);

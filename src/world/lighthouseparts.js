@@ -293,7 +293,31 @@ export function boulder(x, y, z, r, h, salt, tones = COL.rock, detail = 1) {
   }
   g.translate(x, y + h * 0.28, z);
   const base = tones[Math.floor(hash01(x, z, salt) * tones.length) % tones.length];
-  return paintBy(g, (px, py) => shade(base, 0.82 + 0.3 * smooth(y, y + h * 1.2, py)));
+  return paintBy(dropUnderside(g), (px, py) => shade(base, 0.82 + 0.3 * smooth(y, y + h * 1.2, py)));
+}
+
+// The faces of a boulder that look straight down sit on (or under) the ground and are never seen: leave them out.
+function dropUnderside(g) {
+  const pos = g.attributes.position;
+  const keep = [];
+  for (let i = 0; i < pos.count; i += 3) {
+    const ux = pos.getX(i + 1) - pos.getX(i); const uy = pos.getY(i + 1) - pos.getY(i); const uz = pos.getZ(i + 1) - pos.getZ(i);
+    const vx = pos.getX(i + 2) - pos.getX(i); const vy = pos.getY(i + 2) - pos.getY(i); const vz = pos.getZ(i + 2) - pos.getZ(i);
+    const nx = uy * vz - uz * vy; const ny = uz * vx - ux * vz; const nz = ux * vy - uy * vx;
+    if (ny / (Math.hypot(nx, ny, nz) || 1) > -0.35) keep.push(i, i + 1, i + 2);
+  }
+  const out = new THREE.BufferGeometry();
+  const nor = g.attributes.normal;
+  const arr = new Float32Array(keep.length * 3);
+  const narr = new Float32Array(keep.length * 3);
+  keep.forEach((v, k) => {
+    arr[k * 3] = pos.getX(v); arr[k * 3 + 1] = pos.getY(v); arr[k * 3 + 2] = pos.getZ(v);
+    narr[k * 3] = nor.getX(v); narr[k * 3 + 1] = nor.getY(v); narr[k * 3 + 2] = nor.getZ(v);
+  });
+  out.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+  out.setAttribute('normal', new THREE.BufferAttribute(narr, 3));
+  g.dispose();
+  return out;
 }
 
 // Triangles ([p, q, r] each, with a hex colour) of a CONVEX solid, wound to face away from its middle.
