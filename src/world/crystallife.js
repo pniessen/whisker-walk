@@ -154,7 +154,7 @@ function sparkles(n, size, color, opacity, map) {
 }
 
 // One soft note, quiet, on the walk's audio context. Asks for nothing when muted (no context is requested and no node made).
-export function humNote(audio, stone = 0) {
+export function humNote(audio, stone = 0, ratio = 1) {
   if (!audio || typeof audio.getContext !== 'function' || audio.isMuted?.()) return false;
   const ac = audio.getContext();
   if (!ac) return false;
@@ -165,7 +165,17 @@ export function humNote(audio, stone = 0) {
   g.gain.exponentialRampToValueAtTime(0.03, now + 0.25);
   g.gain.exponentialRampToValueAtTime(0.0001, now + 2.4);
   g.connect(dest);
-  for (const f of NOTES[stone] ?? NOTES[0]) { // the crystal's note and its fifth
+  // beauty round 3: a soft cave ECHO (two quieter, later repeats off one delay line), only where the context has a delay node
+  if (typeof ac.createDelay === 'function') {
+    try {
+      const dl = ac.createDelay(1); dl.delayTime.value = 0.34;
+      const fb = ac.createGain(); fb.gain.value = 0.38;
+      const wet = ac.createGain(); wet.gain.value = 0.45;
+      g.connect(dl); dl.connect(fb); fb.connect(dl); dl.connect(wet); wet.connect(dest);
+    } catch { /* an echo is a nicety; the note still sings */ }
+  }
+  for (const f0 of NOTES[stone] ?? NOTES[0]) { // the crystal's note and its fifth (ratio: a crystal's own colour tunes it a little)
+    const f = f0 * ratio;
     const o = ac.createOscillator();
     o.type = 'sine';
     o.frequency.value = f;
