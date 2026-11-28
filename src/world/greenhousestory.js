@@ -61,7 +61,8 @@ export function applySeason(scene, season) {
   if (lawn?.material?.color) {
     lawn.userData.baseLawn ??= lawn.material.color.clone();
     const t = { autumn: [1.35, 0.9, 0.42], winter: [0.78, 0.96, 1.15], spring: [0.92, 1.12, 0.75] }[season] ?? [1, 1, 1];
-    lawn.material.color.copy(lawn.userData.baseLawn).multiply(new THREE.Color().setRGB(t[0], t[1], t[2], THREE.LinearSRGBColorSpace));
+    const lc = lawn.material.color.copy(lawn.userData.baseLawn);
+    lc.r *= t[0]; lc.g *= t[1]; lc.b *= t[2];
   }
   const c = [0, 0, 0];
   for (const name of OUTSIDE) {
@@ -94,7 +95,7 @@ export const MOMENT = Object.freeze({
   sprinkler: { secs: 60, fade: 4, chime: true },
   moonbloom: { secs: 60, fade: 6, chime: true },
 });
-export const MOMENT_CHANCE = Object.freeze({ rainbow: 0.5, walk: 0.3 }); // a rain's end shows a rainbow half the time; a walk has a sprinkler or moonflower 3 times in 10
+export const MOMENT_CHANCE = Object.freeze({ rainbow: 0.5, walk: 0.3 }); // a rain's end shows a rainbow half the time; a walk has a sprinkler or night flower 3 times in 10
 export const SPRINKLER = Object.freeze({ heads: [[-2.9, 22.6], [2.9, 22.6]], range: 2.8, peak: 1.5 });
 export const RAINBOW = Object.freeze({ x: 0, z: P.PALM_HOUSE.z0 - 22, r: 24, bands: 7 }); // a big, far arc beyond the north wall: its legs rise either side of the view from the hall, and it clears the roof from the court
 const BAND = [0xff3b30, 0xff9a1f, 0xffe23a, 0x4fd04f, 0x3fa8ff, 0x4a4ff0, 0xa04bd8].map((h) => new THREE.Color(h));
@@ -105,17 +106,17 @@ export function moonbloomSpot(visits = 0) {
   return spots[Math.floor(hash01(visits, 7, GH_STORY_SALT + 2) * spots.length) % spots.length];
 }
 
-// the soft round sprite (a 16 px radial falloff), made from numbers so no canvas is needed
+// the soft round sprite (a 32 px radial falloff on a small canvas)
 function softSprite() {
-  const n = 16, d = new Uint8Array(n * n * 4);
-  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
-    const r = Math.hypot(x - 7.5, y - 7.5) / 8;
-    const a = Math.max(0, 1 - r);
-    d.set([255, 255, 255, Math.round(255 * a * a)], (y * n + x) * 4);
-  }
-  const t = new THREE.DataTexture(d, n, n, THREE.RGBAFormat);
-  t.needsUpdate = true;
-  return t;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 32;
+  const c = cv.getContext('2d');
+  const gr = c.createRadialGradient(16, 16, 0, 16, 16, 16);
+  gr.addColorStop(0, 'rgba(255,255,255,1)');
+  gr.addColorStop(1, 'rgba(255,255,255,0)');
+  c.fillStyle = gr;
+  c.fillRect(0, 0, 32, 32);
+  return new THREE.CanvasTexture(cv);
 }
 
 export function createMoments({ scene, audio = null, reducedMotion = false, lite = false, visits = 0 } = {}) {
