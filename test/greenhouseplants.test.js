@@ -74,9 +74,9 @@ describe('the plants are a few merged meshes, with palms the only casters', () =
 
 describe('the sun shafts fade with the camera\'s distance and are softer', () => {
   const shafts = named('sunShafts');
-  it('patches the shader with the distance fade, and the gain is lower than the spike\'s 0.22', () => {
-    expect(G.SHAFT_GAIN).toBeLessThan(0.22);
-    const shader = { vertexShader: '#include <common>\n#include <begin_vertex>', fragmentShader: '#include <common>\n#include <color_fragment>' };
+  it('patches the shader with the distance fade, and the gain stays under 0.3 (beauty pass 2 raised it from 0.18 to 0.26: faint at play distance; the near fade is what stops the blow-out)', () => {
+    expect(G.SHAFT_GAIN).toBeLessThan(0.3);
+    const shader = { uniforms: {}, vertexShader: '#include <common>\n#include <begin_vertex>\n#include <project_vertex>', fragmentShader: '#include <common>\n#include <color_fragment>' };
     shafts.material.onBeforeCompile(shader);
     expect(shader.fragmentShader).toMatch(/smoothstep\(2\.5, 8\.0, distance\(cameraPosition, vShaftW\)\)/);
     expect(G.SHAFT_FADE.near).toBeGreaterThan(1.5);
@@ -86,9 +86,12 @@ describe('the sun shafts fade with the camera\'s distance and are softer', () =>
   it('the shafts\' sides are black (soft edged), so the strongest light is the centre line only', () => {
     const col = shafts.geometry.attributes.color;
     let bright = 0;
-    for (let i = 0; i < col.count; i++) if (col.getX(i) > 0) { bright++; expect(col.getX(i)).toBeLessThanOrEqual(G.SHAFT_GAIN * 1.0 + 1e-6); }
+    const kind = shafts.geometry.attributes.aA; // (the motes, kind 1, are camera-facing dots: not shaft light)
+    let n = 0;
+    for (let i = 0; i < col.count; i++) { if (kind.getX(i) !== 0) continue; n++; if (col.getX(i) > 0) { bright++; expect(col.getX(i)).toBeLessThanOrEqual(G.SHAFT_GAIN * 1.0 + 1e-6); } }
     expect(bright).toBeGreaterThan(0);
-    expect(bright).toBeLessThan(col.count / 2);
+    expect(bright).toBeLessThan(n / 2);
+    expect(col.count - n).toBe(G.SHAFT_SPOTS.length * G.MOTES * 4);
   });
 });
 

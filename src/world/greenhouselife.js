@@ -30,7 +30,7 @@ import { phrase } from '../clanphrases.js';
 import { bus } from '../events.js';
 import * as P from './greenhouseplan.js';
 import * as K from './greenhouseparts.js';
-import { KOI_FROZEN_TIME } from './greenhouseplants.js';
+import { KOI_FROZEN_TIME, SWAY_TIME } from './greenhouseplants.js';
 import * as G from './greenhouseglass.js';
 import { findAt, noteGreenhouseFind, greenhouseFindKey } from './greenhousefinds.js';
 import { createGreenhouseSound } from './greenhousesound.js';
@@ -224,8 +224,9 @@ export function createGreenhouseLife(ctx) {
       G.COND_TIME.value = tt;
       if (mist) mist.userData.mist.uTime.value = tt;
       if (roomMist) roomMist.userData.mist.uTime.value = tt;
-      if (shafts) shafts.rotation.z = G.shaftAngle(t, reducedMotion);
-      for (const sh of roomShafts) sh.rotation.z = G.shaftAngle(t, reducedMotion);
+      SWAY_TIME.value = tt;
+      if (shafts) { shafts.rotation.z = G.shaftAngle(t, reducedMotion); shafts.userData.shaft.uTime.value = tt; }
+      for (const sh of roomShafts) { sh.rotation.z = G.shaftAngle(t, reducedMotion); sh.userData.shaft.uTime.value = tt; }
       butterflies?.update(dt, t, catPos);
       intro.update(dt);
       cues.update(reducedMotion ? 0 : t);

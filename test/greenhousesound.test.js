@@ -37,6 +37,16 @@ describe('greenhouse sound', () => {
     run(S.createGreenhouseSound(b), 30, { x: 0, y: 0, z: -9 }, true);
     expect(b.oscs).toBeGreaterThan(3);
   });
+  it('adds a bee drone and soft birds under glass on a dry day (beauty pass 2), and neither in rain', () => {
+    const dry = fakeAudio(); const wet = fakeAudio();
+    run(S.createGreenhouseSound(dry, { weather: { isRaining: () => false } }), 60, cat, true);
+    run(S.createGreenhouseSound(wet, { weather: { isRaining: () => true } }), 60, cat, true);
+    expect(S.STREAM.bee).toBeDefined();
+    expect(dry.oscs).toBeGreaterThan(45); // ~20 drips, ~14 bird notes, ~20 bee voices a minute
+    const night = fakeAudio();
+    run(S.createGreenhouseSound(night, { dusk: true }), 60, cat, true);
+    expect(night.oscs).toBeLessThan(dry.oscs - 25); // at dusk the drips go on and the bees and birds sleep
+  });
   it('patters in rain under glass and drips otherwise', () => {
     const rain = fakeAudio(); const dry = fakeAudio();
     run(S.createGreenhouseSound(rain, { weather: { isRaining: () => true } }), 10, cat, true);

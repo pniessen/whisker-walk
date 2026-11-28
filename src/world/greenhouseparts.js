@@ -14,7 +14,7 @@ import * as P from './greenhouseplan.js';
 import { hash01 } from './warehouselook.js';
 import { frondGeometry, tint, shade, collector, finishMesh, memo, flowerGeometry, noBottom } from './greenhouseplants.js';
 import { pavedGeometry } from './greenhouseglass.js';
-import { groundDetail, potDetail, benchDetail, basketDetail, shedDetail } from './greenhousedetail.js';
+import { groundDetail, potDetail, benchDetail, basketDetail, shedDetail, pathBeds, discBloom } from './greenhousedetail.js';
 
 export const GH_TREE_SALT = 0x61a77;
 
@@ -103,16 +103,20 @@ export function kitchenBed() {
     col.add(tint(new THREE.PlaneGeometry(0.012, 0.22), 0x8a6642), x, 0.3, K.z + K.d / 2 - 0.28, {});
     col.add(tint(new THREE.PlaneGeometry(0.1, 0.13), [0xf6e7b4, 0xf4c4c4, 0xbfe0f0, 0xf6d86a][i]), x, 0.4, K.z + K.d / 2 - 0.28, { yaw: 0.2 * (i - 1.5) });
   }
+  // beauty pass 2: a back row of marigolds and zinnias along the far board, big and saturated
+  [0xff8a12, 0xffc414, 0xe0102a, 0xff8a12, 0xffc414, 0xff3f93, 0xff8a12, 0xffc414].forEach((petal, i) => {
+    const x = K.x - K.w / 2 + 0.3 + i * ((K.w - 0.6) / 7);
+    col.add(tint(new THREE.PlaneGeometry(0.014, 0.2), 0x3f7a3a), x, 0.28, K.z - K.d / 2 + 0.3, { yaw: i });
+    col.add(discBloom({ r: 0.2, petal, centre: 0x7a3a10 }), x, 0.4, K.z - K.d / 2 + 0.3 + 0.03 * (i % 2), { yaw: i });
+  });
   return finishMesh('ghKitchenBed', col.merged());
 }
 
 // The eight garden pots (the job picks four): a clay pot and a bush of leaves, each leaves-mesh its own so a watered
 // one can perk up. Returns { pots, leaves[8] }: `pots` is one merged mesh.
 const POT_LEAF = memo(() => frondGeometry({ len: 0.5, width: 0.16, segs: 3, rise: 0.8, droop: 1.1, fold: 0.3, jag: 0.2, base: 0x2f7a3a, tip: 0x62b04e, belly: 0.5 }));
-const POT_FLOWER = (hex) => {
-  const g = new THREE.IcosahedronGeometry(0.06, 0);
-  return tint(g, hex);
-};
+// beauty pass 2: a real six-petal bloom, big (0.15 m across a petal tip to the middle) and saturated (it was a 0.06 m lump of 20 triangles)
+const POT_FLOWER = (hex) => discBloom({ r: 0.17, petal: hex });
 export function gardenPots() {
   const col = collector();
   // (beauty pass: no caps nobody sees, the pot open at both ends under its rim and soil, the rim and soil without an underside)
@@ -127,8 +131,8 @@ export function gardenPots() {
     potDetail(col, x, z, i);
     const lc = collector();
     for (let k = 0; k < 7; k++) lc.add(POT_LEAF(), 0, 0.4, 0, { yaw: -((k / 7) * TAU + i), scale: 0.9 + 0.2 * ((k * 7 + i) % 3) / 2 });
-    const blooms = [0xf27ab8, 0xf5d042, 0xffffff, 0xe84a7a][i % 4];
-    for (let k = 0; k < 3; k++) lc.add(POT_FLOWER(blooms), Math.cos(k * 2.1 + i) * 0.14, 0.62 + k * 0.03, Math.sin(k * 2.1 + i) * 0.14, {});
+    const blooms = [0xff3f93, 0xffc414, 0xfff4f8, 0xe0102a, 0xff7412, 0x8a3cff, 0x2f7bff, 0xff5fb0][i % 8];
+    for (let k = 0; k < 4; k++) lc.add(POT_FLOWER(blooms), Math.cos(k * 1.57 + i) * 0.17, 0.7 + k * 0.03, Math.sin(k * 1.57 + i) * 0.17, { yaw: k + i });
     const m = finishMesh(`ghPot-${i}`, lc.merged());
     m.position.set(x, 0, z);
     leaves.push(m);
@@ -252,11 +256,28 @@ export function streetKit() {
     seg(col, x0, z0, x1, z1, 0.8, 0.9, 0x2f6a34);
     seg(col, x0, z0, x1, z1, 0.64, 0.14, 0x4a8a44, 0.9);
   }
+  // beauty pass 2: a flower border along both faces of every hedge: a thin stem and a big saturated bloom every 0.9 m, the colours cycling
+  const border = [0xff4fa6, 0xffc414, 0xff7412, 0xe0102a, 0x9a4cf0, 0xfff4f8, 0x4f86ff].map((petal) => discBloom({ r: 0.24, petal }));
+  const stem = tint(new THREE.PlaneGeometry(0.014, 0.3), 0x3f7a3a);
+  let bi = 0;
+  for (const [x0, z0, x1, z1] of P.HEDGES) {
+    const len = Math.hypot(x1 - x0, z1 - z0), ux = (x1 - x0) / len, uz = (z1 - z0) / len;
+    const n = Math.floor(len / 0.9);
+    for (let k = 0; k < n; k++) {
+      const side = k % 2 ? 1 : -1;
+      const d = 0.5 + 0.08 * hash01(k, bi, 0x6f1);
+      const t = (k + 0.5) * (len / n);
+      const bx = x0 + ux * t - uz * side * d, bz = z0 + uz * t + ux * side * d;
+      col.add(stem, bx, 0.15, bz, { yaw: k });
+      col.add(border[(bi++ + k) % border.length], bx, 0.32, bz, { yaw: k * 1.3, scale: 0.85 + 0.3 * hash01(k, bi, 0x6f2) });
+    }
+  }
   // catnip beds: a low frame round dark earth, a mat of grey-green catnip with violet-blue flower spikes
   const leaf = tint(new THREE.OctahedronGeometry(0.2, 0).scale(1.2, 1, 1.2), 0x86a98a);
   // beauty round (greenhouse): the spikes are not all one violet (a few white, pink and butter-yellow ones, hashed), and each bed has a few small daisies
-  const spikes = [0x8a78d8, 0x8a78d8, 0x9a86e0, 0xf0ecf4, 0xf08ab8, 0xf5d86a, 0x7a6ad0].map((hex) => tint(new THREE.ConeGeometry(0.05, 0.28, 5), hex));
-  const bloom = [0xfaf6ee, 0xf2a6c4, 0xf6d460].map((petal) => flowerGeometry({ r: 0.09, n: 4, petal, centre: 0xf4c93a, lift: 0.1 }));
+  const spikes = [0x7a4cf0, 0x8a5cff, 0x6a3cd8, 0xfff4f8, 0xff4fa6, 0xffc414, 0x5a3cd0].map((hex) => tint(new THREE.ConeGeometry(0.05, 0.28, 5), hex));
+  // beauty pass 2: the beds' blooms are twice as wide and saturated, in five colours, on six of the nine plants
+  const bloom = [0xfff4f8, 0xff4fa6, 0xffc414, 0xff7412, 0xe0102a].map((petal) => discBloom({ r: 0.2, petal, centre: 0xf4c93a }));
   for (const bed of P.CATNIP_BEDS) {
     col.add(slab(bed.w, 0.12, bed.d, 0x4a3524), bed.x, 0.06, bed.z, {});
     for (const [w, d, x, z] of [[bed.w, 0.1, 0, -bed.d / 2], [bed.w, 0.1, 0, bed.d / 2], [0.1, bed.d, -bed.w / 2, 0], [0.1, bed.d, bed.w / 2, 0]]) col.add(slab(w, 0.18, d, 0x9a7650), bed.x + x, 0.09, bed.z + z, {});
@@ -265,7 +286,7 @@ export function streetKit() {
       const z = bed.z + (Math.floor(i / 3) - 1) * (bed.d / 3.2);
       col.add(leaf, x, 0.2, z, { scale: 1 + 0.15 * ((i * 5) % 3), sy: 0.8 });
       col.add(spikes[Math.floor(hash01(bed.x + i, bed.z, 0x6ed) * spikes.length) % spikes.length], x + 0.06, 0.38, z - 0.04, { tilt: 0.1 * ((i % 3) - 1), scale: 0.85 + 0.3 * hash01(i, bed.x, 0x6ee) });
-      if (i % 3 === 1) col.add(bloom[(i + (bed.x > 0 ? 1 : 0)) % 3], x - 0.08, 0.3, z + 0.1, { yaw: i });
+      if (i % 3 !== 2) col.add(bloom[(i * 2 + (bed.x > 0 ? 1 : 0)) % 5], x - 0.08, 0.34, z + 0.1, { yaw: i });
     }
   }
   // the fallen willow log by the pond: a bark cylinder on its side, a lighter cut end, a few moss knobs
@@ -274,6 +295,7 @@ export function streetKit() {
   col.add(tint(new THREE.CircleGeometry(L.r * 0.9, 10), 0xc9a878), L.x, L.r, L.z + L.length / 2 + 0.01, {});
   for (const k of [-1, 0, 1]) col.add(tint(new THREE.IcosahedronGeometry(0.14, 0), 0x5d8a3e), L.x + 0.1, L.r * 2 - 0.03, L.z + k * 0.9, { sy: 0.5 });
   for (const l of P.COURT_LAMPS) basketDetail(col, l);
+  pathBeds(col);
   shedDetail(col);
   return finishMesh('ghStreet', col.merged());
 }

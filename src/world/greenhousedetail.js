@@ -224,3 +224,60 @@ export function shedDetail(col) {
   col.add(tint(new THREE.RingGeometry(0.4, 0.5, 8).rotateX(-Math.PI / 2), 0xa9d2e2), R.x + 0.9, 0.036, R.z + 0.25, { scale: 0.55 });
   col.add(tint(new THREE.RingGeometry(0.4, 0.5, 8).rotateX(-Math.PI / 2), 0xa9d2e2), R.x + 0.9, 0.036, R.z + 0.25, { scale: 0.34 });
 }
+
+// ---------------------------------------------------------------------------------------------------------------------------
+// BEAUTY PASS 2: big saturated blooms, the thing the play camera sees. Flower beds on both sides of the two paths (court to fountain,
+// fountain to the Palm House door): a dark patch of earth and three big blooms (0.3 to 0.4 m) on short stems in a hashed mix of nine
+// colours; and tall blooms rising among the ferns along the Palm House's walls. Folded into ghStreet and ghFoliage (no new mesh).
+const BLOOM_PAL = [0xff2f86, 0xffc200, 0xff6a12, 0xe0102a, 0x9a3cff, 0x2f7bff, 0xfff4f8, 0xff5fb0, 0x1fcf9a];
+// a SOLID bloom that reads from any angle (the kite-petal flowers are thin stars, and a flat disc a paper square, at play distance): a
+// faceted six-sided bud of twelve triangles (round from above, where the play camera looks), the top of it the yellow heart and the rest the saturated petal colour, darker underneath
+export function discBloom({ r = 0.2, petal, centre = 0xfff0a0 }) {
+  const g = new THREE.SphereGeometry(r, 6, 2);
+  g.scale(1, 0.8, 1);
+  g.deleteAttribute('uv');
+  const pos = g.attributes.position, col = new Float32Array(pos.count * 3);
+  const c0 = new THREE.Color(centre), c1 = new THREE.Color(petal);
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i) / (r * 0.8);
+    const c = y > 0.5 ? c0 : c1;
+    const k = y < -0.5 ? 0.72 : 1;
+    col[i * 3] = c.r * k; col[i * 3 + 1] = c.g * k; col[i * 3 + 2] = c.b * k;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return g;
+}
+const BLOOMS = memo(() => BLOOM_PAL.map((petal) => discBloom({ r: 0.19, petal })));
+const BLOOM_STEM = memo(() => tint(new THREE.PlaneGeometry(0.02, 0.5), 0x3f7a3a));
+const BED_EARTH = memo(() => tint(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), 0x4a3524));
+export function pathBeds(col) {
+  const spots = [];
+  for (let i = 0; i < 6; i++) spots.push([19.9 + i * 1.05, 0]); // court to fountain: z 19.9 .. 25.2
+  for (let i = 0; i < 7; i++) spots.push([1.6 + i * 1.05, 1]); // fountain to the door: z 1.6 .. 7.9
+  let n = 0;
+  for (const [z, path] of spots) {
+    for (const side of [-1, 1]) {
+      const x = side * (2.0 + 0.2 * h(n, 1, 90));
+      col.add(BED_EARTH(), x, 0.028, z, { scale: 0.85, sy: 0.85 });
+      for (let k = 0; k < 5; k++) {
+        const bx = x + (k - 2) * 0.2 + (h(n, k, 91) - 0.5) * 0.12, bz = z + ((k * 7 + n) % 3 - 1) * 0.2;
+        const hh = 0.28 + 0.26 * h(n, k, 92);
+        col.add(BLOOM_STEM(), bx, hh / 2 + 0.03, bz, { yaw: n + k, sy: hh / 0.5 });
+        col.add(BLOOMS()[Math.floor(h(n, k + 3, 93) * BLOOM_PAL.length) % BLOOM_PAL.length], bx, hh + 0.03, bz, { yaw: k * 2 + n, scale: lerp(0.75, 1.2, h(n, k, 94)) });
+      }
+      n++;
+    }
+    void path;
+  }
+}
+// blooms among the Palm House's ferns: one or two to a clump, on stems 0.5 to 1.0 m tall
+export function hallBlooms(col, clumps) {
+  clumps.forEach(([x, z], i) => {
+    if (z < -17 || z > 0 || x < -14 || x > 14) return; // the Palm House's floor only (the pond's and the outer ferns have none)
+    for (let k = 0; k < 1 + (i % 2); k++) {
+      const bx = x + (h(i, k, 95) - 0.5) * 0.7, bz = z + (h(i, k, 96) - 0.5) * 0.7, hh = 0.55 + 0.5 * h(i, k, 97);
+      col.add(BLOOM_STEM(), bx, hh / 2, bz, { yaw: i, sy: hh / 0.5 });
+      col.add(BLOOMS()[(i * 3 + k * 5) % BLOOM_PAL.length], bx, hh, bz, { yaw: i + k, scale: lerp(0.9, 1.35, h(i, k, 98)) });
+    }
+  });
+}
