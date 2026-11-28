@@ -154,12 +154,12 @@ function sparkles(n, size, color, opacity, map) {
 }
 
 // One soft note, quiet, on the walk's audio context. Asks for nothing when muted (no context is requested and no node made).
-export function humNote(audio, stone = 0, ratio = 1) {
+export function humNote(audio, stone = 0, ratio = 1, delay = 0) {
   if (!audio || typeof audio.getContext !== 'function' || audio.isMuted?.()) return false;
   const ac = audio.getContext();
   if (!ac) return false;
   const dest = audio.getMaster?.() ?? ac.destination;
-  const now = ac.currentTime;
+  const now = ac.currentTime + Math.max(0, delay); // (beauty round 4: a note may start a moment later, for a rising chord)
   const g = ac.createGain();
   g.gain.setValueAtTime(0.0001, now);
   g.gain.exponentialRampToValueAtTime(0.03, now + 0.25);

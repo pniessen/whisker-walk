@@ -102,7 +102,7 @@ describe('the drawing', () => {
     expect(d.meshes.length).toBeLessThanOrEqual(3);
     expect(scene.children.length).toBe(3);
     for (const m of d.meshes) { expect(m.castShadow).toBe(false); expect(m.userData.noMerge).toBe(true); }
-    expect(d.triangles).toBeGreaterThan(500); expect(d.triangles).toBeLessThan(13000); // (beauty round 2, 2026-11-28: hero crystals + halos, washes, shafts, motes, ripples: 9,642 -> 12,298, bound 12,000 -> 13,000; beauty round 1, 2026-11-28: shard satellites, glints, veins, small stalagmites, pockets; measured below)
+    expect(d.triangles).toBeGreaterThan(500); expect(d.triangles).toBeLessThan(15600); // (beauty round 4, 2026-11-28: small stories in each chamber, decor 12,5xx -> 13,886, bound 13,000 -> 15,600; beauty round 2, 2026-11-28: hero crystals + halos, washes, shafts, motes, ripples: 9,642 -> 12,298, bound 12,000 -> 13,000; beauty round 1, 2026-11-28: shard satellites, glints, veins, small stalagmites, pockets; measured below)
     d.dispose(); expect(scene.children.length).toBe(0);
   });
   it('LOW and LITE draw about half the triangles of HIGH', () => {
